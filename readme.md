@@ -53,6 +53,9 @@ You should then be able to boot from that media.
 
 - To navigate, use the arrow keys and `ENTER`, or press `0-9` to select the corresponding list entry.
 - In text/input boxes, you can use `PAGE UP` or `PAGE DOWN`, `HOME`, and `END`.
+- Newlines from pressing `ENTER` in text boxes are `CR LF`, as that's the native newline for UEFI. `CTRL + ENTER` and `ALT + ENTER` can be used to insert a `LF` or `CR` by itself respectively, for hashing purposes.
+- Numeric/byte inputs allow whitespace. This is handy for formatting.
+- The difference between numbers and bytes is that numbers don't have leading zeroes.
 - Holding `ALT` when running a program, or opening a program list, will cause the list which contained it to be automatically closed if the program completes successfully.
 - `CTRL + V` will prompt you to select a clipboard entry to paste if you're inputting data; text and bytes can be pasted into text inputs, but only bytes can be pasted into byte or numeric inputs.
 - `CTRL + [DIGIT]` will paste the corresponding clipboard entry, skipping the list select.
