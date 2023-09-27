@@ -95,7 +95,7 @@ impl<
             .output_utf16(self.mnemonic_format_name)
             .output_utf16_line(s16!(
                 " Mnemonic Format utilizing the BIP 39 word list, validates it, and extracts the underlying bytes."
-            ));
+            )).in_colours(constants::WARNING_COLOURS, |c|c.output_utf16_line(s16!("NOTE: This is not the same as building a HD wallet seed!")));
 
         let console_width = console.size().width();
         const MAX_WORDS: usize = 24;
