@@ -29,8 +29,9 @@ use crate::{
 use alloc::{boxed::Box, vec, vec::Vec};
 use macros::s16;
 
-pub const EXTENSION_PREFIX: &[u8] = "mnemonic".as_bytes();
+pub const MNEMONIC_WORD_SPACING: String16 = s16!(" ");
 pub const SEED_DERIVATION_PBKDF_ITERATIONS: u32 = 2048;
+pub const EXTENSION_PREFIX: &[u8] = "mnemonic".as_bytes();
 pub const NORMALIZATION_SETTINGS: ExtensionPhraseNormalizationSettings =
     ExtensionPhraseNormalizationSettings::from(false, false, false);
 

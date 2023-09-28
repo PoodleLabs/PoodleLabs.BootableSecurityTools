@@ -36,6 +36,7 @@ pub fn allow_extension_phrase_character(character: u16) -> bool {
         .is_some()
 }
 
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ExtensionPhraseNormalizationSettings {
     lowercase_characters: bool,
     collapse_whitespace: bool,

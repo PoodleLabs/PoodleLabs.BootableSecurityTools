@@ -16,7 +16,7 @@
 
 use crate::{
     bitcoin::mnemonics::{
-        derive_hd_wallet_seed,
+        bip_39, derive_hd_wallet_seed,
         electrum::{
             self, try_generate_electrum_mnemonic, try_parse_electrum_mnemonic,
             ElectrumMnemonicLength, ElectrumMnemonicParsingResult, ElectrumMnemonicVersion,
@@ -287,7 +287,7 @@ fn mnemonic_generation_and_parsing() {
                             derive_hd_wallet_seed(
                                 electrum::NORMALIZATION_SETTINGS,
                                 w,
-                                s16!(" "),
+                                bip_39::MNEMONIC_WORD_SPACING,
                                 extension_vec,
                                 electrum::EXTENSION_PREFIX,
                                 electrum::SEED_DERIVATION_PBKDF_ITERATIONS

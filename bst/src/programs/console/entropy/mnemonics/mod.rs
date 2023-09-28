@@ -16,6 +16,7 @@
 
 mod bip_39;
 mod electrum;
+mod mnemonic_bip_32_seed_deriver;
 mod mnemonic_entropy_decoder;
 mod mnemonic_entropy_encoder;
 

@@ -59,7 +59,14 @@ impl TestVector {
     }
 }
 
-const TEST_VECTORS: [TestVector; 25] = [
+const TEST_VECTORS: [TestVector; 26] = [
+    TestVector::from(
+        s16!(""),
+        &hex!("00000000000000000000000000000000"),
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        &hex!("5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4"),
+        // "xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF",
+    ),
     TestVector::from(
         s16!("TREZOR"),
         &hex!("00000000000000000000000000000000"),
@@ -275,7 +282,7 @@ fn mnemonics_are_generated_from_bytes_correctly() {
                     derive_hd_wallet_seed(
                         bip_39::NORMALIZATION_SETTINGS,
                         mnemonic,
-                        s16!(" "),
+                        bip_39::MNEMONIC_WORD_SPACING,
                         extension_vec,
                         bip_39::EXTENSION_PREFIX,
                         bip_39::SEED_DERIVATION_PBKDF_ITERATIONS

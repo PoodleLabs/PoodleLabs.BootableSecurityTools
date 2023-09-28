@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
+    mnemonic_bip_32_seed_deriver::{ConsoleMnemonicBip39SeedDeriver, MnemonicSeedDeriveResult},
     mnemonic_entropy_decoder::{ConsoleMnemonicEntropyDecoder, MnemonicByteParseResult},
     mnemonic_entropy_encoder::ConsoleMnemonicEntropyEncoder,
 };
@@ -47,7 +48,7 @@ pub fn get_bip_39_mnemonic_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 2] = [
+    let programs: [Arc<dyn Program>; 3] = [
         Arc::from(ConsoleMnemonicEntropyEncoder::from(
             bip_39::get_available_mnemonic_lengths,
             s16!("BIP 39"),
@@ -67,6 +68,20 @@ pub fn get_bip_39_mnemonic_program_list<
             mnemonic_parser,
             bip_39::LONGEST_WORD_LENGTH as usize,
             s16!("BIP 39 Entropy Decoder"),
+            bip_39::MAX_WORD_COUNT,
+        )),
+        Arc::from(ConsoleMnemonicBip39SeedDeriver::from(
+            bip_39::NORMALIZATION_SETTINGS,
+            bip_39::MNEMONIC_WORD_SPACING,
+            s16!("BIP 39"),
+            &bip_39::WORD_LIST,
+            s16!("BIP 39"),
+            system_services.clone(),
+            mnemonic_parser,
+            bip_39::EXTENSION_PREFIX,
+            bip_39::LONGEST_WORD_LENGTH as usize,
+            s16!("BIP 39 Mnemonic To BIP 32 Seed"),
+            bip_39::SEED_DERIVATION_PBKDF_ITERATIONS,
             bip_39::MAX_WORD_COUNT,
         )),
     ];
@@ -132,6 +147,16 @@ impl<'a> MnemonicByteParseResult for Bip39MnemonicParsingResult<'a> {
     }
 
     fn can_get_bytes(&self) -> bool {
+        match self {
+            Bip39MnemonicParsingResult::InvalidChecksum(..) => true,
+            Bip39MnemonicParsingResult::Valid(..) => true,
+            _ => false,
+        }
+    }
+}
+
+impl<'a> MnemonicSeedDeriveResult for Bip39MnemonicParsingResult<'a> {
+    fn can_derive_seed(&self) -> bool {
         match self {
             Bip39MnemonicParsingResult::InvalidChecksum(..) => true,
             Bip39MnemonicParsingResult::Valid(..) => true,

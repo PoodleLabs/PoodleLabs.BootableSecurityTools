@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
+    mnemonic_bip_32_seed_deriver::{ConsoleMnemonicBip39SeedDeriver, MnemonicSeedDeriveResult},
     mnemonic_entropy_decoder::{ConsoleMnemonicEntropyDecoder, MnemonicByteParseResult},
     mnemonic_entropy_encoder::ConsoleMnemonicEntropyEncoder,
 };
@@ -57,7 +58,7 @@ pub fn get_electrum_mnemonic_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 2] = [
+    let programs: [Arc<dyn Program>; 3] = [
         Arc::from(ConsoleMnemonicEntropyEncoder::from(
             electrum::get_available_mnemonic_lengths,
             s16!("Electrum"),
@@ -77,6 +78,20 @@ pub fn get_electrum_mnemonic_program_list<
             mnemonic_parser,
             bip_39::LONGEST_WORD_LENGTH as usize,
             s16!("Electrum Entropy Decoder (BIP 39 Words)"),
+            electrum::MAX_WORD_COUNT,
+        )),
+        Arc::from(ConsoleMnemonicBip39SeedDeriver::from(
+            electrum::NORMALIZATION_SETTINGS,
+            electrum::MNEMONIC_WORD_SPACING,
+            s16!("Electrum"),
+            &bip_39::WORD_LIST,
+            s16!("BIP 39"),
+            system_services.clone(),
+            mnemonic_parser,
+            electrum::EXTENSION_PREFIX,
+            bip_39::LONGEST_WORD_LENGTH as usize,
+            s16!("Electrum Mnemonic To BIP 32 Seed (BIP 39 Words)"),
+            electrum::SEED_DERIVATION_PBKDF_ITERATIONS,
             electrum::MAX_WORD_COUNT,
         )),
     ];
@@ -213,6 +228,15 @@ impl<'a> MnemonicByteParseResult for ElectrumMnemonicParsingResult<'a> {
             ElectrumMnemonicParsingResult::InvalidVersion(..) => true,
             ElectrumMnemonicParsingResult::OldFormat(..) => true,
             ElectrumMnemonicParsingResult::Bip39(..) => true,
+            ElectrumMnemonicParsingResult::Valid(..) => true,
+            _ => false,
+        }
+    }
+}
+
+impl<'a> MnemonicSeedDeriveResult for ElectrumMnemonicParsingResult<'a> {
+    fn can_derive_seed(&self) -> bool {
+        match self {
             ElectrumMnemonicParsingResult::Valid(..) => true,
             _ => false,
         }
