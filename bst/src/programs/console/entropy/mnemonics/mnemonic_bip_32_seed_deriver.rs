@@ -15,14 +15,18 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::mnemonics::{derive_hd_wallet_seed, ExtensionPhraseNormalizationSettings},
+    bitcoin::mnemonics::{
+        allow_extension_phrase_character, derive_hd_wallet_seed,
+        ExtensionPhraseNormalizationSettings,
+    },
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
     programs::{console::write_bytes, Program, ProgramExitResult},
     system_services::SystemServices,
     ui::console::{
-        get_mnemonic_input, prompt_for_clipboard_write, ConsoleUiTitle, ConsoleWriteable,
+        get_mnemonic_input, prompt_for_clipboard_write, text_input_paste_handler, ConsoleUiTextBox,
+        ConsoleUiTitle, ConsoleWriteable,
     },
     String16,
 };
@@ -130,7 +134,14 @@ impl<
                     self.normalization_settings,
                     mnemonic,
                     self.mnemonic_word_spacing,
-                    Vec::new(), // TODO
+                    ConsoleUiTextBox::from(&self.system_services, constants::TEXT_INPUT)
+                        .get_text_input(
+                            console.size().width(),
+                            text_input_paste_handler,
+                            s16!("Extension Phrase"),
+                            s16!(" Text "),
+                            Some(allow_extension_phrase_character),
+                        ),
                     self.extension_prefix,
                     self.pbkdf_iterations,
                 );

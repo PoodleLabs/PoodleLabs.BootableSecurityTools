@@ -360,7 +360,7 @@ fn prompt_for_unsigned_integer<
     }
 }
 
-fn text_input_paste_handler<TSystemServices: SystemServices>(
+pub fn text_input_paste_handler<TSystemServices: SystemServices>(
     clipboard_entry: ClipboardEntry,
     scroll_text: &mut ConsoleUiScrollText,
     system_services: &TSystemServices,

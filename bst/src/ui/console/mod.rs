@@ -32,7 +32,7 @@ pub use confirmation_prompt::ConsoleUiConfirmationPrompt;
 pub use continue_prompt::ConsoleUiContinuePrompt;
 pub use data_input::{
     prompt_for_bytes_from_any_data_type, prompt_for_data_input, prompt_for_u128, prompt_for_u16,
-    prompt_for_u32, prompt_for_u64, prompt_for_u8,
+    prompt_for_u32, prompt_for_u64, prompt_for_u8, text_input_paste_handler,
 };
 pub use label::ConsoleUiLabel;
 pub use list::{ConsoleUiList, ConsoleUiListEntryStyle, ConsoleUiListStyles};
