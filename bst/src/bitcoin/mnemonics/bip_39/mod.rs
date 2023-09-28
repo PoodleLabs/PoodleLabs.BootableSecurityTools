@@ -88,7 +88,7 @@ pub fn get_available_mnemonic_lengths(byte_count: usize) -> &'static [Bip39Mnemo
 
 pub const MAX_WORD_COUNT: usize = 24;
 
-#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip39MnemonicParsingResult<'a> {
     InvalidLength,
     InvalidWordEncountered(Bip39MnemonicLength, String16<'a>, usize),

@@ -19,7 +19,7 @@ use alloc::sync::Arc;
 use core::mem;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ClipboardEntry {
     Empty,
     Bytes(String16<'static>, Arc<[u8]>),

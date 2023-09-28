@@ -26,36 +26,9 @@ use macros::s16;
 
 pub const BLANK_STRING: String16 = s16!("");
 
-pub fn format_mnemonic_string_utf16(
-    mnemonic: &Vec<String16<'static>>,
-    space: String16<'static>,
-) -> Vec<u16> {
-    // No words, no output.
-    if mnemonic.len() == 0 {
-        return Vec::with_capacity(0);
-    }
-
-    // Count the total number of characters required.
-    let word_characters: usize = mnemonic.iter().map(|w| w.content_length()).sum();
-    let space_characters = (mnemonic.len() - 1) * space.content_length();
-
-    // Prepare a vec, then fill it one word at a time.
-    let mut vec = Vec::with_capacity(space_characters + word_characters);
-    for i in 0..(mnemonic.len() - 1) {
-        mnemonic[i].extend_utf16_vec_with_content(&mut vec);
-
-        // Space after every word but the last.
-        space.extend_utf16_vec_with_content(&mut vec);
-    }
-
-    // Last word, no space.
-    mnemonic[mnemonic.len() - 1].extend_utf16_vec_with_content(&mut vec);
-    vec
-}
-
-pub fn format_mnemonic_string_utf8(
-    mnemonic: &Vec<String16<'static>>,
-    space: String16<'static>,
+pub fn format_mnemonic_string_utf8<'a>(
+    mnemonic: &Vec<String16<'a>>,
+    space: String16<'a>,
 ) -> Vec<u8> {
     // No words, no output.
     if mnemonic.len() == 0 {

@@ -106,6 +106,7 @@ impl ConsoleUiTitleStyles {
     }
 }
 
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConsoleUiTitle<'a> {
     styles: ConsoleUiTitleStyles,
     content: String16<'a>,

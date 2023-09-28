@@ -35,7 +35,7 @@ pub enum PasteResult {
     RewritePadding,
 }
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConsoleUiTextBoxStyles {
     scroll_text_styles: ConsoleUiScrollTextStyles,
     completion_message_colours: ConsoleColours,
@@ -89,7 +89,7 @@ impl ConsoleUiTextBoxStyles {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct ConsoleUiTextBox<'a, TSystemServices: SystemServices> {
     system_services: &'a TSystemServices,
     styles: ConsoleUiTextBoxStyles,

@@ -53,7 +53,7 @@ pub use mnemonic_version::ElectrumMnemonicVersion;
 
 use super::{
     bip_39::{try_read_mnemonic_bytes, BITS_PER_WORD},
-    try_get_bit_start_offset,
+    format_mnemonic_string_utf8, try_get_bit_start_offset,
 };
 use crate::{
     bitcoin::mnemonics::{
@@ -65,7 +65,7 @@ use crate::{
     integers::ceil,
     String16,
 };
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use macros::s16;
 
 pub const EXTENSION_PREFIX: &[u8] = "electrum".as_bytes();
@@ -129,7 +129,7 @@ pub fn get_available_mnemonic_lengths(byte_count: usize) -> &'static [ElectrumMn
 pub const MAX_WORD_COUNT: usize = 24;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ElectrumMnemonicParsingResult<'a> {
     InvalidLength,
     InvalidWordEncountered(ElectrumMnemonicLength, String16<'a>, usize),
@@ -312,15 +312,16 @@ fn perform_hmac_on_electrum_mnemonic<'a>(
     hmac: &mut Hmac<64, 128, Sha512>,
     words: &Vec<String16<'a>>,
 ) -> [u8; 64] {
-    // Join the mnemonic words with spaces, get the UTF8 bytes, and HMAC with the constant key.
-    hmac.get_hmac(
-        &words
-            .iter()
-            .map(|w| String::from_utf16(w.content_slice()).unwrap())
-            .collect::<Vec<String>>()
-            .join(" ")
-            .as_bytes(),
-    )
+    // Format a mnemonic string in UTF8.
+    let mut mnemonic_string = format_mnemonic_string_utf8(&words, s16!(" "));
+
+    // Get the HMAC result.
+    let result = hmac.get_hmac(&mnemonic_string);
+
+    // Pre-emptively fill the mnemonic string.
+    mnemonic_string.fill(0);
+
+    result
 }
 
 fn generated_mnemonic_is_valid(

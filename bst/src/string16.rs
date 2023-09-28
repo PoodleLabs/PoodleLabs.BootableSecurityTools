@@ -14,17 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{string::String, vec::Vec};
-use core::{
-    char::decode_utf16,
-    cmp::Ordering,
-    fmt::{self, Debug, Formatter},
-    slice::Iter,
-};
+#[cfg(test)]
+use alloc::string::String;
+use alloc::vec::Vec;
+#[cfg(test)]
+use core::fmt::{self, Debug, Formatter};
+use core::{char::decode_utf16, cmp::Ordering, slice::Iter};
 
 #[derive(Clone, Copy)]
 pub struct String16<'a>(&'a [u16]);
 
+#[cfg(test)]
 impl Debug for String16<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("String16")
@@ -74,7 +74,7 @@ impl<'a> String16<'a> {
 
     pub fn extend_utf8_vec_with_content(&self, vec: &mut Vec<u8>) {
         let mut char_buffer = [0u8; 2];
-        for char in decode_utf16(self.0.iter().cloned())
+        for char in decode_utf16(self.content_slice().iter().cloned())
             .filter(|c| c.is_ok())
             .map(|c| c.unwrap())
         {
@@ -91,7 +91,7 @@ impl<'a> String16<'a> {
     }
 
     pub fn content_length_utf8(&self) -> usize {
-        decode_utf16(self.0.iter().cloned())
+        decode_utf16(self.content_slice().iter().cloned())
             .filter(|c| c.is_ok())
             .map(|c| c.unwrap().len_utf8())
             .sum()

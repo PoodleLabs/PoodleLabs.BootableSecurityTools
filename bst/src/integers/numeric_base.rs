@@ -106,7 +106,7 @@ impl ConsoleWriteable for NumericBases {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct NumericBaseWithCharacterPredicate {
     whitespace_allowed_character_predicate: fn(character: u16) -> bool,
     base: &'static NumericBase,
@@ -132,7 +132,7 @@ impl NumericBaseWithCharacterPredicate {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct NumericBase {
     // We can 'ignore' case.
     alternate_characters: Option<&'static [u16]>,
