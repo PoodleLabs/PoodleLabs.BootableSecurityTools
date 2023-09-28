@@ -17,6 +17,113 @@
 pub mod bip_39;
 pub mod electrum;
 
+use crate::{
+    hashing::{Hasher, Sha512},
+    String16,
+};
+use alloc::vec::Vec;
+use macros::s16;
+
+pub const BLANK_STRING: String16 = s16!("");
+
+pub fn format_mnemonic_string_utf16(
+    mnemonic: &Vec<String16<'static>>,
+    space: String16<'static>,
+) -> Vec<u16> {
+    // No words, no output.
+    if mnemonic.len() == 0 {
+        return Vec::with_capacity(0);
+    }
+
+    // Count the total number of characters required.
+    let word_characters: usize = mnemonic.iter().map(|w| w.content_length()).sum();
+    let space_characters = (mnemonic.len() - 1) * space.content_length();
+
+    // Prepare a vec, then fill it one word at a time.
+    let mut vec = Vec::with_capacity(space_characters + word_characters);
+    for i in 0..(mnemonic.len() - 1) {
+        mnemonic[i].extend_utf16_vec_with_content(&mut vec);
+
+        // Space after every word but the last.
+        space.extend_utf16_vec_with_content(&mut vec);
+    }
+
+    // Last word, no space.
+    mnemonic[mnemonic.len() - 1].extend_utf16_vec_with_content(&mut vec);
+    vec
+}
+
+pub fn format_mnemonic_string_utf8(
+    mnemonic: &Vec<String16<'static>>,
+    space: String16<'static>,
+) -> Vec<u8> {
+    // No words, no output.
+    if mnemonic.len() == 0 {
+        return Vec::with_capacity(0);
+    }
+
+    // Count the total number of characters required.
+    let word_characters: usize = mnemonic.iter().map(|w| w.content_length_utf8()).sum();
+    let space_characters = (mnemonic.len() - 1) * space.content_length_utf8();
+
+    // Prepare a vec, then fill it one word at a time.
+    let mut vec = Vec::with_capacity(space_characters + word_characters);
+    for i in 0..(mnemonic.len() - 1) {
+        mnemonic[i].extend_utf8_vec_with_content(&mut vec);
+
+        // Space after every word but the last.
+        space.extend_utf8_vec_with_content(&mut vec);
+    }
+
+    // Last word, no space.
+    mnemonic[mnemonic.len() - 1].extend_utf8_vec_with_content(&mut vec);
+    vec
+}
+
+pub fn derive_hd_wallet_seed(
+    mut mnemonic: Vec<String16<'static>>,
+    mut passphrase: Vec<u16>,
+    word_space: String16<'static>,
+    extension_prefix: &[u8],
+    iterations: u32,
+) -> [u8; Sha512::HASH_SIZE] {
+    // Prepare the output buffer.
+    let mut output = [0u8; Sha512::HASH_SIZE];
+    {
+        let p = String16::from(&passphrase);
+
+        // Get the UTF8 version of the mnemonic string.
+        let mut mnemonic_string = format_mnemonic_string_utf8(&mnemonic, word_space);
+
+        // Prepare a UTF8 buffer for the salt.
+        let mut salt = Vec::with_capacity(extension_prefix.len() + p.content_length_utf8());
+
+        // Salts are prefixed, eg: utf8'mnemonic', or utf8'electrum'.
+        salt.extend(extension_prefix);
+
+        // Write the extension phrase to the salt buffer. TODO: Unicode Normalization.
+        p.extend_utf8_vec_with_content(&mut salt);
+
+        // Prepare the HMAC.
+        let mut hasher = Sha512::new();
+        let mut hmac = hasher.build_hmac(&mnemonic_string);
+
+        // We don't need the mnemonic string anymore, it was just the key, so pre-emptively fill it.
+        mnemonic_string.fill(0);
+
+        // Perform the PBKDF and write to the output buffer.
+        hmac.pbkdf2(&salt, iterations, &mut output);
+
+        // Pre-emptively fill all this sensitive material.
+        mnemonic.fill(BLANK_STRING);
+        passphrase.fill(0);
+        hasher.reset();
+        salt.fill(0);
+    }
+
+    output
+}
+
 const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Option<usize> {
     let available_bits = byte_count * 8;
     if available_bits < bit_count {

@@ -68,6 +68,8 @@ use crate::{
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use macros::s16;
 
+pub const EXTENSION_PREFIX: &[u8] = "electrum".as_bytes();
+
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ElectrumMnemonicLength {
     Twelve,

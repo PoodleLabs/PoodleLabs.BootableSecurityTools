@@ -28,6 +28,8 @@ use crate::{
 use alloc::{boxed::Box, vec, vec::Vec};
 use macros::s16;
 
+pub const EXTENSION_PREFIX: &[u8] = "mnemonic".as_bytes();
+
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip39MnemonicLength {
     Twelve,

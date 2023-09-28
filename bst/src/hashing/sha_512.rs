@@ -28,10 +28,11 @@ pub struct Sha512 {
 }
 
 impl Sha512 {
+    pub const HASH_SIZE: usize = 64;
+
     const PADDING_BUFFER_LENGTH: usize = Self::BLOCK_SIZE + 16;
     const ALGORITHM_NAME: String16<'static> = s16!("SHA512");
     const BLOCK_SIZE: usize = 128;
-    const HASH_SIZE: usize = 64;
 
     const SEED: [u64; 8] = [
         0x6A09E667F3BCC908,
