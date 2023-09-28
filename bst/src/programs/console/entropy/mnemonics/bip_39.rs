@@ -16,7 +16,7 @@
 
 use super::{
     bip_39_word_list_mnemonic_decoder::{
-        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicDecoder,
+        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicEntropyDecoder,
     },
     bip_39_word_list_mnemonic_encoder::ConsoleBip39WordListMnemonicEncoder,
 };
@@ -58,14 +58,14 @@ pub fn get_bip_39_mnemonic_program_list<
                     "An unknown error occurred while generating the mnemonic."
                 ))),
             },
-            s16!("BIP 39 Mnemonic Encoder"),
+            s16!("BIP 39 Mnemonic Entropy Encoder"),
             system_services.clone(),
             s16!("16"),
             s16!("BIP 39"),
             required_bits_of_entropy_for_mnemonic_length,
         )),
-        Arc::from(ConsoleBip39WordListMnemonicDecoder::from(
-            s16!("BIP 39 Mnemonic Decoder"),
+        Arc::from(ConsoleBip39WordListMnemonicEntropyDecoder::from(
+            s16!("BIP 39 Mnemonic Entropy Decoder"),
             mnemonic_parser,
             system_services.clone(),
             s16!("BIP 39"),
@@ -116,6 +116,14 @@ impl<'a> Bip39BasedMnemonicParseResult for Bip39MnemonicParsingResult<'a> {
             Bip39MnemonicParsingResult::InvalidChecksum(_, bytes, _, _) => Some(bytes),
             Bip39MnemonicParsingResult::Valid(_, bytes, _) => Some(bytes),
             _ => None,
+        }
+    }
+
+    fn can_get_bytes(&self) -> bool {
+        match self {
+            Bip39MnemonicParsingResult::InvalidChecksum(..) => true,
+            Bip39MnemonicParsingResult::Valid(..) => true,
+            _ => false,
         }
     }
 }

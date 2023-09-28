@@ -16,7 +16,7 @@
 
 use super::{
     bip_39_word_list_mnemonic_decoder::{
-        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicDecoder,
+        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicEntropyDecoder,
     },
     bip_39_word_list_mnemonic_encoder::ConsoleBip39WordListMnemonicEncoder,
 };
@@ -107,14 +107,14 @@ pub fn get_electrum_mnemonic_program_list<
                     Err(e) => Err(Some(e)),
                 }
             },
-            s16!("Electrum Mnemonic Encoder (BIP 39 Word List)"),
+            s16!("Electrum Mnemonic Entropy Encoder (BIP 39 Word List)"),
             system_services.clone(),
             s16!("17"),
             s16!("Electrum"),
             required_bits_of_entropy_for_mnemonic_length,
         )),
-        Arc::from(ConsoleBip39WordListMnemonicDecoder::from(
-            s16!("Electrum Mnemonic Decoder (BIP 39 Word List)"),
+        Arc::from(ConsoleBip39WordListMnemonicEntropyDecoder::from(
+            s16!("Electrum Mnemonic Entropy Decoder (BIP 39 Word List)"),
             mnemonic_parser,
             system_services.clone(),
             s16!("Electrum"),
@@ -182,11 +182,21 @@ impl<'a> ConsoleWriteable for ElectrumMnemonicParsingResult<'a> {
 impl<'a> Bip39BasedMnemonicParseResult for ElectrumMnemonicParsingResult<'a> {
     fn get_bytes(self) -> Option<Box<[u8]>> {
         match self {
-            ElectrumMnemonicParsingResult::OldFormat(_, bytes) => Some(bytes),
             ElectrumMnemonicParsingResult::InvalidVersion(_, bytes, _) => Some(bytes),
+            ElectrumMnemonicParsingResult::OldFormat(_, bytes) => Some(bytes),
             ElectrumMnemonicParsingResult::Bip39(_, bytes, _) => Some(bytes),
             ElectrumMnemonicParsingResult::Valid(_, bytes, _) => Some(bytes),
             _ => None,
+        }
+    }
+
+    fn can_get_bytes(&self) -> bool {
+        match self {
+            ElectrumMnemonicParsingResult::InvalidVersion(..) => true,
+            ElectrumMnemonicParsingResult::OldFormat(..) => true,
+            ElectrumMnemonicParsingResult::Bip39(..) => true,
+            ElectrumMnemonicParsingResult::Valid(..) => true,
+            _ => false,
         }
     }
 }
