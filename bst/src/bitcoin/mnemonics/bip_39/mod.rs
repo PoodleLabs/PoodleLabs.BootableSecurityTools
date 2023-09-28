@@ -52,14 +52,39 @@ impl Into<usize> for Bip39MnemonicLength {
 impl Into<String16<'static>> for Bip39MnemonicLength {
     fn into(self) -> String16<'static> {
         match self {
-            Bip39MnemonicLength::Twelve => s16!("Twelve Words"),
-            Bip39MnemonicLength::Fifteen => s16!("Fifteen Words"),
-            Bip39MnemonicLength::Eighteen => s16!("Eighteen Words"),
-            Bip39MnemonicLength::TwentyOne => s16!("Twenty One Words"),
-            Bip39MnemonicLength::TwentyFour => s16!("Twenty Four Words"),
+            Bip39MnemonicLength::Twelve => s16!("Twelve Word"),
+            Bip39MnemonicLength::Fifteen => s16!("Fifteen Word"),
+            Bip39MnemonicLength::Eighteen => s16!("Eighteen Word"),
+            Bip39MnemonicLength::TwentyOne => s16!("Twenty One Word"),
+            Bip39MnemonicLength::TwentyFour => s16!("Twenty Four Word"),
         }
     }
 }
+
+const AVAILABLE_MNEMONIC_LENGTHS: [Bip39MnemonicLength; 5] = [
+    Bip39MnemonicLength::Twelve,
+    Bip39MnemonicLength::Fifteen,
+    Bip39MnemonicLength::Eighteen,
+    Bip39MnemonicLength::TwentyOne,
+    Bip39MnemonicLength::TwentyFour,
+];
+
+pub fn get_available_mnemonic_lengths(byte_count: usize) -> &'static [Bip39MnemonicLength] {
+    let mut count = 0;
+    for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
+        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
+            <= byte_count
+        {
+            count += 1;
+        } else {
+            break;
+        }
+    }
+
+    &AVAILABLE_MNEMONIC_LENGTHS[..count]
+}
+
+pub const MAX_WORD_COUNT: usize = 24;
 
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip39MnemonicParsingResult<'a> {

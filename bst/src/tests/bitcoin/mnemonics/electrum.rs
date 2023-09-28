@@ -15,12 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::mnemonics::{
-        bip_39::Bip39MnemonicLength,
-        electrum::{
-            try_generate_electrum_mnemonic, try_parse_electrum_mnemonic,
-            ElectrumMnemonicParsingResult, ElectrumMnemonicVersion,
-        },
+    bitcoin::mnemonics::electrum::{
+        try_generate_electrum_mnemonic, try_parse_electrum_mnemonic, ElectrumMnemonicLength,
+        ElectrumMnemonicParsingResult, ElectrumMnemonicVersion,
     },
     String16,
 };
@@ -164,11 +161,11 @@ fn mnemonic_generation_and_parsing() {
             .collect::<Vec<String16>>();
 
         let mnemonic_length = match words.len() {
-            12 => Bip39MnemonicLength::Twelve,
-            15 => Bip39MnemonicLength::Fifteen,
-            18 => Bip39MnemonicLength::Eighteen,
-            21 => Bip39MnemonicLength::TwentyOne,
-            24 => Bip39MnemonicLength::TwentyFour,
+            12 => ElectrumMnemonicLength::Twelve,
+            15 => ElectrumMnemonicLength::Fifteen,
+            18 => ElectrumMnemonicLength::Eighteen,
+            21 => ElectrumMnemonicLength::TwentyOne,
+            24 => ElectrumMnemonicLength::TwentyFour,
             _ => panic!(
                 "Test vector {:?} has an invalid mnemonic length of {}.",
                 test_vector,

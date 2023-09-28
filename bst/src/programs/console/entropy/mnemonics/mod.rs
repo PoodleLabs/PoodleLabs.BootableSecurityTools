@@ -15,9 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 mod bip_39;
-mod bip_39_word_list_mnemonic_decoder;
-mod bip_39_word_list_mnemonic_encoder;
 mod electrum;
+mod mnemonic_entropy_decoder;
+mod mnemonic_entropy_encoder;
 
 use crate::{
     programs::{

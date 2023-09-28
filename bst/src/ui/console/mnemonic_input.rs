@@ -100,7 +100,7 @@ pub fn get_mnemonic_input<
     let mut output_result: Option<TMnemonicParseResult>;
     loop {
         // A flag indicating whether the user should be allowed to input more words.
-        let allow_more_words = words.len() < 24;
+        let allow_more_words = words.len() < max_words;
 
         // If there's at least one possible word for input, the first gets stored here.
         let mut completion_word = None;

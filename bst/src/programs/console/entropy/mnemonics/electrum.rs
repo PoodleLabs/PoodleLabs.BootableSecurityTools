@@ -15,15 +15,17 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    bip_39_word_list_mnemonic_decoder::{
-        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicEntropyDecoder,
-    },
-    bip_39_word_list_mnemonic_encoder::ConsoleBip39WordListMnemonicEncoder,
+    mnemonic_entropy_decoder::{ConsoleMnemonicEntropyDecoder, MnemonicByteParseResult},
+    mnemonic_entropy_encoder::ConsoleMnemonicEntropyEncoder,
 };
 use crate::{
-    bitcoin::mnemonics::electrum::{
-        required_bits_of_entropy_for_mnemonic_length, try_generate_electrum_mnemonic,
-        try_parse_electrum_mnemonic, ElectrumMnemonicParsingResult, ElectrumMnemonicVersion,
+    bitcoin::mnemonics::{
+        bip_39,
+        electrum::{
+            self, required_bits_of_entropy_for_mnemonic_length, try_generate_electrum_mnemonic,
+            try_parse_electrum_mnemonic, ElectrumMnemonicLength, ElectrumMnemonicParsingResult,
+            ElectrumMnemonicVersion,
+        },
     },
     console_out::ConsoleOut,
     constants,
@@ -56,71 +58,29 @@ pub fn get_electrum_mnemonic_program_list<
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
     let programs: [Arc<dyn Program>; 2] = [
-        Arc::from(ConsoleBip39WordListMnemonicEncoder::from(
-            |s, l, b| {
-                // User must select a mnemonic version; allow either Segwit or Legacy.
-                let mut mnemonic_version_list = ConsoleUiList::from(
-                    ConsoleUiTitle::from(s16!(" Mnemonic Version "), constants::SMALL_TITLE),
-                    constants::SELECT_LIST,
-                    &[
-                        ElectrumMnemonicVersion::Segwit,
-                        ElectrumMnemonicVersion::Legacy,
-                    ][..],
-                );
-
-                let mnemonic_version_selection_label =
-                    ConsoleUiLabel::from(s16!("Type of Electrum Mnemonic"));
-
-                let mnemonic_version = loop {
-                    mnemonic_version_selection_label.write_to(&s.get_console_out());
-                    match mnemonic_version_list.prompt_for_selection(s) {
-                        Some((v, _, _)) => break *v,
-                        None => {
-                            // User cancelled; do we want to exit mnemonic generation?
-                            if ConsoleUiConfirmationPrompt::from(s).prompt_for_confirmation(s16!(
-                                "Cancel Electrum Mnemonic Generation?"
-                            )) {
-                                return Err(None);
-                            }
-                        }
-                    }
-                };
-
-                match try_generate_electrum_mnemonic(b, l, mnemonic_version) {
-                    Ok((m, i)) => {
-                        if i > 0 {
-                            // We had to increment the entropy, so extracted entropy will be input + i.
-                            s.get_console_out().line_start().new_line().in_colours(
-                                constants::WARNING_COLOURS,
-                                |c| {
-                                    c.output_utf16(s16!(
-                                        "Mnemonic generation required incrementing entropy by "
-                                    ))
-                                    .output_utf32(&format!("{}\0", i))
-                                    .output_utf16_line(s16!("."))
-                                },
-                            );
-                        }
-
-                        Ok(m)
-                    }
-                    Err(e) => Err(Some(e)),
-                }
-            },
-            s16!("Electrum Mnemonic Entropy Encoder (BIP 39 Word List)"),
-            system_services.clone(),
+        Arc::from(ConsoleMnemonicEntropyEncoder::from(
+            electrum::get_available_mnemonic_lengths,
+            s16!("Electrum"),
+            &bip_39::WORD_LIST,
             s16!("17"),
-            s16!("Electrum"),
-            required_bits_of_entropy_for_mnemonic_length,
-        )),
-        Arc::from(ConsoleBip39WordListMnemonicEntropyDecoder::from(
-            s16!("Electrum Mnemonic Entropy Decoder (BIP 39 Word List)"),
-            mnemonic_parser,
+            s16!("BIP 39"),
             system_services.clone(),
-            s16!("Electrum"),
+            mnemonic_encoder,
+            s16!("Electrum Entropy Encoder (BIP 39 Words)"),
+        )),
+        Arc::from(ConsoleMnemonicEntropyDecoder::from(
             s16!("Electrum Mnemonic Bytes"),
+            s16!("Electrum"),
+            &bip_39::WORD_LIST,
+            s16!("BIP 39"),
+            system_services.clone(),
+            mnemonic_parser,
+            bip_39::LONGEST_WORD_LENGTH as usize,
+            s16!("Electrum Entropy Decoder (BIP 39 Words)"),
+            electrum::MAX_WORD_COUNT,
         )),
     ];
+
     ProgramList::from(Arc::from(programs), s16!("Electrum Mnemonic Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }
@@ -128,6 +88,64 @@ pub fn get_electrum_mnemonic_program_list<
 impl ConsoleWriteable for ElectrumMnemonicVersion {
     fn write_to<T: ConsoleOut>(&self, console: &T) {
         console.output_utf16((*self).into());
+    }
+}
+
+fn mnemonic_encoder<TSystemServices: SystemServices>(
+    system_services: &TSystemServices,
+    mnemonic_length: ElectrumMnemonicLength,
+    bytes: &[u8],
+) -> Result<Vec<String16<'static>>, Option<String16<'static>>> {
+    // User must select a mnemonic version; allow either Segwit or Legacy.
+    let mut mnemonic_version_list = ConsoleUiList::from(
+        ConsoleUiTitle::from(s16!(" Mnemonic Version "), constants::SMALL_TITLE),
+        constants::SELECT_LIST,
+        &[
+            ElectrumMnemonicVersion::Segwit,
+            ElectrumMnemonicVersion::Legacy,
+        ][..],
+    );
+
+    let console = system_services.get_console_out();
+    let mnemonic_version_selection_label = ConsoleUiLabel::from(s16!("Type of Electrum Mnemonic"));
+    let mnemonic_version = loop {
+        mnemonic_version_selection_label.write_to(&console);
+        match mnemonic_version_list.prompt_for_selection(system_services) {
+            Some((v, _, _)) => break *v,
+            None => {
+                // User cancelled; do we want to exit mnemonic generation?
+                if ConsoleUiConfirmationPrompt::from(system_services)
+                    .prompt_for_confirmation(s16!("Cancel Electrum Mnemonic Generation?"))
+                {
+                    return Err(None);
+                }
+            }
+        }
+    };
+
+    // We've selected a mnemonic version, so generate the mnemonic.
+    match try_generate_electrum_mnemonic(bytes, mnemonic_length, mnemonic_version) {
+        Ok((m, i)) => {
+            if i > 0 {
+                // We had to increment the entropy, so extracted entropy will be input + i.
+                console
+                    .line_start()
+                    .new_line()
+                    .in_colours(constants::WARNING_COLOURS, |c| {
+                        c.output_utf16(s16!(
+                            "Mnemonic generation required incrementing entropy by "
+                        ))
+                        .output_utf32(&format!("{}\0", i))
+                        .output_utf16_line(s16!("."))
+                    });
+            }
+
+            // Return the mnemonic.
+            Ok(m)
+        }
+
+        // Return the error message we got when generating the mnemonic.
+        Err(e) => Err(Some(e)),
     }
 }
 
@@ -179,7 +197,7 @@ impl<'a> ConsoleWriteable for ElectrumMnemonicParsingResult<'a> {
     }
 }
 
-impl<'a> Bip39BasedMnemonicParseResult for ElectrumMnemonicParsingResult<'a> {
+impl<'a> MnemonicByteParseResult for ElectrumMnemonicParsingResult<'a> {
     fn get_bytes(self) -> Option<Box<[u8]>> {
         match self {
             ElectrumMnemonicParsingResult::InvalidVersion(_, bytes, _) => Some(bytes),
@@ -198,5 +216,18 @@ impl<'a> Bip39BasedMnemonicParseResult for ElectrumMnemonicParsingResult<'a> {
             ElectrumMnemonicParsingResult::Valid(..) => true,
             _ => false,
         }
+    }
+}
+
+impl ConsoleWriteable for ElectrumMnemonicLength {
+    fn write_to<T: ConsoleOut>(&self, console: &T) {
+        console
+            .output_utf16((*self).into())
+            .output_utf16(s16!(" ("))
+            .output_utf32(&format!(
+                "{}\0",
+                required_bits_of_entropy_for_mnemonic_length(*self)
+            ))
+            .output_utf16(s16!(" bits)"));
     }
 }

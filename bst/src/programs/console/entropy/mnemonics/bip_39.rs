@@ -15,15 +15,13 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    bip_39_word_list_mnemonic_decoder::{
-        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicEntropyDecoder,
-    },
-    bip_39_word_list_mnemonic_encoder::ConsoleBip39WordListMnemonicEncoder,
+    mnemonic_entropy_decoder::{ConsoleMnemonicEntropyDecoder, MnemonicByteParseResult},
+    mnemonic_entropy_encoder::ConsoleMnemonicEntropyEncoder,
 };
 use crate::{
     bitcoin::mnemonics::bip_39::{
-        required_bits_of_entropy_for_mnemonic_length, try_generate_bip_39_mnemonic,
-        try_parse_bip39_mnemonic, Bip39MnemonicParsingResult,
+        self, required_bits_of_entropy_for_mnemonic_length, try_generate_bip_39_mnemonic,
+        try_parse_bip39_mnemonic, Bip39MnemonicLength, Bip39MnemonicParsingResult,
     },
     console_out::ConsoleOut,
     constants,
@@ -50,31 +48,45 @@ pub fn get_bip_39_mnemonic_program_list<
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
     let programs: [Arc<dyn Program>; 2] = [
-        Arc::from(ConsoleBip39WordListMnemonicEncoder::from(
-            |_, l, b| match try_generate_bip_39_mnemonic(l, b) {
-                Some(m) => Ok(m),
-                // We should ever expect this to get hit.
-                None => Err(Some(s16!(
-                    "An unknown error occurred while generating the mnemonic."
-                ))),
-            },
-            s16!("BIP 39 Mnemonic Entropy Encoder"),
-            system_services.clone(),
+        Arc::from(ConsoleMnemonicEntropyEncoder::from(
+            bip_39::get_available_mnemonic_lengths,
+            s16!("BIP 39"),
+            &bip_39::WORD_LIST,
             s16!("16"),
             s16!("BIP 39"),
-            required_bits_of_entropy_for_mnemonic_length,
-        )),
-        Arc::from(ConsoleBip39WordListMnemonicEntropyDecoder::from(
-            s16!("BIP 39 Mnemonic Entropy Decoder"),
-            mnemonic_parser,
             system_services.clone(),
-            s16!("BIP 39"),
+            mnemonic_encoder,
+            s16!("BIP 39 Entropy Encoder"),
+        )),
+        Arc::from(ConsoleMnemonicEntropyDecoder::from(
             s16!("BIP 39 Mnemonic Bytes"),
+            s16!("BIP 39"),
+            &bip_39::WORD_LIST,
+            s16!("BIP 39"),
+            system_services.clone(),
+            mnemonic_parser,
+            bip_39::LONGEST_WORD_LENGTH as usize,
+            s16!("BIP 39 Entropy Decoder"),
+            bip_39::MAX_WORD_COUNT,
         )),
     ];
 
     ProgramList::from(Arc::from(programs), s16!("BIP 39 Mnemonic Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
+}
+
+fn mnemonic_encoder<TSystemServices: SystemServices>(
+    _system_services: &TSystemServices,
+    mnemonic_length: Bip39MnemonicLength,
+    bytes: &[u8],
+) -> Result<Vec<String16<'static>>, Option<String16<'static>>> {
+    match try_generate_bip_39_mnemonic(mnemonic_length, bytes) {
+        Some(m) => Ok(m),
+        // We should ever expect this to get hit.
+        None => Err(Some(s16!(
+            "An unknown error occurred while generating the mnemonic."
+        ))),
+    }
 }
 
 fn mnemonic_parser(words: &Vec<String16<'static>>) -> Bip39MnemonicParsingResult<'static> {
@@ -110,7 +122,7 @@ impl<'a> ConsoleWriteable for Bip39MnemonicParsingResult<'a> {
     }
 }
 
-impl<'a> Bip39BasedMnemonicParseResult for Bip39MnemonicParsingResult<'a> {
+impl<'a> MnemonicByteParseResult for Bip39MnemonicParsingResult<'a> {
     fn get_bytes(self) -> Option<Box<[u8]>> {
         match self {
             Bip39MnemonicParsingResult::InvalidChecksum(_, bytes, _, _) => Some(bytes),
@@ -125,5 +137,18 @@ impl<'a> Bip39BasedMnemonicParseResult for Bip39MnemonicParsingResult<'a> {
             Bip39MnemonicParsingResult::Valid(..) => true,
             _ => false,
         }
+    }
+}
+
+impl ConsoleWriteable for Bip39MnemonicLength {
+    fn write_to<T: ConsoleOut>(&self, console: &T) {
+        console
+            .output_utf16((*self).into())
+            .output_utf16(s16!(" ("))
+            .output_utf32(&format!(
+                "{}\0",
+                required_bits_of_entropy_for_mnemonic_length(*self)
+            ))
+            .output_utf16(s16!(" bits)"));
     }
 }

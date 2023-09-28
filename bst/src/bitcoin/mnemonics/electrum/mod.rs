@@ -52,7 +52,7 @@ mod mnemonic_version;
 pub use mnemonic_version::ElectrumMnemonicVersion;
 
 use super::{
-    bip_39::{try_read_mnemonic_bytes, Bip39MnemonicLength, BITS_PER_WORD},
+    bip_39::{try_read_mnemonic_bytes, BITS_PER_WORD},
     try_get_bit_start_offset,
 };
 use crate::{
@@ -68,23 +68,83 @@ use crate::{
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use macros::s16;
 
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ElectrumMnemonicLength {
+    Twelve,
+    Fifteen,
+    Eighteen,
+    TwentyOne,
+    TwentyFour,
+}
+
+impl Into<usize> for ElectrumMnemonicLength {
+    fn into(self) -> usize {
+        match self {
+            ElectrumMnemonicLength::Twelve => 12,
+            ElectrumMnemonicLength::Fifteen => 15,
+            ElectrumMnemonicLength::Eighteen => 18,
+            ElectrumMnemonicLength::TwentyOne => 21,
+            ElectrumMnemonicLength::TwentyFour => 24,
+        }
+    }
+}
+
+impl Into<String16<'static>> for ElectrumMnemonicLength {
+    fn into(self) -> String16<'static> {
+        match self {
+            ElectrumMnemonicLength::Twelve => s16!("Twelve Word"),
+            ElectrumMnemonicLength::Fifteen => s16!("Fifteen Word"),
+            ElectrumMnemonicLength::Eighteen => s16!("Eighteen Word"),
+            ElectrumMnemonicLength::TwentyOne => s16!("Twenty One Word"),
+            ElectrumMnemonicLength::TwentyFour => s16!("Twenty Four Word"),
+        }
+    }
+}
+
+const AVAILABLE_MNEMONIC_LENGTHS: [ElectrumMnemonicLength; 5] = [
+    ElectrumMnemonicLength::Twelve,
+    ElectrumMnemonicLength::Fifteen,
+    ElectrumMnemonicLength::Eighteen,
+    ElectrumMnemonicLength::TwentyOne,
+    ElectrumMnemonicLength::TwentyFour,
+];
+
+pub fn get_available_mnemonic_lengths(byte_count: usize) -> &'static [ElectrumMnemonicLength] {
+    let mut count = 0;
+    for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
+        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
+            <= byte_count
+        {
+            count += 1;
+        } else {
+            break;
+        }
+    }
+
+    &AVAILABLE_MNEMONIC_LENGTHS[..count]
+}
+
+pub const MAX_WORD_COUNT: usize = 24;
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ElectrumMnemonicParsingResult<'a> {
     InvalidLength,
-    InvalidWordEncountered(Bip39MnemonicLength, String16<'a>, usize),
-    OldFormat(Bip39MnemonicLength, Box<[u8]>),
-    InvalidVersion(Bip39MnemonicLength, Box<[u8]>, [u8; 2]),
-    Bip39(Bip39MnemonicLength, Box<[u8]>, ElectrumMnemonicVersion),
-    Valid(Bip39MnemonicLength, Box<[u8]>, ElectrumMnemonicVersion),
+    InvalidWordEncountered(ElectrumMnemonicLength, String16<'a>, usize),
+    OldFormat(ElectrumMnemonicLength, Box<[u8]>),
+    InvalidVersion(ElectrumMnemonicLength, Box<[u8]>, [u8; 2]),
+    Bip39(ElectrumMnemonicLength, Box<[u8]>, ElectrumMnemonicVersion),
+    Valid(ElectrumMnemonicLength, Box<[u8]>, ElectrumMnemonicVersion),
 }
 
-pub fn required_bits_of_entropy_for_mnemonic_length(mnemonic_length: Bip39MnemonicLength) -> usize {
+pub fn required_bits_of_entropy_for_mnemonic_length(
+    mnemonic_length: ElectrumMnemonicLength,
+) -> usize {
     Into::<usize>::into(mnemonic_length) * (BITS_PER_WORD as usize)
 }
 
 pub fn required_bytes_of_entropy_for_mnemonic_length(
-    mnemonic_length: Bip39MnemonicLength,
+    mnemonic_length: ElectrumMnemonicLength,
 ) -> usize {
     ceil(required_bits_of_entropy_for_mnemonic_length(mnemonic_length) as f64 / 8f64)
 }
@@ -92,7 +152,7 @@ pub fn required_bytes_of_entropy_for_mnemonic_length(
 #[allow(dead_code)]
 pub fn try_generate_electrum_mnemonic(
     bytes: &[u8],
-    mnemonic_length: Bip39MnemonicLength,
+    mnemonic_length: ElectrumMnemonicLength,
     mnemonic_version: ElectrumMnemonicVersion,
 ) -> Result<(Vec<String16<'static>>, usize), String16<'static>> {
     // Don't generate 2FA mnemonics.
@@ -185,11 +245,11 @@ pub fn try_parse_electrum_mnemonic<'a>(
 ) -> ElectrumMnemonicParsingResult<'a> {
     // Get the mnemonic length.
     let mnemonic_length = match words.len() {
-        24 => Bip39MnemonicLength::TwentyFour,
-        21 => Bip39MnemonicLength::TwentyOne,
-        18 => Bip39MnemonicLength::Eighteen,
-        15 => Bip39MnemonicLength::Fifteen,
-        12 => Bip39MnemonicLength::Twelve,
+        24 => ElectrumMnemonicLength::TwentyFour,
+        21 => ElectrumMnemonicLength::TwentyOne,
+        18 => ElectrumMnemonicLength::Eighteen,
+        15 => ElectrumMnemonicLength::Fifteen,
+        12 => ElectrumMnemonicLength::Twelve,
         // Words has an invalid length.
         _ => return ElectrumMnemonicParsingResult::InvalidLength,
     };
@@ -277,7 +337,7 @@ fn generated_mnemonic_is_valid(
 }
 
 fn try_extract_mnemonic_bytes<'a>(
-    mnemonic_length: Bip39MnemonicLength,
+    mnemonic_length: ElectrumMnemonicLength,
     words: &Vec<String16<'a>>,
 ) -> Result<Box<[u8]>, (String16<'a>, usize)> {
     let mnemonic_byte_count = required_bytes_of_entropy_for_mnemonic_length(mnemonic_length);
