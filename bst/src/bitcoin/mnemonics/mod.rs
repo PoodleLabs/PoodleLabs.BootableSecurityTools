@@ -55,9 +55,9 @@ pub fn format_mnemonic_string_utf8<'a>(
 
 pub fn derive_hd_wallet_seed(
     mut mnemonic: Vec<String16<'static>>,
-    mut passphrase: Vec<u16>,
     word_space: String16<'static>,
     extension_prefix: &[u8],
+    passphrase: &mut [u16],
     iterations: u32,
 ) -> [u8; Sha512::HASH_SIZE] {
     // Prepare the output buffer.
@@ -74,7 +74,7 @@ pub fn derive_hd_wallet_seed(
         // Salts are prefixed, eg: utf8'mnemonic', or utf8'electrum'.
         salt.extend(extension_prefix);
 
-        // Write the extension phrase to the salt buffer. TODO: Unicode Normalization.
+        // Write the extension phrase to the salt buffer. TODO: NORMALIZATION.
         p.extend_utf8_vec_with_content(&mut salt);
 
         // Prepare the HMAC.
