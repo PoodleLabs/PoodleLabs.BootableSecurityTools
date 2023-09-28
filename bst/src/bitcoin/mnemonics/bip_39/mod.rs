@@ -20,6 +20,7 @@ pub use word_list::{BITS_PER_WORD, LONGEST_WORD_LENGTH, WORD_LIST};
 
 use super::{
     try_get_bit_at_index, try_get_bit_start_offset, try_get_word_index, try_set_bit_at_index,
+    ExtensionPhraseNormalizationSettings,
 };
 use crate::{
     hashing::{Hasher, Sha256},
@@ -30,6 +31,8 @@ use macros::s16;
 
 pub const EXTENSION_PREFIX: &[u8] = "mnemonic".as_bytes();
 pub const SEED_DERIVATION_PBKDF_ITERATIONS: u32 = 2048;
+pub const NORMALIZATION_SETTINGS: ExtensionPhraseNormalizationSettings =
+    ExtensionPhraseNormalizationSettings::from(false, false, false);
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip39MnemonicLength {

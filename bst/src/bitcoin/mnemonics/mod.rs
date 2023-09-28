@@ -18,11 +18,131 @@ pub mod bip_39;
 pub mod electrum;
 
 use crate::{
+    characters::Character,
     hashing::{Hasher, Sha512},
     String16,
 };
 use alloc::vec::Vec;
-use macros::s16;
+use macros::{c16, s16, u16_array};
+
+// Non-decomposing characters to avoid needing NKDF normalization implementation.
+const ALLOWED_EXTENSION_PHRASE_CHARACTERS: [u16; 102] =
+    u16_array!("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ \"'()+=-_[]{};:#@~,.<>/\\|%^&*¬`!¡?¿₿€£$¥");
+
+pub fn allow_extension_phrase_character(character: u16) -> bool {
+    ALLOWED_EXTENSION_PHRASE_CHARACTERS
+        .iter()
+        .position(|c| *c == character)
+        .is_some()
+}
+
+pub struct ExtensionPhraseNormalizationSettings {
+    lowercase_characters: bool,
+    collapse_whitespace: bool,
+    trim_whitespace: bool,
+}
+
+impl ExtensionPhraseNormalizationSettings {
+    const fn from(
+        lowercase_characters: bool,
+        collapse_whitespace: bool,
+        trim_whitespace: bool,
+    ) -> Self {
+        Self {
+            lowercase_characters,
+            collapse_whitespace,
+            trim_whitespace,
+        }
+    }
+
+    fn process(&self, vec: &mut Vec<u16>) {
+        if self.trim_whitespace {
+            // If we want to trim whitespace, start at the beginning, and remove any whitespace.
+            while vec.len() > 0 {
+                if vec[0].is_whitespace() {
+                    vec.remove(0);
+                } else {
+                    // If we encounter any non-whitespace character, we can stop.
+                    break;
+                }
+            }
+
+            if vec.len() == 0 {
+                // If we've emptied the vector by trimming whitespace (it was entirely filled with whitespace), we can return.
+                return;
+            }
+
+            // Now we can check the end.
+            while vec[vec.len() - 1].is_whitespace() {
+                vec.pop();
+            }
+        }
+
+        let mut index = 0;
+        while index < vec.len() {
+            let character = vec[index];
+            if !allow_extension_phrase_character(character) {
+                // If the character isn't allowed, get rid of it;
+                // we shouldn't hit this in reality as we should sanitize at input time.
+                vec.remove(index);
+
+                // We want to check this index again, because we just removed the character at this index, so continue.
+                continue;
+            }
+
+            if self.collapse_whitespace && character.is_whitespace() {
+                // We've encountered a whitespace character, and we want to collapse whitespace.
+                while index < vec.len() - 1 && vec[index + 1].is_whitespace() {
+                    // Collapse any whitespace immediately following this character until there's none left.
+                    vec.remove(index + 1);
+                }
+            }
+
+            if self.lowercase_characters {
+                // We want all characters to be lowercase; replace this character with its lowercase variant.
+                vec[index] = self.lowercase(character);
+            }
+
+            index += 1;
+        }
+    }
+
+    fn lowercase(&self, character: u16) -> u16 {
+        if !self.lowercase_characters {
+            return character;
+        }
+
+        match character {
+            c16!("A") => c16!("a"),
+            c16!("B") => c16!("b"),
+            c16!("C") => c16!("c"),
+            c16!("D") => c16!("d"),
+            c16!("E") => c16!("e"),
+            c16!("F") => c16!("f"),
+            c16!("G") => c16!("g"),
+            c16!("H") => c16!("h"),
+            c16!("I") => c16!("i"),
+            c16!("J") => c16!("j"),
+            c16!("K") => c16!("k"),
+            c16!("L") => c16!("l"),
+            c16!("M") => c16!("m"),
+            c16!("N") => c16!("n"),
+            c16!("O") => c16!("o"),
+            c16!("P") => c16!("p"),
+            c16!("Q") => c16!("q"),
+            c16!("R") => c16!("r"),
+            c16!("S") => c16!("s"),
+            c16!("T") => c16!("t"),
+            c16!("U") => c16!("u"),
+            c16!("V") => c16!("v"),
+            c16!("W") => c16!("w"),
+            c16!("X") => c16!("x"),
+            c16!("Y") => c16!("y"),
+            c16!("Z") => c16!("z"),
+            _ => character,
+        }
+    }
+}
 
 pub const BLANK_STRING: String16 = s16!("");
 
@@ -54,15 +174,17 @@ pub fn format_mnemonic_string_utf8<'a>(
 }
 
 pub fn derive_hd_wallet_seed(
+    normalization_settings: ExtensionPhraseNormalizationSettings,
     mut mnemonic: Vec<String16<'static>>,
     word_space: String16<'static>,
+    mut passphrase: Vec<u16>,
     extension_prefix: &[u8],
-    passphrase: &mut [u16],
     iterations: u32,
 ) -> [u8; Sha512::HASH_SIZE] {
     // Prepare the output buffer.
     let mut output = [0u8; Sha512::HASH_SIZE];
     {
+        normalization_settings.process(&mut passphrase);
         let p = String16::from(&passphrase);
 
         // Get the UTF8 version of the mnemonic string.
@@ -74,7 +196,7 @@ pub fn derive_hd_wallet_seed(
         // Salts are prefixed, eg: utf8'mnemonic', or utf8'electrum'.
         salt.extend(extension_prefix);
 
-        // Write the extension phrase to the salt buffer. TODO: NORMALIZATION.
+        // Write the extension phrase to the salt buffer.
         p.extend_utf8_vec_with_content(&mut salt);
 
         // Prepare the HMAC.

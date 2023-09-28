@@ -60,7 +60,7 @@ impl TestVector {
     }
 }
 
-const TEST_VECTORS: [TestVector; 16] = [
+const TEST_VECTORS: [TestVector; 19] = [
     TestVector::from(
         None,
         ElectrumMnemonicVersion::Segwit,
@@ -205,6 +205,33 @@ const TEST_VECTORS: [TestVector; 16] = [
         "wild father tree among universe such mobile favorite target dynamic credit identify",
         1
     ),
+    TestVector::from(
+        Some(s16!("   DID     \t you ever  \n hear tHe tragedy of darth plagueis the wise?\r\n\t  ")),
+        ElectrumMnemonicVersion::Segwit,
+        &hex!("4aa29f2aeb0127efb55138ab9e7be83b36750358751906f86c662b21a1ea1370f949e6d1a12fa56d3d93cadda93038c76ac8118597364e46f5156fde6183c82f"),
+        &hex!("0fb0a779f83feddb0e39aa0dde898cc384"),
+        &hex!("0fb0a779f83feddb0e39aa0dde898cc384"),
+        "wild father tree among universe such mobile favorite target dynamic credit identify",
+        0,
+    ),
+    TestVector::from(
+        Some(s16!("   DID     \t you ever  \n hear tHe tragedy of darth plagueis the wise?\r\n\t  ")),
+        ElectrumMnemonicVersion::Segwit,
+        &hex!("4aa29f2aeb0127efb55138ab9e7be83b36750358751906f86c662b21a1ea1370f949e6d1a12fa56d3d93cadda93038c76ac8118597364e46f5156fde6183c82f"),
+        &hex!("0fb0a779f83feddb0e39aa0dde898cc384"),
+        &hex!("0fb0a779f83feddb0e39aa0dde898cc383"),
+        "wild father tree among universe such mobile favorite target dynamic credit identify",
+        1
+    ),
+    TestVector::from(
+        Some(s16!("   DID     \t you ever  \n hear tHe tragedy of darth plagueis the wise?\r\n\t  ")),
+        ElectrumMnemonicVersion::Segwit,
+        &hex!("4aa29f2aeb0127efb55138ab9e7be83b36750358751906f86c662b21a1ea1370f949e6d1a12fa56d3d93cadda93038c76ac8118597364e46f5156fde6183c82f"),
+        &hex!("0fb0a779f83feddb0e39aa0dde898cc384"),
+        &hex!("ffb0a779f83feddb0e39aa0dde898cc383"),
+        "wild father tree among universe such mobile favorite target dynamic credit identify",
+        1
+    ),
 ];
 
 #[test]
@@ -251,17 +278,18 @@ fn mnemonic_generation_and_parsing() {
                         assert_eq!(v, test_vector.mnemonic_version);
                         assert_eq!(&b[..], test_vector.output_bytes);
 
-                        let mut mut_extension = match test_vector.extension_phrase {
+                        let extension_vec = match test_vector.extension_phrase {
                             Some(s) => s.content_slice().to_vec(),
                             None => Vec::new(),
                         };
 
                         assert_eq!(
                             derive_hd_wallet_seed(
+                                electrum::NORMALIZATION_SETTINGS,
                                 w,
                                 s16!(" "),
+                                extension_vec,
                                 electrum::EXTENSION_PREFIX,
-                                &mut mut_extension,
                                 electrum::SEED_DERIVATION_PBKDF_ITERATIONS
                             ),
                             test_vector.expected_seed

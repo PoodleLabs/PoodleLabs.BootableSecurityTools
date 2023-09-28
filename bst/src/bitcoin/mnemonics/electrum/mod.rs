@@ -53,7 +53,7 @@ pub use mnemonic_version::ElectrumMnemonicVersion;
 
 use super::{
     bip_39::{try_read_mnemonic_bytes, BITS_PER_WORD},
-    format_mnemonic_string_utf8, try_get_bit_start_offset,
+    format_mnemonic_string_utf8, try_get_bit_start_offset, ExtensionPhraseNormalizationSettings,
 };
 use crate::{
     bitcoin::mnemonics::{
@@ -70,6 +70,9 @@ use macros::s16;
 
 pub const EXTENSION_PREFIX: &[u8] = "electrum".as_bytes();
 pub const SEED_DERIVATION_PBKDF_ITERATIONS: u32 = 2048;
+
+pub const NORMALIZATION_SETTINGS: ExtensionPhraseNormalizationSettings =
+    ExtensionPhraseNormalizationSettings::from(true, true, true);
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ElectrumMnemonicLength {

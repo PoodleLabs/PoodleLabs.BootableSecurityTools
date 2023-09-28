@@ -270,13 +270,14 @@ fn mnemonics_are_generated_from_bytes_correctly() {
                     test_vector.mnemonic
                 );
 
-                let mut mut_extension = test_vector.extension_phrase.content_slice().to_vec();
+                let extension_vec = test_vector.extension_phrase.content_slice().to_vec();
                 assert_eq!(
                     derive_hd_wallet_seed(
+                        bip_39::NORMALIZATION_SETTINGS,
                         mnemonic,
                         s16!(" "),
+                        extension_vec,
                         bip_39::EXTENSION_PREFIX,
-                        &mut mut_extension,
                         bip_39::SEED_DERIVATION_PBKDF_ITERATIONS
                     ),
                     test_vector.expected_seed
