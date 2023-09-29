@@ -93,24 +93,16 @@ impl MnemonicTextNormalizationSettings {
             }
 
             if self.lowercase_characters {
-                // We want all characters to be lowercase; replace this character with its lowercase variant.
-                text[index] = self.lowercase(character);
+                // Swap the character at the current index with its lowercase variant.
+                text[index] = if character >= c16!("A") && character <= c16!("Z") {
+                    // UTF 8 'A' is 0x41, and 'a' is 0x61. A-Z and a-z are uninterrupted, and in order.
+                    character + 0x20
+                } else {
+                    character
+                }
             }
 
             index += 1;
-        }
-    }
-
-    fn lowercase(&self, character: u16) -> u16 {
-        if !self.lowercase_characters {
-            return character;
-        }
-
-        if character >= c16!("A") && character <= c16!("Z") {
-            // UTF 8 'A' is 0x41, and 'a' is 0x61. A-Z and a-z are uninterrupted, and in order.
-            character + 0x20
-        } else {
-            character
         }
     }
 }

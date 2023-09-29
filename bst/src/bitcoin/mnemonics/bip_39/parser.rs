@@ -30,7 +30,7 @@ impl crate::bitcoin::mnemonics::MnemonicParser for MnemonicParser {
     type TParseResult = MnemonicParsingResult<'static>;
     type TMnemonicLength = MnemonicLength;
 
-    fn try_decode_bytes(&self, words: &Vec<String16<'static>>) -> Self::TParseResult {
+    fn try_parse_mnemonic(&self, words: &Vec<String16<'static>>) -> Self::TParseResult {
         try_parse_bip39_mnemonic(&words)
     }
 

@@ -161,7 +161,7 @@ where
         }
 
         // Parse the mnemonic input.
-        let parse_result = mnemonic_parser.try_decode_bytes(&words);
+        let parse_result = mnemonic_parser.try_parse_mnemonic(&words);
 
         // Write information about the current mnemonic input.
         console.set_cursor_position(mnemonic_info_position);

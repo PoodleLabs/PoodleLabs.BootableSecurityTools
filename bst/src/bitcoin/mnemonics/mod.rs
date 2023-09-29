@@ -36,7 +36,7 @@ pub trait MnemonicParser {
     type TParseResult: MnemonicParseResult;
     type TMnemonicLength: MnemonicLength;
 
-    fn try_decode_bytes(&self, words: &Vec<String16<'static>>) -> Self::TParseResult;
+    fn try_parse_mnemonic(&self, words: &Vec<String16<'static>>) -> Self::TParseResult;
 
     fn mnemonic_format(&self) -> MnemonicFormat<Self::TMnemonicLength>;
 
