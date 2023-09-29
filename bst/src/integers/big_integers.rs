@@ -73,29 +73,11 @@ impl Ord for BigInteger {
     }
 }
 
-#[allow(dead_code)]
 impl BigInteger {
     pub fn from_be_bytes(bytes: &[u8]) -> Self {
         Self {
             bytes: Vec::from(bytes),
         }
-    }
-
-    pub fn copy_bytes_from(&mut self, bytes: &[u8]) {
-        // Match the internal buffer's length to the length of the provided bytes.
-        if self.bytes.len() < bytes.len() {
-            // Expand the internal byte buffer to the input bytes' length.
-            self.bytes.reserve(bytes.len() - self.bytes.len());
-            while self.bytes.len() < bytes.len() {
-                self.bytes.push(0);
-            }
-        } else {
-            // Truncate the internal byte buffer to the input bytes' length.
-            self.bytes.truncate(bytes.len());
-        }
-
-        // Copy the provided bytes to the internal buffer.
-        self.bytes.copy_from_slice(bytes);
     }
 
     pub fn take_ownership_of_bytes(self) -> Vec<u8> {

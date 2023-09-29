@@ -14,16 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(test)]
 use alloc::string::String;
-use core::{
-    cmp::Ordering,
-    fmt::{self, Debug, Formatter},
-    slice::Iter,
-};
+use alloc::vec::Vec;
+#[cfg(test)]
+use core::fmt::{self, Debug, Formatter};
+use core::{char::decode_utf16, cmp::Ordering, slice::Iter};
 
 #[derive(Clone, Copy)]
 pub struct String16<'a>(&'a [u16]);
 
+#[cfg(test)]
 impl Debug for String16<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("String16")
@@ -67,12 +68,33 @@ impl<'a> String16<'a> {
         self.0
     }
 
+    pub fn write_content_to_utf16_vec(&self, vec: &mut Vec<u16>) {
+        vec.extend_from_slice(self.content_slice())
+    }
+
+    pub fn write_content_to_utf8_vec(&self, vec: &mut Vec<u8>) {
+        let mut char_buffer = [0u8; 2];
+        for char in decode_utf16(self.content_slice().iter().cloned())
+            .filter(|c| c.is_ok())
+            .map(|c| c.unwrap())
+        {
+            vec.extend(char.encode_utf8(&mut char_buffer).as_bytes());
+        }
+    }
+
     pub fn copy_content_to(&self, buffer: &mut [u16]) {
         buffer.copy_from_slice(&self.0[..self.content_length()])
     }
 
     pub fn content_iterator(&self) -> Iter<u16> {
         self.content_slice().into_iter()
+    }
+
+    pub fn utf8_content_length(&self) -> usize {
+        decode_utf16(self.content_slice().iter().cloned())
+            .filter(|c| c.is_ok())
+            .map(|c| c.unwrap().len_utf8())
+            .sum()
     }
 
     pub fn content_slice(&self) -> &[u16] {

@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::mnemonics::bip_39::{Bip39MnemonicLength, WORD_LIST},
+    bitcoin::mnemonics::{MnemonicFormat, MnemonicLength},
     console_out::ConsoleOut,
     constants,
     programs::{Program, ProgramExitResult},
@@ -29,61 +29,49 @@ use crate::{
     },
     String16,
 };
-use alloc::{boxed::Box, format, vec::Vec};
+use alloc::vec::Vec;
 use macros::{c16, s16};
 
-pub struct ConsoleBip39WordListMnemonicEncoder<
-    TSystemServices: SystemServices,
-    FGenerator: Fn(
-        &TSystemServices,
-        Bip39MnemonicLength,
-        &[u8],
-    ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>,
-> {
-    mnemonic_bit_requirement_calculator: fn(Bip39MnemonicLength) -> usize,
-    mnemonic_format_name: String16<'static>,
-    minimum_byte_count: String16<'static>,
-    system_services: TSystemServices,
-    name: String16<'static>,
-    generator: FGenerator,
+pub trait MnemonicEncoder {
+    type TMnemonicLength: MnemonicLength + ConsoleWriteable;
+
+    fn mnemnonic_format(&self) -> MnemonicFormat<Self::TMnemonicLength>;
+
+    fn try_encode<TSystemServices: SystemServices>(
+        &self,
+        bytes: &[u8],
+        system_services: &TSystemServices,
+        mnemonic_length: Self::TMnemonicLength,
+    ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>;
 }
 
-impl<
-        TSystemServices: SystemServices,
-        FGenerator: Fn(
-            &TSystemServices,
-            Bip39MnemonicLength,
-            &[u8],
-        ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>,
-    > ConsoleBip39WordListMnemonicEncoder<TSystemServices, FGenerator>
+pub struct ConsoleMnemonicEntropyEncoder<
+    TMnemonicEncoder: MnemonicEncoder,
+    TSystemServices: SystemServices,
+> {
+    system_services: TSystemServices,
+    encoder: TMnemonicEncoder,
+    name: String16<'static>,
+}
+
+impl<TMnemonicEncoder: MnemonicEncoder, TSystemServices: SystemServices>
+    ConsoleMnemonicEntropyEncoder<TMnemonicEncoder, TSystemServices>
 {
     pub const fn from(
-        generator: FGenerator,
-        name: String16<'static>,
         system_services: TSystemServices,
-        minimum_byte_count: String16<'static>,
-        mnemonic_format_name: String16<'static>,
-        mnemonic_bit_requirement_calculator: fn(Bip39MnemonicLength) -> usize,
+        encoder: TMnemonicEncoder,
+        name: String16<'static>,
     ) -> Self {
         Self {
-            mnemonic_bit_requirement_calculator,
-            mnemonic_format_name,
-            minimum_byte_count,
             system_services,
-            generator,
+            encoder,
             name,
         }
     }
 }
 
-impl<
-        TSystemServices: SystemServices,
-        FGenerator: Fn(
-            &TSystemServices,
-            Bip39MnemonicLength,
-            &[u8],
-        ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>,
-    > Program for ConsoleBip39WordListMnemonicEncoder<TSystemServices, FGenerator>
+impl<TMnemonicEncoder: MnemonicEncoder, TSystemServices: SystemServices> Program
+    for ConsoleMnemonicEntropyEncoder<TMnemonicEncoder, TSystemServices>
 {
     fn name(&self) -> String16<'static> {
         self.name
@@ -91,13 +79,16 @@ impl<
 
     fn run(&self) -> ProgramExitResult {
         let console = self.system_services.get_console_out();
+        let mnemonic_format = self.encoder.mnemnonic_format();
         console.clear();
 
         ConsoleUiTitle::from(self.name(), constants::BIG_TITLE).write_to(&console);
         console
             .output_utf16(s16!("This program encodes entropy into the "))
-            .output_utf16(self.mnemonic_format_name)
-            .output_utf16_line(s16!(" Mnemonic Format utilizing the BIP 39 word list. Given more bits than required for a given mnemonic length, the trailing bits will be used."));
+            .output_utf16(mnemonic_format.name())
+            .output_utf16(s16!(" mnemonic format utilizing the "))
+            .output_utf16(mnemonic_format.word_list().name())
+            .output_utf16_line(s16!(" word list. Given more bits than required for a given mnemonic length, the trailing bits will be used."));
 
         const CANCEL_PROMPT_STRING: String16<'static> = s16!("Exit Mnemonic Encoder program?");
         let (bytes, mnemonic_length) = loop {
@@ -113,19 +104,8 @@ impl<
                 _ => return ProgramExitResult::UserCancelled,
             };
 
-            // Calculate available mnemonic lengths based on input bytes.
-            let available_mnemonic_lengths = [
-                Bip39MnemonicLength::Twelve,
-                Bip39MnemonicLength::Fifteen,
-                Bip39MnemonicLength::Eighteen,
-                Bip39MnemonicLength::TwentyOne,
-                Bip39MnemonicLength::TwentyFour,
-            ]
-            .iter()
-            .cloned()
-            .map(|l| (l, (self.mnemonic_bit_requirement_calculator)(l)))
-            .filter(|(_, b)| *b <= bytes.len() * 8)
-            .collect::<Box<[(Bip39MnemonicLength, usize)]>>();
+            let available_mnemonic_lengths =
+                mnemonic_format.get_available_lengths_for_byte_count(bytes.len());
 
             if available_mnemonic_lengths.len() == 0 {
                 // We can't create a mnemonic with the provided bytes; prompt the user for new bytes.
@@ -134,30 +114,29 @@ impl<
                     .new_line()
                     .in_colours(constants::ERROR_COLOURS, |c| {
                         c.output_utf16(s16!("Cannot encode a "))
-                            .output_utf16(self.mnemonic_format_name)
+                            .output_utf16(mnemonic_format.name())
                             .output_utf16(s16!(
                                 " mnemonic with the provided number of bytes; at least "
                             ))
-                            .output_utf16(self.minimum_byte_count)
+                            .output_utf16(mnemonic_format.minimum_bytes_of_entropy())
                             .output_utf16_line(s16!(" are required."))
                     });
             } else if available_mnemonic_lengths.len() == 1 {
                 // There's one possible length; select it.
-                break (bytes, available_mnemonic_lengths[0].0);
+                break (bytes, available_mnemonic_lengths[0]);
             } else {
                 // There are multiple possible lengths; have the user select one.
-                let mut available_mnemonic_length_list =
-                    ConsoleUiList::<'_, (Bip39MnemonicLength, usize), _>::from(
-                        ConsoleUiTitle::from(s16!(" Mnemonic Length "), constants::SMALL_TITLE),
-                        constants::SELECT_LIST,
-                        available_mnemonic_lengths,
-                    );
+                let mut available_mnemonic_length_list = ConsoleUiList::from(
+                    ConsoleUiTitle::from(s16!(" Mnemonic Length "), constants::SMALL_TITLE),
+                    constants::SELECT_LIST,
+                    available_mnemonic_lengths,
+                );
 
                 break loop {
                     console.line_start().new_line();
                     match available_mnemonic_length_list.prompt_for_selection(&self.system_services)
                     {
-                        Some(((l, _), _, _)) => break (bytes, *l),
+                        Some((l, _, _)) => break (bytes, *l),
                         None => {
                             if ConsoleUiConfirmationPrompt::from(&self.system_services)
                                 .prompt_for_confirmation(CANCEL_PROMPT_STRING)
@@ -172,7 +151,10 @@ impl<
 
         // Generate the mnemonic's words.
         let mut mnemonic_words =
-            match (self.generator)(&self.system_services, mnemonic_length, &bytes) {
+            match self
+                .encoder
+                .try_encode(&bytes, &self.system_services, mnemonic_length)
+            {
                 Ok(words) => words,
                 Err(message) => {
                     match message {
@@ -216,7 +198,7 @@ impl<
             }
 
             // Clear the mnemonic word in the underlying vector (will be cleared on dealloc, but to be safe).
-            mnemonic_words[i] = WORD_LIST[0]
+            mnemonic_words[i] = mnemonic_format.word_list().words()[0]
         }
 
         console
@@ -235,13 +217,5 @@ impl<
         console.output_utf16_line(String16::from(&mnemonic));
         ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
         ProgramExitResult::Success
-    }
-}
-
-impl ConsoleWriteable for (Bip39MnemonicLength, usize) {
-    fn write_to<T: ConsoleOut>(&self, console: &T) {
-        console
-            .output_utf16(Into::<String16>::into(self.0))
-            .output_utf32(&format!(" ({} bits)\0", self.1));
     }
 }

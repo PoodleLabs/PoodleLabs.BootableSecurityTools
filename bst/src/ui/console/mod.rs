@@ -20,6 +20,7 @@ mod continue_prompt;
 mod data_input;
 mod label;
 mod list;
+mod mnemonic_input;
 mod numeric_input;
 mod program_selector;
 mod scroll_text;
@@ -31,10 +32,11 @@ pub use confirmation_prompt::ConsoleUiConfirmationPrompt;
 pub use continue_prompt::ConsoleUiContinuePrompt;
 pub use data_input::{
     prompt_for_bytes_from_any_data_type, prompt_for_data_input, prompt_for_u128, prompt_for_u16,
-    prompt_for_u32, prompt_for_u64, prompt_for_u8,
+    prompt_for_u32, prompt_for_u64, prompt_for_u8, text_input_paste_handler,
 };
 pub use label::ConsoleUiLabel;
 pub use list::{ConsoleUiList, ConsoleUiListEntryStyle, ConsoleUiListStyles};
+pub use mnemonic_input::get_mnemonic_input;
 pub use numeric_input::{ConsoleUiNumericInput, ConsoleUiNumericInputStyles};
 pub use program_selector::ConsoleUiProgramSelector;
 pub use scroll_text::{ConsoleUiScrollText, ConsoleUiScrollTextStyles};

@@ -43,7 +43,7 @@ impl ConsoleUiListEntryStyle {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConsoleUiListStyles {
     page_information_highlight_colours: ConsoleColours,
     page_information_base_colours: ConsoleColours,

@@ -27,7 +27,7 @@ use crate::{
 use alloc::{vec, vec::Vec};
 use macros::{c16, s16};
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConsoleUiScrollTextStyles {
     scroll_indicator_colours: ConsoleColours,
     wrap_indicator_colours: ConsoleColours,
@@ -103,7 +103,7 @@ impl ConsoleUiScrollTextStyles {
     }
 }
 
-#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConsoleUiScrollText {
     character_predicate: Option<fn(character: u16) -> bool>,
     styles: ConsoleUiScrollTextStyles,

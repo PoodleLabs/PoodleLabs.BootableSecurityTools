@@ -17,8 +17,7 @@
 use crate::String16;
 use core::ops::Deref;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum UiListType {
     Select,
     Ordered(usize),

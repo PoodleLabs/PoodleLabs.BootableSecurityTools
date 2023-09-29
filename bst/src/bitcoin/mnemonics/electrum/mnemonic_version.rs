@@ -21,32 +21,32 @@ pub const MNEMONIC_VERSION_HMAC_KEY: &[u8] = "Seed version".as_bytes();
 
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum ElectrumMnemonicVersion {
+pub enum MnemonicVersion {
     Legacy = 0b0000000000000000,
     Segwit = 0b0000000000000001,
     Legacy2FA = 0b1000000000000000,
     Segwit2FA = 0b1000000000000001,
 }
 
-impl Into<String16<'static>> for ElectrumMnemonicVersion {
+impl Into<String16<'static>> for MnemonicVersion {
     fn into(self) -> String16<'static> {
         match self {
-            ElectrumMnemonicVersion::Legacy => s16!("Legacy"),
-            ElectrumMnemonicVersion::Segwit => s16!("Segwit"),
-            ElectrumMnemonicVersion::Legacy2FA => s16!("Legacy 2FA"),
-            ElectrumMnemonicVersion::Segwit2FA => s16!("Segwit 2FA"),
+            MnemonicVersion::Legacy => s16!("Legacy"),
+            MnemonicVersion::Segwit => s16!("Segwit"),
+            MnemonicVersion::Legacy2FA => s16!("Legacy 2FA"),
+            MnemonicVersion::Segwit2FA => s16!("Segwit 2FA"),
         }
     }
 }
 
 pub const fn mnemonic_prefix_validator(
-    mnemonic_version: ElectrumMnemonicVersion,
+    mnemonic_version: MnemonicVersion,
 ) -> fn(bytes: &[u8]) -> bool {
     match mnemonic_version {
-        ElectrumMnemonicVersion::Legacy => legacy_prefix_validator,
-        ElectrumMnemonicVersion::Segwit => segwit_prefix_validator,
-        ElectrumMnemonicVersion::Legacy2FA => legacy_2fa_prefix_validator,
-        ElectrumMnemonicVersion::Segwit2FA => segwit_2fa_prefix_validator,
+        MnemonicVersion::Legacy => legacy_prefix_validator,
+        MnemonicVersion::Segwit => segwit_prefix_validator,
+        MnemonicVersion::Legacy2FA => legacy_2fa_prefix_validator,
+        MnemonicVersion::Segwit2FA => segwit_2fa_prefix_validator,
     }
 }
 

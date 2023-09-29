@@ -22,13 +22,10 @@ pub mod program_lists;
 use crate::{console_out::ConsoleOut, ui::console::ConsoleWriteable, String16};
 use alloc::{boxed::Box, sync::Arc};
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ProgramExitResult {
     Success,
     UserCancelled,
-    BytesError(Box<[u8]>),
-    String8Error(Box<str>),
     String16Error(Box<[u16]>),
 }
 

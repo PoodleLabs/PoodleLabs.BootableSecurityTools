@@ -29,7 +29,7 @@ use crate::{
 };
 use macros::s16;
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConsoleUiNumericInputStyles {
     numeric_base_selection_title_styles: ConsoleUiTitleStyles,
     numeric_base_selection_list_styles: ConsoleUiListStyles,
@@ -81,7 +81,7 @@ impl ConsoleUiNumericInputStyles {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct ConsoleUiNumericInput<'a, TSystemServices: SystemServices> {
     system_services: &'a TSystemServices,
     styles: ConsoleUiNumericInputStyles,

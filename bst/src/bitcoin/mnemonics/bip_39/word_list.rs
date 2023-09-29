@@ -17,11 +17,9 @@
 use crate::String16;
 use macros::s16;
 
-pub const BITS_PER_WORD: u8 = 11;
-
-pub const LONGEST_WORD_LENGTH: u8 = 8;
-
-pub const WORD_LIST: [String16; 2048] = [
+pub const LONGEST_WORD_LENGTH: usize = 8;
+pub const BITS_PER_WORD: usize = 11;
+pub const WORDS: [String16; 2048] = [
     s16!("abandon"),
     s16!("ability"),
     s16!("able"),

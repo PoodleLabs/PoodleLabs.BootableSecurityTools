@@ -28,7 +28,7 @@ use crate::{
     ui::{ConfirmationPrompt, DataInput, DataInputType},
     String16,
 };
-use alloc::{format, string::String, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use macros::s16;
 
 pub fn prompt_for_bytes_from_any_data_type<TSystemServices: SystemServices>(
@@ -49,12 +49,18 @@ pub fn prompt_for_bytes_from_any_data_type<TSystemServices: SystemServices>(
     ) {
         DataInput::Number(number) => Ok(number.take_ownership_of_bytes()),
         DataInput::None => Err(ProgramExitResult::UserCancelled),
-        DataInput::Text(text) => match String::from_utf16(&text) {
-            Ok(s) => Ok(s.into_bytes()),
-            Err(e) => Err(ProgramExitResult::String8Error(
-                format!("Invalid string input: {}\0", e).into(),
-            )),
-        },
+        DataInput::Text(mut text) => {
+            // Build a UTF8 buffer.
+            let text_string = String16::from(&text);
+            let mut utf8_buffer = Vec::with_capacity(text_string.utf8_content_length());
+
+            // Write to the UTF8 buffer.
+            text_string.write_content_to_utf8_vec(&mut utf8_buffer);
+
+            // Pre-emptively clear the text input.
+            text.fill(0);
+            Ok(utf8_buffer)
+        }
         DataInput::Bytes(bytes) => Ok(bytes),
     }
 }
@@ -354,7 +360,7 @@ fn prompt_for_unsigned_integer<
     }
 }
 
-fn text_input_paste_handler<TSystemServices: SystemServices>(
+pub fn text_input_paste_handler<TSystemServices: SystemServices>(
     clipboard_entry: ClipboardEntry,
     scroll_text: &mut ConsoleUiScrollText,
     system_services: &TSystemServices,

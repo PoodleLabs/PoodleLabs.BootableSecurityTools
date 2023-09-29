@@ -17,6 +17,40 @@
 pub mod bip_39;
 pub mod electrum;
 
+mod bip_32_derivation;
+mod mnemonic_formats;
+mod mnemonic_text_normalization;
+mod word_lists;
+
+pub use bip_32_derivation::Bip32DevivationSettings;
+pub use mnemonic_formats::{MnemonicFormat, MnemonicLength};
+pub use mnemonic_text_normalization::{
+    allow_mnemonic_text_character, MnemonicTextNormalizationSettings,
+};
+pub use word_lists::MnemonicWordList;
+
+use crate::String16;
+use alloc::{boxed::Box, vec::Vec};
+
+pub trait MnemonicParser {
+    type TParseResult: MnemonicParseResult;
+    type TMnemonicLength: MnemonicLength;
+
+    fn try_parse_mnemonic(&self, words: &Vec<String16<'static>>) -> Self::TParseResult;
+
+    fn mnemonic_format(&self) -> MnemonicFormat<Self::TMnemonicLength>;
+
+    fn bip_32_derivation_settings(&self) -> Bip32DevivationSettings;
+}
+
+pub trait MnemonicParseResult {
+    fn can_derive_bip_32_seed(&self) -> bool;
+
+    fn get_bytes(self) -> Option<Box<[u8]>>;
+
+    fn can_get_bytes(&self) -> bool;
+}
+
 const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Option<usize> {
     let available_bits = byte_count * 8;
     if available_bits < bit_count {
@@ -57,30 +91,30 @@ const fn try_get_bit_at_index(bit_index: usize, bytes: &[u8]) -> Option<bool> {
     Some((bit_mask & byte) != 0)
 }
 
-fn try_get_word_index(
-    start_bit_offset: usize,
-    word_number: usize,
-    bits_per_word: u8,
-    bytes: &[u8],
-) -> Option<usize> {
-    if bits_per_word > 64 {
-        // We unwrap into a usize so we can index a word list; we can't support more than 64 bits per word.
-        // It's OK though... there's not that many words.
-        return None;
+fn build_utf8_mnemonic_string<'a>(
+    word_space_characters: String16<'a>,
+    mnemonic: &Vec<String16<'a>>,
+) -> Vec<u8> {
+    // No words, no output.
+    if mnemonic.len() == 0 {
+        return Vec::with_capacity(0);
     }
 
-    let start = start_bit_offset + (word_number * (bits_per_word as usize));
-    let end = start + (bits_per_word as usize);
-    if end > bytes.len() * 8 {
-        return None;
+    // Count the total number of characters required.
+    let words_character_count: usize = mnemonic.iter().map(|w| w.utf8_content_length()).sum();
+    let space_character_count = (mnemonic.len() - 1) * word_space_characters.utf8_content_length();
+
+    // Prepare a buffer, then fill it one word at a time.
+    let mut mnemonic_string = Vec::with_capacity(space_character_count + words_character_count);
+    for i in 0..(mnemonic.len() - 1) {
+        // Copy the word into the buffer.
+        mnemonic[i].write_content_to_utf8_vec(&mut mnemonic_string);
+
+        // Space after every word but the last.
+        word_space_characters.write_content_to_utf8_vec(&mut mnemonic_string);
     }
 
-    let mut index = 0usize;
-    for i in start..end {
-        // Read the bits one at a time into the index; we're just building up a base 2 number.
-        index *= 2;
-        index += try_get_bit_at_index(i, bytes).unwrap() as usize;
-    }
-
-    Some(index)
+    // Last word, no space.
+    mnemonic[mnemonic.len() - 1].write_content_to_utf8_vec(&mut mnemonic_string);
+    mnemonic_string
 }

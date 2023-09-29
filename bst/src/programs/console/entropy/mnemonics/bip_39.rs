@@ -15,16 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    bip_39_word_list_mnemonic_decoder::{
-        Bip39BasedMnemonicParseResult, ConsoleBip39WordListMnemonicDecoder,
-    },
-    bip_39_word_list_mnemonic_encoder::ConsoleBip39WordListMnemonicEncoder,
+    mnemonic_bip_32_seed_deriver::ConsoleMnemonicBip39SeedDeriver,
+    mnemonic_entropy_decoder::ConsoleMnemonicEntropyDecoder,
+    mnemonic_entropy_encoder::{ConsoleMnemonicEntropyEncoder, MnemonicEncoder},
 };
 use crate::{
-    bitcoin::mnemonics::bip_39::{
-        required_bits_of_entropy_for_mnemonic_length, try_generate_bip_39_mnemonic,
-        try_parse_bip39_mnemonic, Bip39MnemonicParsingResult,
-    },
+    bitcoin::mnemonics::{bip_39, MnemonicFormat},
     console_out::ConsoleOut,
     constants,
     programs::{
@@ -36,7 +32,7 @@ use crate::{
     ui::console::ConsoleWriteable,
     String16,
 };
-use alloc::{boxed::Box, format, sync::Arc, vec::Vec};
+use alloc::{format, sync::Arc, vec::Vec};
 use macros::s16;
 
 pub fn get_bip_39_mnemonic_program_list<
@@ -49,27 +45,22 @@ pub fn get_bip_39_mnemonic_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 2] = [
-        Arc::from(ConsoleBip39WordListMnemonicEncoder::from(
-            |_, l, b| match try_generate_bip_39_mnemonic(l, b) {
-                Some(m) => Ok(m),
-                // We should ever expect this to get hit.
-                None => Err(Some(s16!(
-                    "An unknown error occurred while generating the mnemonic."
-                ))),
-            },
-            s16!("BIP 39 Mnemonic Encoder"),
+    let programs: [Arc<dyn Program>; 3] = [
+        Arc::from(ConsoleMnemonicEntropyEncoder::from(
             system_services.clone(),
-            s16!("16"),
-            s16!("BIP 39"),
-            required_bits_of_entropy_for_mnemonic_length,
+            Encoder,
+            s16!("BIP 39 Entropy Encoder"),
         )),
-        Arc::from(ConsoleBip39WordListMnemonicDecoder::from(
-            s16!("BIP 39 Mnemonic Decoder"),
-            mnemonic_parser,
-            system_services.clone(),
-            s16!("BIP 39"),
+        Arc::from(ConsoleMnemonicEntropyDecoder::from(
             s16!("BIP 39 Mnemonic Bytes"),
+            bip_39::MnemonicParser,
+            system_services.clone(),
+            s16!("BIP 39 Entropy Decoder"),
+        )),
+        Arc::from(ConsoleMnemonicBip39SeedDeriver::from(
+            system_services.clone(),
+            bip_39::MnemonicParser,
+            s16!("BIP 39 Mnemonic To BIP 32 Seed"),
         )),
     ];
 
@@ -77,29 +68,63 @@ pub fn get_bip_39_mnemonic_program_list<
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }
 
-fn mnemonic_parser(words: &Vec<String16<'static>>) -> Bip39MnemonicParsingResult<'static> {
-    try_parse_bip39_mnemonic(&words)
+struct Encoder;
+
+impl MnemonicEncoder for Encoder {
+    type TMnemonicLength = bip_39::MnemonicLength;
+
+    fn mnemnonic_format(&self) -> MnemonicFormat<Self::TMnemonicLength> {
+        bip_39::MNEMONIC_FORMAT
+    }
+
+    fn try_encode<TSystemServices: SystemServices>(
+        &self,
+        bytes: &[u8],
+        _system_services: &TSystemServices,
+        mnemonic_length: Self::TMnemonicLength,
+    ) -> Result<Vec<String16<'static>>, Option<String16<'static>>> {
+        match bip_39::try_generate_mnemonic(mnemonic_length, bytes) {
+            Some(m) => Ok(m),
+            // We should never expect this to get hit.
+            None => Err(Some(s16!(
+                "An unknown error occurred while generating the mnemonic."
+            ))),
+        }
+    }
 }
 
-impl<'a> ConsoleWriteable for Bip39MnemonicParsingResult<'a> {
+impl ConsoleWriteable for bip_39::MnemonicLength {
+    fn write_to<T: ConsoleOut>(&self, console: &T) {
+        super::write_mnemonic_length_to(
+            (*self).into(),
+            bip_39::required_bits_of_entropy_for_mnemonic_length(*self),
+            console,
+        );
+    }
+}
+
+impl<'a> ConsoleWriteable for bip_39::MnemonicParsingResult<'a> {
     fn write_to<T: ConsoleOut>(&self, console: &T) {
         match self {
-            Bip39MnemonicParsingResult::InvalidLength => console
+            bip_39::MnemonicParsingResult::InvalidLength => console
                 .in_colours(constants::ERROR_COLOURS, |c| {
                     c.output_utf16(s16!("Invalid Length"))
                 }),
-            Bip39MnemonicParsingResult::InvalidWordEncountered(_, w, _) => console
+            bip_39::MnemonicParsingResult::InvalidWordEncountered(_, w, _) => console
                 .in_colours(constants::ERROR_COLOURS, |c| {
                     c.output_utf16(s16!("Invalid word: ")).output_utf16(*w)
                 }),
-            Bip39MnemonicParsingResult::InvalidChecksum(length, _, checksum, expected_checksum) => {
-                console.in_colours(constants::WARNING_COLOURS, |c| {
-                    c.output_utf16((*length).into())
-                        .output_utf16(s16!(" Mnemonic failed checksum; expected "))
-                        .output_utf32(&format!("{}, got {}.\0", expected_checksum, checksum))
-                })
-            }
-            Bip39MnemonicParsingResult::Valid(length, _, checksum) => {
+            bip_39::MnemonicParsingResult::InvalidChecksum(
+                length,
+                _,
+                checksum,
+                expected_checksum,
+            ) => console.in_colours(constants::WARNING_COLOURS, |c| {
+                c.output_utf16((*length).into())
+                    .output_utf16(s16!(" Mnemonic failed checksum; expected "))
+                    .output_utf32(&format!("{}, got {}.\0", expected_checksum, checksum))
+            }),
+            bip_39::MnemonicParsingResult::Valid(length, _, checksum) => {
                 console.in_colours(constants::SUCCESS_COLOURS, |c| {
                     c.output_utf16((*length).into())
                         .output_utf16(s16!(" Mnemonic passed checksum of "))
@@ -107,15 +132,5 @@ impl<'a> ConsoleWriteable for Bip39MnemonicParsingResult<'a> {
                 })
             }
         };
-    }
-}
-
-impl<'a> Bip39BasedMnemonicParseResult for Bip39MnemonicParsingResult<'a> {
-    fn get_bytes(self) -> Option<Box<[u8]>> {
-        match self {
-            Bip39MnemonicParsingResult::InvalidChecksum(_, bytes, _, _) => Some(bytes),
-            Bip39MnemonicParsingResult::Valid(_, bytes, _) => Some(bytes),
-            _ => None,
-        }
     }
 }
