@@ -70,7 +70,6 @@ pub struct NumericCollector {
     bit_counter: f64,
 }
 
-#[allow(dead_code)]
 impl NumericCollector {
     pub fn with_byte_capacity(capacity: usize) -> Self {
         Self {
@@ -164,21 +163,11 @@ impl NumericCollector {
         r
     }
 
-    pub fn copy_trimmed_bytes_to(&self, buffer: &mut [u8]) {
-        self.big_integer.copy_bytes_to(buffer);
-    }
-
     pub fn copy_padded_bytes_to(&self, buffer: &mut [u8]) {
         let padding = self.padded_byte_count() - self.trimmed_byte_count();
         self.big_integer.copy_bytes_to(&mut buffer[padding..]);
         // Make sure our leading zeroes are actually zeroes.
         buffer[..padding].fill(0);
-    }
-
-    pub fn set_content_to(&mut self, bytes: &[u8]) {
-        // We assume all the bits had a chance at being a 1.
-        self.bit_counter += bytes.len() as f64 * 8f64;
-        self.big_integer.copy_bytes_from(bytes);
     }
 
     pub fn trimmed_byte_count(&self) -> usize {

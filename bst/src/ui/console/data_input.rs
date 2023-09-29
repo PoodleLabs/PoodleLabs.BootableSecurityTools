@@ -51,11 +51,11 @@ pub fn prompt_for_bytes_from_any_data_type<TSystemServices: SystemServices>(
         DataInput::None => Err(ProgramExitResult::UserCancelled),
         DataInput::Text(mut text) => {
             // Build a UTF8 buffer.
-            let s = String16::from(&text);
-            let mut utf8_buffer = Vec::with_capacity(s.content_length_utf8());
+            let text_string = String16::from(&text);
+            let mut utf8_buffer = Vec::with_capacity(text_string.utf8_content_length());
 
             // Write to the UTF8 buffer.
-            s.extend_utf8_vec_with_content(&mut utf8_buffer);
+            text_string.write_content_to_utf8_vec(&mut utf8_buffer);
 
             // Pre-emptively clear the text input.
             text.fill(0);

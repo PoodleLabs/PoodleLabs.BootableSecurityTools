@@ -14,24 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    bitcoin::mnemonics::{
-        bip_39::{
-            self, try_generate_bip_39_mnemonic, try_parse_bip39_mnemonic, Bip39MnemonicLength,
-            Bip39MnemonicParsingResult, LONGEST_WORD_LENGTH, WORD_LIST,
-        },
-        derive_hd_wallet_seed,
-    },
-    String16,
-};
+use crate::{bitcoin::mnemonics::bip_39, String16};
 use hex_literal::hex;
 use macros::s16;
 
 #[test]
 fn longest_word_length_is_correct() {
     assert_eq!(
-        WORD_LIST.iter().map(|w| w.content_length()).max().unwrap(),
-        LONGEST_WORD_LENGTH as usize
+        bip_39::WORD_LIST
+            .words()
+            .iter()
+            .map(|w| w.content_length())
+            .max()
+            .unwrap(),
+        bip_39::WORD_LIST.longest_word_length()
     )
 }
 
@@ -248,13 +244,13 @@ const TEST_VECTORS: [TestVector; 26] = [
 #[test]
 fn mnemonics_are_generated_from_bytes_correctly() {
     for test_vector in TEST_VECTORS {
-        match try_generate_bip_39_mnemonic(
+        match bip_39::try_generate_mnemonic(
             match test_vector.mnemonic.split_ascii_whitespace().count() {
-                12 => Bip39MnemonicLength::Twelve,
-                15 => Bip39MnemonicLength::Fifteen,
-                18 => Bip39MnemonicLength::Eighteen,
-                21 => Bip39MnemonicLength::TwentyOne,
-                24 => Bip39MnemonicLength::TwentyFour,
+                12 => bip_39::MnemonicLength::Twelve,
+                15 => bip_39::MnemonicLength::Fifteen,
+                18 => bip_39::MnemonicLength::Eighteen,
+                21 => bip_39::MnemonicLength::TwentyOne,
+                24 => bip_39::MnemonicLength::TwentyFour,
                 _ => panic!(
                     "Failed to get mnemonic length for test vector: {:?}",
                     test_vector
@@ -279,14 +275,8 @@ fn mnemonics_are_generated_from_bytes_correctly() {
 
                 let extension_vec = test_vector.extension_phrase.content_slice().to_vec();
                 assert_eq!(
-                    derive_hd_wallet_seed(
-                        bip_39::NORMALIZATION_SETTINGS,
-                        mnemonic,
-                        bip_39::MNEMONIC_WORD_SPACING,
-                        extension_vec,
-                        bip_39::EXTENSION_PREFIX,
-                        bip_39::SEED_DERIVATION_PBKDF_ITERATIONS
-                    ),
+                    bip_39::BIP_32_DERIVATION_SETTINGS
+                        .derive_hd_wallet_seed(extension_vec, mnemonic,),
                     test_vector.expected_seed
                 )
             }
@@ -313,18 +303,18 @@ fn mnemonics_are_parsed_correctly() {
             .map(|w| String16::from(w))
             .collect::<Vec<String16>>();
 
-        match try_parse_bip39_mnemonic(&word_strings) {
-            Bip39MnemonicParsingResult::InvalidLength => panic!(
+        match bip_39::try_parse_bip39_mnemonic(&word_strings) {
+            bip_39::MnemonicParsingResult::InvalidLength => panic!(
                 "Incorrectly calculated invalid length for mnemonic: '{}'.",
                 test_vector.mnemonic
             ),
-            Bip39MnemonicParsingResult::InvalidWordEncountered(l, w, i) => panic!(
+            bip_39::MnemonicParsingResult::InvalidWordEncountered(l, w, i) => panic!(
                 "Incorrectly believed a word in mnemonic: '{}' to be invalid; word {}, index {} for mnemonic with calculated length {:?}.",
                 test_vector.mnemonic,
                 String::from_utf16(unsafe{w.get_underlying_slice()}).unwrap(),
                 i,
                 l),
-            Bip39MnemonicParsingResult::InvalidChecksum(l, e, c, ec) => panic!(
+            bip_39::MnemonicParsingResult::InvalidChecksum(l, e, c, ec) => panic!(
                 "Incorrectly believed mnemonic: '{}' to have an invalid checksum. Length of {:?}, entropy of {:?}, checksum bits of {} and expected checksum bits of {}.",
                 test_vector.mnemonic,
                 l,
@@ -332,7 +322,7 @@ fn mnemonics_are_parsed_correctly() {
                 c,
                 ec
             ),
-            Bip39MnemonicParsingResult::Valid(_, e, _) => assert_eq!(&e[..], &test_vector.bytes[..]),
+            bip_39::MnemonicParsingResult::Valid(_, e, _) => assert_eq!(&e[..], &test_vector.bytes[..]),
         }
     }
 }

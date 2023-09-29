@@ -16,6 +16,7 @@
 
 use super::{ConsoleUiLabel, ConsoleWriteable};
 use crate::{
+    bitcoin::mnemonics::MnemonicParser,
     console_out::ConsoleOut,
     constants,
     keyboard_in::{BehaviourKey, Key, KeyboardIn},
@@ -31,34 +32,38 @@ use macros::{c16, s16};
 // least try USING this UI (mnemonic entropy decoder programs, HD wallet seed generators) before trying to read the code.
 
 pub fn get_mnemonic_input<
+    FMnemonicAcceptancePredicate: Fn(&TMnemonicParser::TParseResult) -> bool,
+    TMnemonicParser: MnemonicParser,
     TSystemServices: SystemServices,
-    TMnemonicParseResult: ConsoleWriteable,
-    FMnemonicAcceptancePredicate: Fn(&TMnemonicParseResult) -> bool,
-    FMnemonicParser: Fn(&Vec<String16<'static>>) -> TMnemonicParseResult,
 >(
-    parse_result_acceptance_predicate: FMnemonicAcceptancePredicate,
+    acceptance_predicate: FMnemonicAcceptancePredicate,
     system_services: &TSystemServices,
-    mnemonic_parser: FMnemonicParser,
-    word_list: &[String16<'static>],
+    mnemonic_parser: &TMnemonicParser,
     possible_word_table_rows: usize,
-    longest_word_length: usize,
-    max_words: usize,
-) -> Option<(Vec<String16<'static>>, TMnemonicParseResult)> {
+) -> Option<(Vec<String16<'static>>, TMnemonicParser::TParseResult)>
+where
+    TMnemonicParser::TParseResult: ConsoleWriteable,
+{
     let console = system_services.get_console_out();
+    let mnemonic_format = mnemonic_parser.mnemonic_format();
+    let word_list = mnemonic_format.word_list();
+
+    let longest_word_length = word_list.longest_word_length();
+    let max_words = mnemonic_format.max_words();
     let console_width = console.size().width();
 
     // A buffer for input truncation.
-    let mut input_buffer = vec![0u16; max_words * (longest_word_length as usize + 1)];
+    let mut input_buffer = vec![0u16; max_words * (longest_word_length + 1)];
 
     // A buffer for the individual mnemonic words.
     let mut words: Vec<String16> = Vec::with_capacity(max_words);
 
     // A buffer for inputting mnemonic words one at a time.
-    let mut current_word_buffer = vec![0u16; longest_word_length as usize];
+    let mut current_word_buffer = vec![0u16; longest_word_length];
     let mut current_word_buffer_count = 0;
 
     // 'Possible word list' dimensions.
-    let words_per_row = console_width / (longest_word_length as usize + 1);
+    let words_per_row = console_width / (longest_word_length + 1);
 
     // Write the input UI structure; entered mnemonic label first.
     ConsoleUiLabel::from(s16!("Entered Mnemonic")).write_to(&console);
@@ -96,8 +101,6 @@ pub fn get_mnemonic_input<
     // Get the keyboard input provider.
     let keyboard_in = system_services.get_keyboard_in();
 
-    // A place to store mnemonic parse results.
-    let mut output_result: Option<TMnemonicParseResult>;
     loop {
         // A flag indicating whether the user should be allowed to input more words.
         let allow_more_words = words.len() < max_words;
@@ -113,6 +116,7 @@ pub fn get_mnemonic_input<
 
             // Work out the possible words given the current word input.
             let possible_words = word_list
+                .words()
                 .iter()
                 .filter(|w| {
                     w.content_length() >= current_word_buffer_count
@@ -157,7 +161,7 @@ pub fn get_mnemonic_input<
         }
 
         // Parse the mnemonic input.
-        let parse_result = (mnemonic_parser)(&words);
+        let parse_result = mnemonic_parser.try_decode_bytes(&words);
 
         // Write information about the current mnemonic input.
         console.set_cursor_position(mnemonic_info_position);
@@ -167,8 +171,11 @@ pub fn get_mnemonic_input<
         // We'll write the exit message now, so go to that position.
         console.set_cursor_position(exit_message_position);
 
+        // A place to store mnemonic parse results.
+        let output_result: Option<TMnemonicParser::TParseResult>;
+
         // Check whether the calling program would accept the parse result.
-        if (parse_result_acceptance_predicate)(&parse_result) {
+        if (acceptance_predicate)(&parse_result) {
             output_result = Some(parse_result);
             console.in_colours(constants::PROMPT_COLOURS, |c| {
                 c.output_utf16(s16!("Press ESC to use mnemonic..."))
@@ -247,9 +254,6 @@ pub fn get_mnemonic_input<
         // Show the cursor during input.
         console.set_cursor_visibility(true);
 
-        // A flag indicating whether an exit has been requested.
-        let mut exit = false;
-
         // Only re-draw when there's some actual change.
         loop {
             // Read some input.
@@ -262,8 +266,10 @@ pub fn get_mnemonic_input<
                 Key::Behaviour(b) => match b {
                     BehaviourKey::Escape => {
                         console.set_cursor_position(end_position).line_start();
-                        exit = true;
-                        break;
+                        return match output_result {
+                            Some(r) => Some((words, r)),
+                            None => None,
+                        };
                     }
                     BehaviourKey::BackSpace => {
                         if current_word_buffer_count > 0 {
@@ -286,45 +292,12 @@ pub fn get_mnemonic_input<
                     _ => {}
                 },
                 Key::Digit(_) => { /* Ignore digits. */ }
-                Key::Symbol(s) => match s {
-                    c16!("a")
-                    | c16!("b")
-                    | c16!("c")
-                    | c16!("d")
-                    | c16!("e")
-                    | c16!("f")
-                    | c16!("g")
-                    | c16!("h")
-                    | c16!("i")
-                    | c16!("j")
-                    | c16!("k")
-                    | c16!("l")
-                    | c16!("m")
-                    | c16!("n")
-                    | c16!("o")
-                    | c16!("p")
-                    | c16!("q")
-                    | c16!("r")
-                    | c16!("s")
-                    | c16!("t")
-                    | c16!("u")
-                    | c16!("v")
-                    | c16!("w")
-                    | c16!("x")
-                    | c16!("y")
-                    | c16!("z") => {
-                        if allow_more_words && current_word_buffer_count < current_word_buffer.len()
-                        {
-                            // If there's space, write the character to the current word buffer.
-                            current_word_buffer[current_word_buffer_count] = s;
-                            current_word_buffer_count += 1;
-                            break;
-                        }
-                    }
-                    c16!(" ") => match completion_word {
-                        Some(w) => {
-                            if allow_more_words {
-                                // Add the word to the word list.
+                Key::Symbol(s) => {
+                    if s == c16!(" ") && allow_more_words {
+                        // If the user pressed space, and we have room for more words.
+                        match completion_word {
+                            Some(w) => {
+                                // If there's a word we can add, add it to the word list.
                                 words.push(*w);
 
                                 // Then clear the current word buffer.
@@ -332,21 +305,20 @@ pub fn get_mnemonic_input<
                                 current_word_buffer.fill(0);
                                 break;
                             }
+                            None => { /* There's no possible word, so don't do anything. */ }
                         }
-                        None => { /* There's no possible word, so don't do anything. */ }
-                    },
-                    _ => { /* Ignore any other symbol input. */ }
-                },
+                    } else if s >= c16!("a")
+                        && s <= c16!("z")
+                        && allow_more_words
+                        && current_word_buffer_count < current_word_buffer.len()
+                    {
+                        // If there's space, write the character to the current word buffer.
+                        current_word_buffer[current_word_buffer_count] = s;
+                        current_word_buffer_count += 1;
+                        break;
+                    }
+                }
             }
         }
-
-        if exit {
-            break;
-        }
-    }
-
-    match output_result {
-        Some(r) => Some((words, r)),
-        None => None,
     }
 }

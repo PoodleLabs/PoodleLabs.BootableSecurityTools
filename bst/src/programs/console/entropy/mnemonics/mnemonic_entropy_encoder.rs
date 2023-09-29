@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    bitcoin::mnemonics::{MnemonicFormat, MnemonicLength},
     console_out::ConsoleOut,
     constants,
     programs::{Program, ProgramExitResult},
@@ -31,82 +32,46 @@ use crate::{
 use alloc::vec::Vec;
 use macros::{c16, s16};
 
+pub trait MnemonicEncoder {
+    type TMnemonicLength: MnemonicLength + ConsoleWriteable;
+
+    fn mnemnonic_format(&self) -> MnemonicFormat<Self::TMnemonicLength>;
+
+    fn try_encode<TSystemServices: SystemServices>(
+        &self,
+        bytes: &[u8],
+        system_services: &TSystemServices,
+        mnemonic_length: Self::TMnemonicLength,
+    ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>;
+}
+
 pub struct ConsoleMnemonicEntropyEncoder<
-    TMnemonicLength: Into<usize> + ConsoleWriteable + Copy + 'static,
-    FGetAvailableLengths: Fn(usize) -> &'static [TMnemonicLength],
+    TMnemonicEncoder: MnemonicEncoder,
     TSystemServices: SystemServices,
-    FMnemonicEncoder: Fn(
-        &TSystemServices,
-        TMnemonicLength,
-        &[u8],
-    ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>,
 > {
-    available_lengths_calculator: FGetAvailableLengths,
-    mnemonic_format_name: String16<'static>,
-    word_list: &'static [String16<'static>],
-    minimum_byte_count: String16<'static>,
-    word_list_name: String16<'static>,
     system_services: TSystemServices,
-    encoder: FMnemonicEncoder,
+    encoder: TMnemonicEncoder,
     name: String16<'static>,
 }
 
-impl<
-        TMnemonicLength: Into<usize> + ConsoleWriteable + Copy + 'static,
-        FGetAvailableLengths: Fn(usize) -> &'static [TMnemonicLength],
-        TSystemServices: SystemServices,
-        FMnemonicEncoder: Fn(
-            &TSystemServices,
-            TMnemonicLength,
-            &[u8],
-        ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>,
-    >
-    ConsoleMnemonicEntropyEncoder<
-        TMnemonicLength,
-        FGetAvailableLengths,
-        TSystemServices,
-        FMnemonicEncoder,
-    >
+impl<TMnemonicEncoder: MnemonicEncoder, TSystemServices: SystemServices>
+    ConsoleMnemonicEntropyEncoder<TMnemonicEncoder, TSystemServices>
 {
     pub const fn from(
-        available_lengths_calculator: FGetAvailableLengths,
-        mnemonic_format_name: String16<'static>,
-        word_list: &'static [String16<'static>],
-        minimum_byte_count: String16<'static>,
-        word_list_name: String16<'static>,
         system_services: TSystemServices,
-        encoder: FMnemonicEncoder,
+        encoder: TMnemonicEncoder,
         name: String16<'static>,
     ) -> Self {
         Self {
-            available_lengths_calculator,
-            mnemonic_format_name,
-            minimum_byte_count,
             system_services,
-            word_list_name,
-            word_list,
             encoder,
             name,
         }
     }
 }
 
-impl<
-        TMnemonicLength: Into<usize> + ConsoleWriteable + Copy + 'static,
-        FGetAvailableLengths: Fn(usize) -> &'static [TMnemonicLength],
-        TSystemServices: SystemServices,
-        FMnemonicEncoder: Fn(
-            &TSystemServices,
-            TMnemonicLength,
-            &[u8],
-        ) -> Result<Vec<String16<'static>>, Option<String16<'static>>>,
-    > Program
-    for ConsoleMnemonicEntropyEncoder<
-        TMnemonicLength,
-        FGetAvailableLengths,
-        TSystemServices,
-        FMnemonicEncoder,
-    >
+impl<TMnemonicEncoder: MnemonicEncoder, TSystemServices: SystemServices> Program
+    for ConsoleMnemonicEntropyEncoder<TMnemonicEncoder, TSystemServices>
 {
     fn name(&self) -> String16<'static> {
         self.name
@@ -114,14 +79,15 @@ impl<
 
     fn run(&self) -> ProgramExitResult {
         let console = self.system_services.get_console_out();
+        let mnemonic_format = self.encoder.mnemnonic_format();
         console.clear();
 
         ConsoleUiTitle::from(self.name(), constants::BIG_TITLE).write_to(&console);
         console
             .output_utf16(s16!("This program encodes entropy into the "))
-            .output_utf16(self.mnemonic_format_name)
-            .output_utf16(s16!(" Mnemonic Format utilizing the "))
-            .output_utf16(self.word_list_name)
+            .output_utf16(mnemonic_format.name())
+            .output_utf16(s16!(" mnemonic format utilizing the "))
+            .output_utf16(mnemonic_format.word_list().name())
             .output_utf16_line(s16!(" word list. Given more bits than required for a given mnemonic length, the trailing bits will be used."));
 
         const CANCEL_PROMPT_STRING: String16<'static> = s16!("Exit Mnemonic Encoder program?");
@@ -138,7 +104,9 @@ impl<
                 _ => return ProgramExitResult::UserCancelled,
             };
 
-            let available_mnemonic_lengths = (self.available_lengths_calculator)(bytes.len());
+            let available_mnemonic_lengths =
+                mnemonic_format.get_available_lengths_for_byte_count(bytes.len());
+
             if available_mnemonic_lengths.len() == 0 {
                 // We can't create a mnemonic with the provided bytes; prompt the user for new bytes.
                 console
@@ -146,11 +114,11 @@ impl<
                     .new_line()
                     .in_colours(constants::ERROR_COLOURS, |c| {
                         c.output_utf16(s16!("Cannot encode a "))
-                            .output_utf16(self.mnemonic_format_name)
+                            .output_utf16(mnemonic_format.name())
                             .output_utf16(s16!(
                                 " mnemonic with the provided number of bytes; at least "
                             ))
-                            .output_utf16(self.minimum_byte_count)
+                            .output_utf16(mnemonic_format.minimum_bytes_of_entropy())
                             .output_utf16_line(s16!(" are required."))
                     });
             } else if available_mnemonic_lengths.len() == 1 {
@@ -183,7 +151,10 @@ impl<
 
         // Generate the mnemonic's words.
         let mut mnemonic_words =
-            match (self.encoder)(&self.system_services, mnemonic_length, &bytes) {
+            match self
+                .encoder
+                .try_encode(&bytes, &self.system_services, mnemonic_length)
+            {
                 Ok(words) => words,
                 Err(message) => {
                     match message {
@@ -227,7 +198,7 @@ impl<
             }
 
             // Clear the mnemonic word in the underlying vector (will be cleared on dealloc, but to be safe).
-            mnemonic_words[i] = self.word_list[0]
+            mnemonic_words[i] = mnemonic_format.word_list().words()[0]
         }
 
         console

@@ -251,11 +251,6 @@ impl NumericBase {
         self.small_title
     }
 
-    #[allow(dead_code)]
-    pub const fn name(&self) -> String16<'static> {
-        self.name
-    }
-
     pub const fn base(&self) -> u8 {
         self.base
     }

@@ -15,10 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::mnemonics::{
-        allow_extension_phrase_character, derive_hd_wallet_seed,
-        ExtensionPhraseNormalizationSettings,
-    },
+    bitcoin::mnemonics::{allow_mnemonic_text_character, MnemonicParseResult, MnemonicParser},
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
@@ -30,75 +27,37 @@ use crate::{
     },
     String16,
 };
-use alloc::vec::Vec;
 use macros::s16;
 
-pub trait MnemonicSeedDeriveResult: ConsoleWriteable {
-    fn can_derive_seed(&self) -> bool;
-}
-
 pub struct ConsoleMnemonicBip39SeedDeriver<
+    TMnemonicParser: MnemonicParser,
     TSystemServices: SystemServices,
-    TMnemonicParseResult: MnemonicSeedDeriveResult,
-    FMnemonicParser: Fn(&Vec<String16<'static>>) -> TMnemonicParseResult,
 > {
-    normalization_settings: ExtensionPhraseNormalizationSettings,
-    mnemonic_word_spacing: String16<'static>,
-    mnemonic_format_name: String16<'static>,
-    word_list: &'static [String16<'static>],
-    word_list_name: String16<'static>,
     system_services: TSystemServices,
-    mnemonic_parser: FMnemonicParser,
-    extension_prefix: &'static [u8],
-    longest_word_length: usize,
+    mnemonic_parser: TMnemonicParser,
     name: String16<'static>,
-    pbkdf_iterations: u32,
-    max_words: usize,
 }
 
-impl<
-        TSystemServices: SystemServices,
-        TMnemonicParseResult: MnemonicSeedDeriveResult,
-        FMnemonicParser: Fn(&Vec<String16<'static>>) -> TMnemonicParseResult,
-    > ConsoleMnemonicBip39SeedDeriver<TSystemServices, TMnemonicParseResult, FMnemonicParser>
+impl<TMnemonicParser: MnemonicParser, TSystemServices: SystemServices>
+    ConsoleMnemonicBip39SeedDeriver<TMnemonicParser, TSystemServices>
 {
     pub const fn from(
-        normalization_settings: ExtensionPhraseNormalizationSettings,
-        mnemonic_word_spacing: String16<'static>,
-        mnemonic_format_name: String16<'static>,
-        word_list: &'static [String16<'static>],
-        word_list_name: String16<'static>,
         system_services: TSystemServices,
-        mnemonic_parser: FMnemonicParser,
-        extension_prefix: &'static [u8],
-        longest_word_length: usize,
+        mnemonic_parser: TMnemonicParser,
         name: String16<'static>,
-        pbkdf_iterations: u32,
-        max_words: usize,
     ) -> Self {
         Self {
-            normalization_settings,
-            mnemonic_word_spacing,
-            mnemonic_format_name,
-            longest_word_length,
-            extension_prefix,
-            pbkdf_iterations,
             system_services,
             mnemonic_parser,
-            word_list_name,
-            word_list,
-            max_words,
             name,
         }
     }
 }
 
-impl<
-        TSystemServices: SystemServices,
-        TMnemonicParseResult: MnemonicSeedDeriveResult,
-        FMnemonicParser: Fn(&Vec<String16<'static>>) -> TMnemonicParseResult,
-    > Program
-    for ConsoleMnemonicBip39SeedDeriver<TSystemServices, TMnemonicParseResult, FMnemonicParser>
+impl<TMnemonicParser: MnemonicParser, TSystemServices: SystemServices> Program
+    for ConsoleMnemonicBip39SeedDeriver<TMnemonicParser, TSystemServices>
+where
+    TMnemonicParser::TParseResult: ConsoleWriteable,
 {
     fn name(&self) -> String16<'static> {
         self.name
@@ -106,45 +65,42 @@ impl<
 
     fn run(&self) -> ProgramExitResult {
         let console = self.system_services.get_console_out();
+        let mnemonic_format = self.mnemonic_parser.mnemonic_format();
         console.clear();
 
         ConsoleUiTitle::from(self.name(), constants::BIG_TITLE).write_to(&console);
         console
             .output_utf16(s16!(
-                "This program derives a BIP 32 HD wallet seed from from the "
+                "This program derives a BIP 32 HD wallet seed from a mnemonic utilizing the "
             ))
-            .output_utf16(self.mnemonic_format_name)
-            .output_utf16(s16!(" Mnemonic Format utilizing the "))
-            .output_utf16(self.word_list_name)
+            .output_utf16(mnemonic_format.name())
+            .output_utf16(s16!(" format, and "))
+            .output_utf16(mnemonic_format.word_list().name())
             .output_utf16_line(s16!(" word list."));
 
-        let mnemonic_input_result = get_mnemonic_input::<_, TMnemonicParseResult, _, _>(
-            |r| r.can_derive_seed(),
+        let mnemonic_input_result = get_mnemonic_input(
+            |r| r.can_derive_bip_32_seed(),
             &self.system_services,
             &self.mnemonic_parser,
-            self.word_list,
             5,
-            self.longest_word_length,
-            self.max_words,
         );
 
         match mnemonic_input_result {
             Some((mnemonic, _)) => {
-                let mut derived_seed = derive_hd_wallet_seed(
-                    self.normalization_settings,
-                    mnemonic,
-                    self.mnemonic_word_spacing,
-                    ConsoleUiTextBox::from(&self.system_services, constants::TEXT_INPUT)
-                        .get_text_input(
-                            console.size().width(),
-                            text_input_paste_handler,
-                            s16!("Extension Phrase"),
-                            s16!(" Text "),
-                            Some(allow_extension_phrase_character),
-                        ),
-                    self.extension_prefix,
-                    self.pbkdf_iterations,
-                );
+                let mut derived_seed = self
+                    .mnemonic_parser
+                    .bip_32_derivation_settings()
+                    .derive_hd_wallet_seed(
+                        ConsoleUiTextBox::from(&self.system_services, constants::TEXT_INPUT)
+                            .get_text_input(
+                                console.size().width(),
+                                text_input_paste_handler,
+                                s16!("Extension Phrase"),
+                                s16!(" Text "),
+                                Some(allow_mnemonic_text_character),
+                            ),
+                        mnemonic,
+                    );
 
                 write_bytes(
                     &self.system_services,

@@ -14,13 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod mnemonic_length;
+mod parser;
 mod word_list;
 
-pub use word_list::{BITS_PER_WORD, LONGEST_WORD_LENGTH, WORD_LIST};
+pub use mnemonic_length::MnemonicLength;
+pub use parser::MnemonicParser;
 
 use super::{
-    try_get_bit_at_index, try_get_bit_start_offset, try_get_word_index, try_set_bit_at_index,
-    ExtensionPhraseNormalizationSettings,
+    try_get_bit_at_index, try_get_bit_start_offset, try_set_bit_at_index, Bip32DevivationSettings,
+    MnemonicFormat, MnemonicTextNormalizationSettings, MnemonicWordList,
 };
 use crate::{
     hashing::{Hasher, Sha256},
@@ -29,84 +32,42 @@ use crate::{
 use alloc::{boxed::Box, vec, vec::Vec};
 use macros::s16;
 
-pub const MNEMONIC_WORD_SPACING: String16 = s16!(" ");
-pub const SEED_DERIVATION_PBKDF_ITERATIONS: u32 = 2048;
-pub const EXTENSION_PREFIX: &[u8] = "mnemonic".as_bytes();
-pub const NORMALIZATION_SETTINGS: ExtensionPhraseNormalizationSettings =
-    ExtensionPhraseNormalizationSettings::from(false, false, false);
+pub const WORD_LIST: MnemonicWordList = MnemonicWordList::from(
+    &word_list::WORDS,
+    word_list::LONGEST_WORD_LENGTH,
+    s16!("BIP 39"),
+    word_list::BITS_PER_WORD,
+);
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Bip39MnemonicLength {
-    Twelve,
-    Fifteen,
-    Eighteen,
-    TwentyOne,
-    TwentyFour,
+pub const MNEMONIC_FORMAT: MnemonicFormat<MnemonicLength> = MnemonicFormat::from(
+    get_available_lengths_for_byte_count,
+    s16!("16"),
+    WORD_LIST,
+    s16!("BIP 39"),
+    24,
+);
+
+pub const BIP_32_DERIVATION_SETTINGS: Bip32DevivationSettings = Bip32DevivationSettings::from(
+    MnemonicTextNormalizationSettings::from(false, false, false),
+    s16!(" "),
+    "mnemonic".as_bytes(),
+    2048,
+);
+
+pub fn required_bits_of_entropy_for_mnemonic_length(mnemonic_length: MnemonicLength) -> usize {
+    (Into::<usize>::into(mnemonic_length) * (word_list::BITS_PER_WORD)) / 33 * 32
 }
-
-impl Into<usize> for Bip39MnemonicLength {
-    fn into(self) -> usize {
-        match self {
-            Bip39MnemonicLength::Twelve => 12,
-            Bip39MnemonicLength::Fifteen => 15,
-            Bip39MnemonicLength::Eighteen => 18,
-            Bip39MnemonicLength::TwentyOne => 21,
-            Bip39MnemonicLength::TwentyFour => 24,
-        }
-    }
-}
-
-impl Into<String16<'static>> for Bip39MnemonicLength {
-    fn into(self) -> String16<'static> {
-        match self {
-            Bip39MnemonicLength::Twelve => s16!("Twelve Word"),
-            Bip39MnemonicLength::Fifteen => s16!("Fifteen Word"),
-            Bip39MnemonicLength::Eighteen => s16!("Eighteen Word"),
-            Bip39MnemonicLength::TwentyOne => s16!("Twenty One Word"),
-            Bip39MnemonicLength::TwentyFour => s16!("Twenty Four Word"),
-        }
-    }
-}
-
-const AVAILABLE_MNEMONIC_LENGTHS: [Bip39MnemonicLength; 5] = [
-    Bip39MnemonicLength::Twelve,
-    Bip39MnemonicLength::Fifteen,
-    Bip39MnemonicLength::Eighteen,
-    Bip39MnemonicLength::TwentyOne,
-    Bip39MnemonicLength::TwentyFour,
-];
-
-pub fn get_available_mnemonic_lengths(byte_count: usize) -> &'static [Bip39MnemonicLength] {
-    let mut count = 0;
-    for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
-        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
-            <= byte_count
-        {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-
-    &AVAILABLE_MNEMONIC_LENGTHS[..count]
-}
-
-pub const MAX_WORD_COUNT: usize = 24;
 
 #[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Bip39MnemonicParsingResult<'a> {
+pub enum MnemonicParsingResult<'a> {
     InvalidLength,
-    InvalidWordEncountered(Bip39MnemonicLength, String16<'a>, usize),
-    InvalidChecksum(Bip39MnemonicLength, Box<[u8]>, u8, u8),
-    Valid(Bip39MnemonicLength, Box<[u8]>, u8),
+    InvalidWordEncountered(MnemonicLength, String16<'a>, usize),
+    InvalidChecksum(MnemonicLength, Box<[u8]>, u8, u8),
+    Valid(MnemonicLength, Box<[u8]>, u8),
 }
 
-pub fn required_bits_of_entropy_for_mnemonic_length(mnemonic_length: Bip39MnemonicLength) -> usize {
-    (Into::<usize>::into(mnemonic_length) * (BITS_PER_WORD as usize)) / 33 * 32
-}
-
-pub fn try_generate_bip_39_mnemonic(
-    mnemonic_length: Bip39MnemonicLength,
+pub fn try_generate_mnemonic(
+    mnemonic_length: MnemonicLength,
     bytes: &[u8],
 ) -> Option<Vec<String16<'static>>> {
     // Calculate the required entropy bits and bytes.
@@ -162,7 +123,11 @@ pub fn try_generate_bip_39_mnemonic(
     let mut v = Vec::with_capacity(word_count);
     for i in 0..word_count {
         // Get the words one by one from the mnemnonic bits; guaranteed to succeed as we've already checked the length, so unwrap.
-        v.push(try_get_word(start_offset, i, &mnemonic_bytes).unwrap())
+        v.push(
+            WORD_LIST
+                .try_get_word(start_offset, i, &mnemonic_bytes)
+                .unwrap(),
+        )
     }
 
     // We don't need the raw bytes anymore; pre-emptively overwrite it.
@@ -170,16 +135,16 @@ pub fn try_generate_bip_39_mnemonic(
     Some(v)
 }
 
-pub fn try_parse_bip39_mnemonic<'a>(words: &Vec<String16<'a>>) -> Bip39MnemonicParsingResult<'a> {
+pub fn try_parse_bip39_mnemonic<'a>(words: &Vec<String16<'a>>) -> MnemonicParsingResult<'a> {
     // Get the mnemonic length.
     let mnemonic_length = match words.len() {
-        24 => Bip39MnemonicLength::TwentyFour,
-        21 => Bip39MnemonicLength::TwentyOne,
-        18 => Bip39MnemonicLength::Eighteen,
-        15 => Bip39MnemonicLength::Fifteen,
-        12 => Bip39MnemonicLength::Twelve,
+        24 => MnemonicLength::TwentyFour,
+        21 => MnemonicLength::TwentyOne,
+        18 => MnemonicLength::Eighteen,
+        15 => MnemonicLength::Fifteen,
+        12 => MnemonicLength::Twelve,
         // Words has an invalid length.
-        _ => return Bip39MnemonicParsingResult::InvalidLength,
+        _ => return MnemonicParsingResult::InvalidLength,
     };
 
     // Mnemonic constituent calculations.
@@ -191,9 +156,9 @@ pub fn try_parse_bip39_mnemonic<'a>(words: &Vec<String16<'a>>) -> Bip39MnemonicP
     let mnemonic_bit_count = entropy_bits + checksum_bits;
     let mnemonic_byte_count = entropy_byte_count + 1;
     let (mnemonic_bit_start_offset, mut mnemonic_bytes) =
-        match try_read_mnemonic_bytes(mnemonic_byte_count, mnemonic_bit_count, words) {
+        match WORD_LIST.try_read_mnemonic_bytes(mnemonic_byte_count, mnemonic_bit_count, words) {
             Err((w, i)) => {
-                return Bip39MnemonicParsingResult::InvalidWordEncountered(mnemonic_length, w, i)
+                return MnemonicParsingResult::InvalidWordEncountered(mnemonic_length, w, i)
             }
             Ok(b) => b,
         };
@@ -248,9 +213,9 @@ pub fn try_parse_bip39_mnemonic<'a>(words: &Vec<String16<'a>>) -> Bip39MnemonicP
     }
 
     return if expected_checksum_bytes == checksum_bytes {
-        Bip39MnemonicParsingResult::Valid(mnemonic_length, entropy_bytes.into(), checksum_bytes[0])
+        MnemonicParsingResult::Valid(mnemonic_length, entropy_bytes.into(), checksum_bytes[0])
     } else {
-        Bip39MnemonicParsingResult::InvalidChecksum(
+        MnemonicParsingResult::InvalidChecksum(
             mnemonic_length,
             entropy_bytes.into(),
             checksum_bytes[0],
@@ -259,58 +224,25 @@ pub fn try_parse_bip39_mnemonic<'a>(words: &Vec<String16<'a>>) -> Bip39MnemonicP
     };
 }
 
-pub fn try_get_word(
-    start_bit_offset: usize,
-    word_number: usize,
-    bytes: &[u8],
-) -> Option<String16<'static>> {
-    match try_get_word_index(start_bit_offset, word_number, BITS_PER_WORD, bytes) {
-        Some(i) => Some(WORD_LIST[i]),
-        None => None,
-    }
-}
+const AVAILABLE_MNEMONIC_LENGTHS: [MnemonicLength; 5] = [
+    MnemonicLength::Twelve,
+    MnemonicLength::Fifteen,
+    MnemonicLength::Eighteen,
+    MnemonicLength::TwentyOne,
+    MnemonicLength::TwentyFour,
+];
 
-pub fn try_read_mnemonic_bytes<'a>(
-    mnemonic_byte_count: usize,
-    mnemonic_bit_count: usize,
-    words: &Vec<String16<'a>>,
-) -> Result<(usize, Vec<u8>), (String16<'a>, usize)> {
-    // Initialize a byte vector for reading the mnemonic into.
-    let mut mnemonic_bytes = vec![0u8; mnemonic_byte_count];
-
-    // Calculate the offset to write the mnemonic's bits at.
-    let mnemonic_bit_start_offset =
-        try_get_bit_start_offset(mnemonic_bit_count, mnemonic_byte_count).unwrap();
-
-    // Iterate over the words in the mnemonic.
-    for i in 0..words.len() {
-        let word = words[i];
-
-        // Look for the word in the word list.
-        let word = match WORD_LIST
-            .binary_search_by(|w| w.content_iterator().cmp(word.content_iterator()))
+fn get_available_lengths_for_byte_count(byte_count: usize) -> &'static [MnemonicLength] {
+    let mut count = 0;
+    for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
+        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
+            <= byte_count
         {
-            Ok(i) => i,
-            Err(_) => {
-                // We couldn't find the word in the word list; return an error.
-                return Err((word, i));
-            }
-        }
-        .to_be_bytes();
-
-        // Get the start offset for the word's bits.
-        let word_bit_start_offset =
-            try_get_bit_start_offset(BITS_PER_WORD as usize, word.len()).unwrap();
-
-        // Write the word's bits to the mnemonic byte buffer.
-        for j in 0..BITS_PER_WORD {
-            assert!(try_set_bit_at_index(
-                mnemonic_bit_start_offset + (i * BITS_PER_WORD as usize) + (j as usize),
-                try_get_bit_at_index(word_bit_start_offset + j as usize, &word).unwrap(),
-                &mut mnemonic_bytes,
-            ));
+            count += 1;
+        } else {
+            break;
         }
     }
 
-    Ok((mnemonic_bit_start_offset, mnemonic_bytes))
+    &AVAILABLE_MNEMONIC_LENGTHS[..count]
 }

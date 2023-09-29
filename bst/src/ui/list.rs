@@ -17,7 +17,6 @@
 use crate::String16;
 use core::ops::Deref;
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum UiListType {
     Select,

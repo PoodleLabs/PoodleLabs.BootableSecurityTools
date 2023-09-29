@@ -20,7 +20,6 @@ use crate::{
     programs::{Program, ProgramExitResult},
     String16,
 };
-use alloc::format;
 use macros::s16;
 
 #[derive(Clone)]
@@ -46,13 +45,6 @@ impl<T: ConsoleOut> ProgramExitResultHandler for ConsoleDumpingProgramExitResult
         match result {
             ProgramExitResult::Success => {}
             ProgramExitResult::UserCancelled => {}
-            ProgramExitResult::BytesError(bytes) => {
-                self.error_prelude(program)
-                    .output_utf32_line(&format!("{:?}\0", bytes));
-            }
-            ProgramExitResult::String8Error(string) => {
-                self.error_prelude(program).output_utf32_line(&string);
-            }
             ProgramExitResult::String16Error(string16) => {
                 self.error_prelude(program)
                     .output_utf16_line(String16::from(&string16));

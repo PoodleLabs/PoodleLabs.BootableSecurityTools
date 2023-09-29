@@ -68,11 +68,11 @@ impl<'a> String16<'a> {
         self.0
     }
 
-    pub fn extend_utf16_vec_with_content(&self, vec: &mut Vec<u16>) {
+    pub fn write_content_to_utf16_vec(&self, vec: &mut Vec<u16>) {
         vec.extend_from_slice(self.content_slice())
     }
 
-    pub fn extend_utf8_vec_with_content(&self, vec: &mut Vec<u8>) {
+    pub fn write_content_to_utf8_vec(&self, vec: &mut Vec<u8>) {
         let mut char_buffer = [0u8; 2];
         for char in decode_utf16(self.content_slice().iter().cloned())
             .filter(|c| c.is_ok())
@@ -90,7 +90,7 @@ impl<'a> String16<'a> {
         self.content_slice().into_iter()
     }
 
-    pub fn content_length_utf8(&self) -> usize {
+    pub fn utf8_content_length(&self) -> usize {
         decode_utf16(self.content_slice().iter().cloned())
             .filter(|c| c.is_ok())
             .map(|c| c.unwrap().len_utf8())

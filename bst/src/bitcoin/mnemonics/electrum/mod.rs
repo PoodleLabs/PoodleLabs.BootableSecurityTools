@@ -47,19 +47,21 @@
 // was used to generate the mnemonic. We can support such mnemonics for seed derivation, but we can't extract the entropy.
 
 mod legacy_word_list;
+mod mnemonic_length;
 mod mnemonic_version;
+mod parser;
 
-pub use mnemonic_version::ElectrumMnemonicVersion;
+pub use mnemonic_length::MnemonicLength;
+pub use mnemonic_version::MnemonicVersion;
+pub use parser::MnemonicParser;
 
 use super::{
-    bip_39::{try_read_mnemonic_bytes, BITS_PER_WORD},
-    format_mnemonic_string_utf8, try_get_bit_start_offset, ExtensionPhraseNormalizationSettings,
+    bip_39, build_utf8_mnemonic_string, try_get_bit_start_offset, Bip32DevivationSettings,
+    MnemonicFormat, MnemonicTextNormalizationSettings, MnemonicWordList,
 };
 use crate::{
     bitcoin::mnemonics::{
-        bip_39::{try_get_word, try_parse_bip39_mnemonic, Bip39MnemonicParsingResult},
-        electrum::mnemonic_version::{mnemonic_prefix_validator, MNEMONIC_VERSION_HMAC_KEY},
-        try_get_bit_at_index, try_set_bit_at_index,
+        bip_39::try_parse_bip39_mnemonic, try_get_bit_at_index, try_set_bit_at_index,
     },
     hashing::{Hasher, Hmac, Sha512},
     integers::ceil,
@@ -67,103 +69,47 @@ use crate::{
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use macros::s16;
+use mnemonic_version::{mnemonic_prefix_validator, MNEMONIC_VERSION_HMAC_KEY};
 
-pub const MNEMONIC_WORD_SPACING: String16 = s16!(" ");
-pub const SEED_DERIVATION_PBKDF_ITERATIONS: u32 = 2048;
-pub const EXTENSION_PREFIX: &[u8] = "electrum".as_bytes();
-pub const NORMALIZATION_SETTINGS: ExtensionPhraseNormalizationSettings =
-    ExtensionPhraseNormalizationSettings::from(true, true, true);
+pub const WORD_LIST: MnemonicWordList = bip_39::WORD_LIST;
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum ElectrumMnemonicLength {
-    Twelve,
-    Fifteen,
-    Eighteen,
-    TwentyOne,
-    TwentyFour,
+pub const MNEMONIC_FORMAT: MnemonicFormat<MnemonicLength> = MnemonicFormat::from(
+    get_available_length_for_byte_count,
+    s16!("17"),
+    WORD_LIST,
+    s16!("Electrum"),
+    24,
+);
+
+pub const BIP_32_DERIVATION_SETTINGS: Bip32DevivationSettings = Bip32DevivationSettings::from(
+    MnemonicTextNormalizationSettings::from(true, true, true),
+    s16!(" "),
+    "electrum".as_bytes(),
+    2048,
+);
+
+pub fn required_bits_of_entropy_for_mnemonic_length(mnemonic_length: MnemonicLength) -> usize {
+    Into::<usize>::into(mnemonic_length) * WORD_LIST.bits_per_word()
 }
 
-impl Into<usize> for ElectrumMnemonicLength {
-    fn into(self) -> usize {
-        match self {
-            ElectrumMnemonicLength::Twelve => 12,
-            ElectrumMnemonicLength::Fifteen => 15,
-            ElectrumMnemonicLength::Eighteen => 18,
-            ElectrumMnemonicLength::TwentyOne => 21,
-            ElectrumMnemonicLength::TwentyFour => 24,
-        }
-    }
-}
-
-impl Into<String16<'static>> for ElectrumMnemonicLength {
-    fn into(self) -> String16<'static> {
-        match self {
-            ElectrumMnemonicLength::Twelve => s16!("Twelve Word"),
-            ElectrumMnemonicLength::Fifteen => s16!("Fifteen Word"),
-            ElectrumMnemonicLength::Eighteen => s16!("Eighteen Word"),
-            ElectrumMnemonicLength::TwentyOne => s16!("Twenty One Word"),
-            ElectrumMnemonicLength::TwentyFour => s16!("Twenty Four Word"),
-        }
-    }
-}
-
-const AVAILABLE_MNEMONIC_LENGTHS: [ElectrumMnemonicLength; 5] = [
-    ElectrumMnemonicLength::Twelve,
-    ElectrumMnemonicLength::Fifteen,
-    ElectrumMnemonicLength::Eighteen,
-    ElectrumMnemonicLength::TwentyOne,
-    ElectrumMnemonicLength::TwentyFour,
-];
-
-pub fn get_available_mnemonic_lengths(byte_count: usize) -> &'static [ElectrumMnemonicLength] {
-    let mut count = 0;
-    for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
-        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
-            <= byte_count
-        {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-
-    &AVAILABLE_MNEMONIC_LENGTHS[..count]
-}
-
-pub const MAX_WORD_COUNT: usize = 24;
-
-#[allow(dead_code)]
 #[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
-pub enum ElectrumMnemonicParsingResult<'a> {
+pub enum MnemonicParsingResult<'a> {
     InvalidLength,
-    InvalidWordEncountered(ElectrumMnemonicLength, String16<'a>, usize),
-    OldFormat(ElectrumMnemonicLength, Box<[u8]>),
-    InvalidVersion(ElectrumMnemonicLength, Box<[u8]>, [u8; 2]),
-    Bip39(ElectrumMnemonicLength, Box<[u8]>, ElectrumMnemonicVersion),
-    Valid(ElectrumMnemonicLength, Box<[u8]>, ElectrumMnemonicVersion),
+    InvalidWordEncountered(MnemonicLength, String16<'a>, usize),
+    OldFormat(MnemonicLength, Box<[u8]>),
+    InvalidVersion(MnemonicLength, Box<[u8]>, [u8; 2]),
+    Bip39(MnemonicLength, Box<[u8]>, MnemonicVersion),
+    Valid(MnemonicLength, Box<[u8]>, MnemonicVersion),
 }
 
-pub fn required_bits_of_entropy_for_mnemonic_length(
-    mnemonic_length: ElectrumMnemonicLength,
-) -> usize {
-    Into::<usize>::into(mnemonic_length) * (BITS_PER_WORD as usize)
-}
-
-pub fn required_bytes_of_entropy_for_mnemonic_length(
-    mnemonic_length: ElectrumMnemonicLength,
-) -> usize {
-    ceil(required_bits_of_entropy_for_mnemonic_length(mnemonic_length) as f64 / 8f64)
-}
-
-#[allow(dead_code)]
-pub fn try_generate_electrum_mnemonic(
+pub fn try_generate_mnemonic(
     bytes: &[u8],
-    mnemonic_length: ElectrumMnemonicLength,
-    mnemonic_version: ElectrumMnemonicVersion,
+    mnemonic_length: MnemonicLength,
+    mnemonic_version: MnemonicVersion,
 ) -> Result<(Vec<String16<'static>>, usize), String16<'static>> {
     // Don't generate 2FA mnemonics.
     match mnemonic_version {
-        ElectrumMnemonicVersion::Legacy | ElectrumMnemonicVersion::Segwit => {}
+        MnemonicVersion::Legacy | MnemonicVersion::Segwit => {}
         _ => {
             return Err(s16!(
                 "Electrum 2FA mnemonic generation is not supported; Electrum's 2FA is bad."
@@ -202,13 +148,15 @@ pub fn try_generate_electrum_mnemonic(
     loop {
         // Read the words from the buffer.
         for i in 0..word_count {
-            let word = try_get_word(start_bit_offset, i, &increment_buffer).unwrap();
+            let word = WORD_LIST
+                .try_get_word(start_bit_offset, i, &increment_buffer)
+                .unwrap();
             words.push(word);
         }
 
         match try_parse_bip39_mnemonic(&words) {
             // Electrum mnemonics can't also be valid BIP39 mnemonics.
-            Bip39MnemonicParsingResult::Valid(_, _, _) => {}
+            bip_39::MnemonicParsingResult::Valid(_, _, _) => {}
             _ => {
                 if !is_valid_in_old_electrum_format(&words)
                     && generated_mnemonic_is_valid(&words, &mut hmac, mnemonic_version).is_some()
@@ -245,51 +193,46 @@ pub fn try_generate_electrum_mnemonic(
     }
 }
 
-#[allow(dead_code)]
-pub fn try_parse_electrum_mnemonic<'a>(
-    words: &Vec<String16<'a>>,
-) -> ElectrumMnemonicParsingResult<'a> {
+pub fn try_parse_electrum_mnemonic<'a>(words: &Vec<String16<'a>>) -> MnemonicParsingResult<'a> {
     // Get the mnemonic length.
     let mnemonic_length = match words.len() {
-        24 => ElectrumMnemonicLength::TwentyFour,
-        21 => ElectrumMnemonicLength::TwentyOne,
-        18 => ElectrumMnemonicLength::Eighteen,
-        15 => ElectrumMnemonicLength::Fifteen,
-        12 => ElectrumMnemonicLength::Twelve,
+        24 => MnemonicLength::TwentyFour,
+        21 => MnemonicLength::TwentyOne,
+        18 => MnemonicLength::Eighteen,
+        15 => MnemonicLength::Fifteen,
+        12 => MnemonicLength::Twelve,
         // Words has an invalid length.
-        _ => return ElectrumMnemonicParsingResult::InvalidLength,
+        _ => return MnemonicParsingResult::InvalidLength,
     };
 
     let bytes = match try_extract_mnemonic_bytes(mnemonic_length, &words) {
-        Err((w, i)) => {
-            return ElectrumMnemonicParsingResult::InvalidWordEncountered(mnemonic_length, w, i)
-        }
+        Err((w, i)) => return MnemonicParsingResult::InvalidWordEncountered(mnemonic_length, w, i),
         Ok(b) => b,
     };
 
     // Perform the verson-bits HMAC.
-    let hmac = perform_hmac_on_electrum_mnemonic(
+    let hmac = perform_hmac_on_mnemonic(
         &mut Sha512::new().build_hmac(MNEMONIC_VERSION_HMAC_KEY),
         &words,
     );
 
     for version in &[
-        ElectrumMnemonicVersion::Legacy,
-        ElectrumMnemonicVersion::Segwit,
-        ElectrumMnemonicVersion::Legacy2FA,
-        ElectrumMnemonicVersion::Segwit2FA,
+        MnemonicVersion::Legacy,
+        MnemonicVersion::Segwit,
+        MnemonicVersion::Legacy2FA,
+        MnemonicVersion::Segwit2FA,
     ] {
         let validator = mnemonic_prefix_validator(*version);
         if (validator)(&hmac) {
             return match try_parse_bip39_mnemonic(&words) {
-                Bip39MnemonicParsingResult::Valid(..) => {
-                    ElectrumMnemonicParsingResult::Bip39(mnemonic_length, bytes, *version)
+                bip_39::MnemonicParsingResult::Valid(..) => {
+                    MnemonicParsingResult::Bip39(mnemonic_length, bytes, *version)
                 }
                 _ => {
                     if is_valid_in_old_electrum_format(&words) {
-                        ElectrumMnemonicParsingResult::OldFormat(mnemonic_length, bytes)
+                        MnemonicParsingResult::OldFormat(mnemonic_length, bytes)
                     } else {
-                        ElectrumMnemonicParsingResult::Valid(mnemonic_length, bytes, *version)
+                        MnemonicParsingResult::Valid(mnemonic_length, bytes, *version)
                     }
                 }
             };
@@ -298,7 +241,34 @@ pub fn try_parse_electrum_mnemonic<'a>(
 
     let mut version_bytes = [0u8; 2];
     version_bytes.copy_from_slice(&hmac[..2]);
-    ElectrumMnemonicParsingResult::InvalidVersion(mnemonic_length, bytes, version_bytes)
+    MnemonicParsingResult::InvalidVersion(mnemonic_length, bytes, version_bytes)
+}
+
+const AVAILABLE_MNEMONIC_LENGTHS: [MnemonicLength; 5] = [
+    MnemonicLength::Twelve,
+    MnemonicLength::Fifteen,
+    MnemonicLength::Eighteen,
+    MnemonicLength::TwentyOne,
+    MnemonicLength::TwentyFour,
+];
+
+fn required_bytes_of_entropy_for_mnemonic_length(mnemonic_length: MnemonicLength) -> usize {
+    ceil(required_bits_of_entropy_for_mnemonic_length(mnemonic_length) as f64 / 8f64)
+}
+
+fn get_available_length_for_byte_count(byte_count: usize) -> &'static [MnemonicLength] {
+    let mut count = 0;
+    for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
+        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
+            <= byte_count
+        {
+            count += 1;
+        } else {
+            break;
+        }
+    }
+
+    &AVAILABLE_MNEMONIC_LENGTHS[..count]
 }
 
 fn is_valid_in_old_electrum_format<'a>(words: &Vec<String16<'a>>) -> bool {
@@ -312,45 +282,44 @@ fn is_valid_in_old_electrum_format<'a>(words: &Vec<String16<'a>>) -> bool {
     })
 }
 
-fn perform_hmac_on_electrum_mnemonic<'a>(
+fn try_extract_mnemonic_bytes<'a>(
+    mnemonic_length: MnemonicLength,
+    words: &Vec<String16<'a>>,
+) -> Result<Box<[u8]>, (String16<'a>, usize)> {
+    let mnemonic_byte_count = required_bytes_of_entropy_for_mnemonic_length(mnemonic_length);
+    let mnemonic_bit_count = required_bits_of_entropy_for_mnemonic_length(mnemonic_length);
+    match WORD_LIST.try_read_mnemonic_bytes(mnemonic_byte_count, mnemonic_bit_count, words) {
+        Err((w, i)) => return Err((w, i)),
+        Ok((_, b)) => Ok(b.into()),
+    }
+}
+
+fn perform_hmac_on_mnemonic<'a>(
     hmac: &mut Hmac<64, 128, Sha512>,
     words: &Vec<String16<'a>>,
 ) -> [u8; 64] {
     // Format a mnemonic string in UTF8.
-    let mut mnemonic_string = format_mnemonic_string_utf8(&words, s16!(" "));
+    let mut mnemonic_string = build_utf8_mnemonic_string(s16!(" "), &words);
 
     // Get the HMAC result.
     let result = hmac.get_hmac(&mnemonic_string);
 
     // Pre-emptively fill the mnemonic string.
     mnemonic_string.fill(0);
-
     result
 }
 
 fn generated_mnemonic_is_valid(
     words: &Vec<String16<'static>>,
     hmac: &mut Hmac<64, 128, Sha512>,
-    mnemonic_version: ElectrumMnemonicVersion,
+    mnemonic_version: MnemonicVersion,
 ) -> Option<[u8; 64]> {
-    let hmac = perform_hmac_on_electrum_mnemonic(hmac, words);
+    let hmac = perform_hmac_on_mnemonic(hmac, words);
 
     // Check the mnemonic's HMAC against the mnemonic version prefix.
     if (mnemonic_prefix_validator(mnemonic_version))(&hmac) {
         Some(hmac)
     } else {
         None
-    }
-}
-
-fn try_extract_mnemonic_bytes<'a>(
-    mnemonic_length: ElectrumMnemonicLength,
-    words: &Vec<String16<'a>>,
-) -> Result<Box<[u8]>, (String16<'a>, usize)> {
-    let mnemonic_byte_count = required_bytes_of_entropy_for_mnemonic_length(mnemonic_length);
-    let mnemonic_bit_count = required_bits_of_entropy_for_mnemonic_length(mnemonic_length);
-    match try_read_mnemonic_bytes(mnemonic_byte_count, mnemonic_bit_count, words) {
-        Err((w, i)) => return Err((w, i)),
-        Ok((_, b)) => Ok(b.into()),
     }
 }
