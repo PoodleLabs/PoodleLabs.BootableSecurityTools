@@ -259,7 +259,7 @@ fn required_bytes_of_entropy_for_mnemonic_length(mnemonic_length: MnemonicLength
 fn get_available_length_for_byte_count(byte_count: usize) -> &'static [MnemonicLength] {
     let mut count = 0;
     for i in 0..AVAILABLE_MNEMONIC_LENGTHS.len() {
-        if required_bits_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i]) / 8
+        if required_bytes_of_entropy_for_mnemonic_length(AVAILABLE_MNEMONIC_LENGTHS[i])
             <= byte_count
         {
             count += 1;

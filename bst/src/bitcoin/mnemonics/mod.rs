@@ -51,34 +51,6 @@ pub trait MnemonicParseResult {
     fn can_get_bytes(&self) -> bool;
 }
 
-pub fn build_utf8_mnemonic_string<'a>(
-    word_space_characters: String16<'a>,
-    mnemonic: &Vec<String16<'a>>,
-) -> Vec<u8> {
-    // No words, no output.
-    if mnemonic.len() == 0 {
-        return Vec::with_capacity(0);
-    }
-
-    // Count the total number of characters required.
-    let words_character_count: usize = mnemonic.iter().map(|w| w.utf8_content_length()).sum();
-    let space_character_count = (mnemonic.len() - 1) * word_space_characters.utf8_content_length();
-
-    // Prepare a buffer, then fill it one word at a time.
-    let mut mnemonic_string = Vec::with_capacity(space_character_count + words_character_count);
-    for i in 0..(mnemonic.len() - 1) {
-        // Copy the word into the buffer.
-        mnemonic[i].write_content_to_utf8_vec(&mut mnemonic_string);
-
-        // Space after every word but the last.
-        word_space_characters.write_content_to_utf8_vec(&mut mnemonic_string);
-    }
-
-    // Last word, no space.
-    mnemonic[mnemonic.len() - 1].write_content_to_utf8_vec(&mut mnemonic_string);
-    mnemonic_string
-}
-
 const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Option<usize> {
     let available_bits = byte_count * 8;
     if available_bits < bit_count {
@@ -117,4 +89,32 @@ const fn try_get_bit_at_index(bit_index: usize, bytes: &[u8]) -> Option<bool> {
     let bit_index = bit_index % 8;
     let bit_mask = 0b10000000u8 >> bit_index;
     Some((bit_mask & byte) != 0)
+}
+
+fn build_utf8_mnemonic_string<'a>(
+    word_space_characters: String16<'a>,
+    mnemonic: &Vec<String16<'a>>,
+) -> Vec<u8> {
+    // No words, no output.
+    if mnemonic.len() == 0 {
+        return Vec::with_capacity(0);
+    }
+
+    // Count the total number of characters required.
+    let words_character_count: usize = mnemonic.iter().map(|w| w.utf8_content_length()).sum();
+    let space_character_count = (mnemonic.len() - 1) * word_space_characters.utf8_content_length();
+
+    // Prepare a buffer, then fill it one word at a time.
+    let mut mnemonic_string = Vec::with_capacity(space_character_count + words_character_count);
+    for i in 0..(mnemonic.len() - 1) {
+        // Copy the word into the buffer.
+        mnemonic[i].write_content_to_utf8_vec(&mut mnemonic_string);
+
+        // Space after every word but the last.
+        word_space_characters.write_content_to_utf8_vec(&mut mnemonic_string);
+    }
+
+    // Last word, no space.
+    mnemonic[mnemonic.len() - 1].write_content_to_utf8_vec(&mut mnemonic_string);
+    mnemonic_string
 }
