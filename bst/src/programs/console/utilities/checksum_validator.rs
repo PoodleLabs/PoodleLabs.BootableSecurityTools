@@ -24,10 +24,11 @@ use crate::{
         console::{
             prompt_for_data_input, ConsoleUiContinuePrompt, ConsoleUiTitle, ConsoleWriteable,
         },
-        DataInput, DataInputType,
+        ContinuePrompt, DataInput, DataInputType,
     },
     String16,
 };
+use alloc::format;
 use macros::s16;
 
 pub struct ChecksumValidator<TSystemServices: SystemServices> {
@@ -42,7 +43,7 @@ impl<TSystemServices: SystemServices> ChecksumValidator<TSystemServices> {
 
 impl<TSystemServices: SystemServices> Program for ChecksumValidator<TSystemServices> {
     fn name(&self) -> String16<'static> {
-        s16!("Checksum Validator Program")
+        s16!("Checksum Validator")
     }
 
     fn run(&self) -> ProgramExitResult {
@@ -73,18 +74,23 @@ impl<TSystemServices: SystemServices> Program for ChecksumValidator<TSystemServi
             let checksum =
                 Sha256::new().calculate_double_hash_checksum_for(&input[..input.len() - 4]);
 
-            if checksum == input[..input.len() - 4] {
+            if checksum == input[input.len() - 4..] {
                 console.in_colours(constants::SUCCESS_COLOURS, |c| {
                     c.output_utf16_line(s16!("Checksum passed."))
                 });
             } else {
                 console.in_colours(constants::ERROR_COLOURS, |c| {
-                    c.output_utf16_line(s16!("Checksum failed."))
+                    c.output_utf16_line(s16!("Checksum failed:"))
+                        .output_utf32(&format!(
+                            "Expected: {:?}\r\nGot: {:?}\0",
+                            checksum,
+                            &input[input.len() - 4..]
+                        ))
                 });
             }
         }
 
-        ConsoleUiContinuePrompt::from(&self.system_services);
+        ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
         ProgramExitResult::Success
     }
 }
