@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, KeyNetwork},
+    bitcoin::hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, Bip32KeyVersion},
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
@@ -23,10 +23,11 @@ use crate::{
     system_services::SystemServices,
     ui::{
         console::{
-            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiContinuePrompt,
-            ConsoleUiTitle, ConsoleWriteable,
+            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiConfirmationPrompt,
+            ConsoleUiContinuePrompt, ConsoleUiLabel, ConsoleUiList, ConsoleUiTitle,
+            ConsoleWriteable,
         },
-        ContinuePrompt, DataInput, DataInputType,
+        ConfirmationPrompt, ContinuePrompt, DataInput, DataInputType,
     },
     String16,
 };
@@ -58,6 +59,7 @@ impl<TSystemServices: SystemServices> Program
             .output_utf16_line(s16!("This program takes 16-64 (inclusive) bytes of input and derives a BIP 32 master key for a HD Wallet."))
             .in_colours(constants::WARNING_COLOURS, |c| c.output_utf16_line(
                     s16!("If your bytes were sourced from a mnemonic, you should use the BIP 32 seed, not the decoded entropy bytes.")));
+        const CANCEL_PROMPT: String16 = s16!("Cancel BIP 32 master key derivation?");
 
         // Get the bytes to derive a master key from.
         let mut bytes = loop {
@@ -65,7 +67,7 @@ impl<TSystemServices: SystemServices> Program
                 None,
                 &[DataInputType::Bytes],
                 &self.system_services,
-                s16!("Cancel BIP 32 master key derivation?"),
+                CANCEL_PROMPT,
                 s16!("Wallet Seed Bytes"),
             ) {
                 DataInput::Bytes(mut b) => {
@@ -84,8 +86,30 @@ impl<TSystemServices: SystemServices> Program
             };
         };
 
+        let version_list_label = ConsoleUiLabel::from(s16!("Select key type to generate"));
+        let mut version_list = ConsoleUiList::from(
+            ConsoleUiTitle::from(s16!(" KEY TYPE "), constants::SMALL_TITLE),
+            constants::SELECT_LIST,
+            &[Bip32KeyVersion::MainNet, Bip32KeyVersion::TestNet][..],
+        );
+
+        // Prompt the user to select a BIP 32 key version.
+        let version = loop {
+            version_list_label.write_to(&console);
+            match version_list.prompt_for_selection(&self.system_services) {
+                Some((v, ..)) => break *v,
+                None => {
+                    if ConsoleUiConfirmationPrompt::from(&self.system_services)
+                        .prompt_for_confirmation(CANCEL_PROMPT)
+                    {
+                        return ProgramExitResult::UserCancelled;
+                    }
+                }
+            }
+        };
+
         // Try to derive the key.
-        let key_derivation_result = try_derive_master_key(KeyNetwork::MainNet, &bytes);
+        let key_derivation_result = try_derive_master_key(version, &bytes);
         bytes.fill(0);
 
         match key_derivation_result {
@@ -125,5 +149,14 @@ impl<TSystemServices: SystemServices> Program
                 )
             }
         }
+    }
+}
+
+impl ConsoleWriteable for Bip32KeyVersion {
+    fn write_to<T: ConsoleOut>(&self, console: &T) {
+        console.output_utf16(match self {
+            Bip32KeyVersion::MainNet => s16!("Main Net"),
+            Bip32KeyVersion::TestNet => s16!("Test Net"),
+        });
     }
 }

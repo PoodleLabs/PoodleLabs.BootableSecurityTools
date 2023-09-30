@@ -24,7 +24,11 @@ use alloc::vec::Vec;
 // Serialized keys are prefixed with version bytes.
 pub const MAIN_NET_PRIVATE_KEY_VERSION: u32 = 0x0488ADE4;
 pub const TEST_NET_PRIVATE_KEY_VERSION: u32 = 0x04358394;
+
+#[allow(dead_code)]
 pub const MAIN_NET_PUBLIC_KEY_VERSION: u32 = 0x0488B21E;
+
+#[allow(dead_code)]
 pub const TEST_NET_PUBLIC_KEY_VERSION: u32 = 0x043587CF;
 
 // The key used for HMAC-based BIP 32 master key derivation.
@@ -42,12 +46,15 @@ static mut SECP256K1_N: GlobalRuntimeImmutable<BigInteger, fn() -> BigInteger> =
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum KeyType {
+    #[allow(dead_code)]
     Private,
+
+    #[allow(dead_code)]
     Public,
 }
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum KeyNetwork {
+pub enum Bip32KeyVersion {
     MainNet,
     TestNet,
 }
@@ -113,7 +120,7 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
 }
 
 pub fn try_derive_master_key(
-    key_network: KeyNetwork,
+    key_network: Bip32KeyVersion,
     bytes: &[u8],
 ) -> Option<SerializedExtendedKey> {
     if bytes.len() < 16 || bytes.len() > 64 {
@@ -147,8 +154,8 @@ pub fn try_derive_master_key(
 
     Some(SerializedExtendedKey {
         version: match key_network {
-            KeyNetwork::MainNet => MAIN_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
-            KeyNetwork::TestNet => TEST_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
+            Bip32KeyVersion::MainNet => MAIN_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
+            Bip32KeyVersion::TestNet => TEST_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
         },
         parent_fingerprint: [0, 0, 0, 0],
         child_number: [0, 0, 0, 0],

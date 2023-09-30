@@ -16,7 +16,7 @@
 
 use crate::{
     bitcoin::{
-        hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, KeyNetwork},
+        hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, Bip32KeyVersion},
         mnemonics::bip_39,
     },
     String16,
@@ -288,7 +288,7 @@ fn mnemonics_are_generated_from_bytes_correctly() {
                 assert_eq!(seed, test_vector.expected_seed);
                 assert_eq!(
                     String16::from(&base_58_encode_with_checksum(
-                        &try_derive_master_key(KeyNetwork::MainNet, &seed)
+                        &try_derive_master_key(Bip32KeyVersion::MainNet, &seed)
                             .unwrap()
                             .as_bytes()
                     )),
