@@ -130,6 +130,7 @@ pub fn try_derive_master_key(
     let mut chain_code = [0u8; 32];
     chain_code.copy_from_slice(&hmac_result[32..]);
 
+    // The serialized form of a private key is left-padded with a single 0 byte.
     let key_material = serialized_private_key_bytes(&hmac_result[..32]);
 
     // Fill HMAC copy of key & chain code.

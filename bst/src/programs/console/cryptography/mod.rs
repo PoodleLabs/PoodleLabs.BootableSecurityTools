@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod manual_collection;
-mod mnemonics;
+mod bip_32_master_key_derivation;
 
 use crate::{
     programs::{
@@ -28,7 +27,9 @@ use crate::{
 use alloc::sync::Arc;
 use macros::s16;
 
-pub fn get_entropy_program_list<
+use self::bip_32_master_key_derivation::ConsoleBip32MasterKeyDerivationProgram;
+
+pub fn get_cryptography_program_list<
     'a,
     TSystemServices: SystemServices,
     TProgramSelector: ProgramSelector + 'static,
@@ -38,20 +39,9 @@ pub fn get_entropy_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 2] = [
-        Arc::from(
-            manual_collection::get_manual_entropy_collection_program_list(
-                system_services,
-                program_selector,
-                exit_result_handler,
-            ),
-        ),
-        Arc::from(mnemonics::get_entropy_mnemonic_program_list(
-            system_services,
-            program_selector,
-            exit_result_handler,
-        )),
-    ];
-    ProgramList::from(Arc::from(programs), s16!("Entropy Programs"))
+    let programs: [Arc<dyn Program>; 1] = [Arc::from(
+        ConsoleBip32MasterKeyDerivationProgram::from(system_services.clone()),
+    )];
+    ProgramList::from(Arc::from(programs), s16!("Cryptography Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }
