@@ -92,11 +92,8 @@ impl SerializedExtendedKey {
 }
 
 pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
-    // Double SHA256 hash the bytes; the first 4 bytes in the resulting hash are the checksum.
-    let mut hasher = Sha256::new();
-    let mut hash = hasher.get_hash_of(bytes);
-    hash = hasher.reset().get_hash_of(&hash);
-    hasher.reset();
+    // Calculate the double SHA256 hash checksum.
+    let checksum = Sha256::new().calculate_double_hash_checksum_for(&bytes);
 
     // Build a numeric collector for combining the bytes and their checksum.
     let mut numeric_collector = NumericCollector::with_byte_capacity(bytes.len() + 4);
@@ -105,9 +102,9 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
         _ = numeric_collector.try_add_round(*byte, NumericCollectorRoundBase::WholeByte);
     }
 
-    for byte in &hash[..4] {
+    for byte in checksum {
         // Copy the checksum bytes to the numeric collector.
-        _ = numeric_collector.try_add_round(*byte, NumericCollectorRoundBase::WholeByte);
+        _ = numeric_collector.try_add_round(byte, NumericCollectorRoundBase::WholeByte);
     }
 
     // Extract the underlying big integer.

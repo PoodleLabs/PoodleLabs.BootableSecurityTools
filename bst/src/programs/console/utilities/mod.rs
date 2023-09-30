@@ -25,6 +25,7 @@ use crate::{
 use alloc::sync::Arc;
 use macros::s16;
 
+mod checksum_validator;
 mod clipboard_manager;
 mod value_comparer;
 
@@ -38,11 +39,14 @@ pub fn get_utility_programs_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 2] = [
+    let programs: [Arc<dyn Program>; 3] = [
         Arc::from(clipboard_manager::ConsoleClipboardManagerProgram::from(
             system_services.clone(),
         )),
         Arc::from(value_comparer::ConsoleValueComparerProgram::from(
+            system_services.clone(),
+        )),
+        Arc::from(checksum_validator::ChecksumValidator::from(
             system_services.clone(),
         )),
     ];
