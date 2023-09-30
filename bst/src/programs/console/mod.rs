@@ -93,9 +93,19 @@ fn write_bytes<TSystemServices: SystemServices>(
     label: String16,
     bytes: &[u8],
 ) {
-    let string = NumericBase::BASE_16.build_string_from_bytes(&bytes, true);
+    let mut string = NumericBase::BASE_16.build_string_from_bytes(&bytes, true);
+    write_string_program_output(system_services, label, String16::from(&string));
+    string.fill(0);
+}
+
+fn write_string_program_output<TSystemServices: SystemServices>(
+    system_services: &TSystemServices,
+    label: String16,
+    content: String16,
+) {
     let console = system_services.get_console_out();
     ConsoleUiLabel::from(label).write_to(&console);
-    console.output_utf16_line(String16::from(&string));
+    console.output_utf16_line(content);
+
     ConsoleUiContinuePrompt::from(system_services).prompt_for_continue();
 }

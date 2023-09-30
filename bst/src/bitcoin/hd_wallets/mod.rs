@@ -73,6 +73,15 @@ impl SerializedExtendedKey {
         bytes[45..78].copy_from_slice(&self.key_material);
         bytes
     }
+
+    pub fn zero(mut self) {
+        self.version.fill(0);
+        self.depth = 0;
+        self.parent_fingerprint.fill(0);
+        self.child_number.fill(0);
+        self.chain_code.fill(0);
+        self.key_material.fill(0);
+    }
 }
 
 pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
