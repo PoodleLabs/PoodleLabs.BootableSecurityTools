@@ -401,7 +401,7 @@ pub fn text_input_paste_handler<TSystemServices: SystemServices>(
             };
 
             // We threw up some new UI under the scrolltext; the scrolltext will need to be re-drawn.
-            PasteResult::RewritePadding
+            PasteResult::Rewrite
         }
         ClipboardEntry::String16(_, content) => {
             // We're pasting text into text. It's really simple.
