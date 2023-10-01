@@ -14,5 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod hd_wallets;
-pub mod mnemonics;
+pub struct GlobalRuntimeImmutable<T, FBuilder: Fn() -> T> {
+    builder: FBuilder,
+    value: Option<T>,
+}
+
+impl<T, FBuilder: Fn() -> T> GlobalRuntimeImmutable<T, FBuilder> {
+    pub const fn from(builder: FBuilder) -> Self {
+        Self {
+            builder,
+            value: None,
+        }
+    }
+
+    pub fn value(&mut self) -> &T {
+        if self.value.is_none() {
+            self.value = Some((self.builder)());
+        }
+
+        self.value.as_ref().unwrap()
+    }
+}

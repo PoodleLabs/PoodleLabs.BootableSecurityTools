@@ -55,6 +55,18 @@ impl Sha256 {
         (x >> n) | (x << ((size_of::<u32>() * 8) - n as usize))
     }
 
+    pub fn calculate_double_hash_checksum_for(&mut self, data: &[u8]) -> [u8; 4] {
+        let mut hash = self.reset().get_hash_of(data);
+        self.reset()
+            .feed_bytes(&hash)
+            .write_hash_to(&mut hash)
+            .reset();
+
+        let mut out_buffer = [0u8; 4];
+        out_buffer.copy_from_slice(&hash[..4]);
+        out_buffer
+    }
+
     fn process_block_if_full(&mut self) -> &mut Self {
         if self.pending_block_offset != Self::BLOCK_SIZE {
             return self;

@@ -32,7 +32,7 @@ use macros::{c16, s16};
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum PasteResult {
     ContinueAsNormal,
-    RewritePadding,
+    Rewrite,
 }
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
@@ -419,7 +419,7 @@ impl<'a, TSystemServices: SystemServices> ConsoleUiTextBox<'a, TSystemServices> 
         // Handle the paste.
         match paste_handler(clipboard_entry, scroll_text, &self.system_services) {
             PasteResult::ContinueAsNormal => { /* The paste handler didn't request a redraw. */ }
-            PasteResult::RewritePadding => {
+            PasteResult::Rewrite => {
                 // The paste handler requested a redraw.
                 redraw = true;
             }

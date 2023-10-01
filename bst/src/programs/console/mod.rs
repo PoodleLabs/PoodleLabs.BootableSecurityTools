@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod cryptography;
 mod entropy;
 mod hashing;
 mod instructions;
@@ -48,7 +49,7 @@ pub fn get_programs_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 5] = [
+    let programs: [Arc<dyn Program>; 6] = [
         Arc::from(instructions::get_instructional_programs_list(
             system_services,
             program_selector,
@@ -65,6 +66,11 @@ pub fn get_programs_list<
             exit_result_handler,
         )),
         Arc::from(entropy::get_entropy_program_list(
+            system_services,
+            program_selector,
+            exit_result_handler,
+        )),
+        Arc::from(cryptography::get_cryptography_program_list(
             system_services,
             program_selector,
             exit_result_handler,
@@ -87,9 +93,19 @@ fn write_bytes<TSystemServices: SystemServices>(
     label: String16,
     bytes: &[u8],
 ) {
-    let string = NumericBase::BASE_16.build_string_from_bytes(&bytes, true);
+    let mut string = NumericBase::BASE_16.build_string_from_bytes(&bytes, true);
+    write_string_program_output(system_services, label, String16::from(&string));
+    string.fill(0);
+}
+
+fn write_string_program_output<TSystemServices: SystemServices>(
+    system_services: &TSystemServices,
+    label: String16,
+    content: String16,
+) {
     let console = system_services.get_console_out();
     ConsoleUiLabel::from(label).write_to(&console);
-    console.output_utf16_line(String16::from(&string));
+    console.output_utf16_line(content);
+
     ConsoleUiContinuePrompt::from(system_services).prompt_for_continue();
 }

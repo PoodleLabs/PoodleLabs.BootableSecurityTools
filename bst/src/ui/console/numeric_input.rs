@@ -15,8 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    text_box::PasteResult, ConsoleUiLabel, ConsoleUiList, ConsoleUiListStyles, ConsoleUiTextBox,
-    ConsoleUiTextBoxStyles, ConsoleUiTitle, ConsoleUiTitleStyles, ConsoleWriteable,
+    text_box::PasteResult, ConsoleUiConfirmationPrompt, ConsoleUiLabel, ConsoleUiList,
+    ConsoleUiListStyles, ConsoleUiTextBox, ConsoleUiTextBoxStyles, ConsoleUiTitle,
+    ConsoleUiTitleStyles, ConsoleWriteable,
 };
 use crate::{
     clipboard::ClipboardEntry,
@@ -25,6 +26,7 @@ use crate::{
         NumericCollectorRoundBase,
     },
     system_services::SystemServices,
+    ui::ConfirmationPrompt,
     String16,
 };
 use macros::s16;
@@ -131,7 +133,7 @@ impl<'a, TSystemServices: SystemServices> ConsoleUiNumericInput<'a, TSystemServi
             ConsoleUiTextBox::from(self.system_services, self.styles.text_input_styles)
                 .get_text_input(
                     input_width,
-                    |clipboard_entry, scroll_text, _| match clipboard_entry {
+                    |clipboard_entry, scroll_text, system_services| match clipboard_entry {
                         // Handle a byte paste.
                         ClipboardEntry::Bytes(_, b) => {
                             // Write the bytes in the same base as the numeric input.
@@ -141,6 +143,17 @@ impl<'a, TSystemServices: SystemServices> ConsoleUiNumericInput<'a, TSystemServi
 
                             // No fancy UI needed, no redraw needed.
                             PasteResult::ContinueAsNormal
+                        }
+                        ClipboardEntry::String16(_, t) => {
+                            if ConsoleUiConfirmationPrompt::from(system_services)
+                                .prompt_for_confirmation(s16!("Attempt to paste text?"))
+                            {
+                                for character in t.iter() {
+                                    scroll_text.insert_character(*character);
+                                }
+                            }
+
+                            PasteResult::Rewrite
                         }
                         // We can't write text to a numeric input, so any other paste types just get ignored.
                         _ => PasteResult::ContinueAsNormal,

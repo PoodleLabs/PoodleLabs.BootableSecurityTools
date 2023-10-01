@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod checksum_calculator;
+mod checksum_validator;
+
 use crate::{
     programs::{
         exit_result_handlers::ProgramExitResultHandler,
@@ -25,11 +28,7 @@ use crate::{
 use alloc::sync::Arc;
 use macros::s16;
 
-mod checksums;
-mod clipboard_manager;
-mod value_comparer;
-
-pub fn get_utility_programs_list<
+pub fn get_checksum_programs<
     'a,
     TSystemServices: SystemServices,
     TProgramSelector: ProgramSelector + 'static,
@@ -39,19 +38,14 @@ pub fn get_utility_programs_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 3] = [
-        Arc::from(clipboard_manager::ConsoleClipboardManagerProgram::from(
+    let programs: [Arc<dyn Program>; 2] = [
+        Arc::from(checksum_validator::ChecksumValidator::from(
             system_services.clone(),
         )),
-        Arc::from(value_comparer::ConsoleValueComparerProgram::from(
+        Arc::from(checksum_calculator::ChecksumCalculator::from(
             system_services.clone(),
-        )),
-        Arc::from(checksums::get_checksum_programs(
-            system_services,
-            program_selector,
-            exit_result_handler,
         )),
     ];
-    ProgramList::from(Arc::from(programs), s16!("Utility Programs"))
+    ProgramList::from(Arc::from(programs), s16!("Double SHA256 Checksum Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }

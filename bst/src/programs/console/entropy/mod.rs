@@ -18,42 +18,15 @@ mod manual_collection;
 mod mnemonics;
 
 use crate::{
-    console_out::ConsoleOut,
-    constants,
     programs::{
         exit_result_handlers::ProgramExitResultHandler,
         program_lists::{ProgramList, ProgramListProgram, ProgramSelector},
-        Program, ProgramExitResult,
+        Program,
     },
     system_services::SystemServices,
-    ui::{console::ConsoleUiContinuePrompt, ContinuePrompt},
-    String16,
 };
 use alloc::sync::Arc;
 use macros::s16;
-
-struct PlaceholderProgram<TSystemServices: SystemServices> {
-    system_services: TSystemServices,
-    name: String16<'static>,
-}
-
-impl<TSystemServices: SystemServices> Program for PlaceholderProgram<TSystemServices> {
-    fn name(&self) -> String16<'static> {
-        self.name
-    }
-
-    fn run(&self) -> ProgramExitResult {
-        self.system_services
-            .get_console_out()
-            .clear()
-            .in_colours(constants::ERROR_COLOURS, |c| {
-                c.output_utf16(s16!("Not Implemented: "))
-            })
-            .output_utf16_line(self.name);
-        ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
-        ProgramExitResult::Success
-    }
-}
 
 pub fn get_entropy_program_list<
     'a,

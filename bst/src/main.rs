@@ -24,6 +24,7 @@ mod characters;
 mod clipboard;
 mod console_out;
 mod constants;
+mod global_runtime_immutable;
 mod hashing;
 mod integers;
 mod keyboard_in;
