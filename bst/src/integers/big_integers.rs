@@ -325,23 +325,23 @@ macro_rules! simple_operation_implement_signed_types {
     ($($digits_name:ident: $byte_name:ident, $short_name:ident, $int_name:ident, $size_name:ident, $long_name:ident, $big_unsigned_name:ident,)*) => {
     $(
         pub fn $byte_name(&mut self, value: i8) {
-            self.$digits_name(&(value as u8).to_be_bytes(), value < 0)
+            self.$digits_name(&(value.unsigned_abs()).to_be_bytes(), value < 0)
         }
 
         pub fn $short_name(&mut self, value: i16) {
-            self.$digits_name(&(value as u16).to_be_bytes(), value < 0)
+            self.$digits_name(&(value.unsigned_abs()).to_be_bytes(), value < 0)
         }
 
         pub fn $int_name(&mut self, value: i32) {
-            self.$digits_name(&(value as u32).to_be_bytes(), value < 0)
+            self.$digits_name(&(value.unsigned_abs()).to_be_bytes(), value < 0)
         }
 
         pub fn $size_name(&mut self, value: isize) {
-            self.$digits_name(&(value as usize).to_be_bytes(), value < 0)
+            self.$digits_name(&(value.unsigned_abs()).to_be_bytes(), value < 0)
         }
 
         pub fn $long_name(&mut self, value: i64) {
-            self.$digits_name(&(value as u64).to_be_bytes(), value < 0)
+            self.$digits_name(&(value.unsigned_abs()).to_be_bytes(), value < 0)
         }
 
         pub fn $big_unsigned_name(&mut self, value: &BigSigned) {
