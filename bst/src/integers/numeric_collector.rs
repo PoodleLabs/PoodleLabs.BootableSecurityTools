@@ -15,9 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::ceil;
-use crate::integers::BigInteger;
+use crate::integers::BigUnsigned;
 use alloc::boxed::Box;
-use core::mem;
 use macros::log2_range;
 
 const BASE_BITS_PER_ROUND: [f64; 254] = log2_range!(256);
@@ -66,22 +65,42 @@ pub enum NumericCollectorRoundError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NumericCollector {
-    big_integer: BigInteger,
+    big_unsigned: BigUnsigned,
     bit_counter: f64,
 }
 
 impl NumericCollector {
     pub fn with_byte_capacity(capacity: usize) -> Self {
         Self {
-            big_integer: BigInteger::with_capacity(capacity),
+            big_unsigned: BigUnsigned::with_capacity(capacity),
             bit_counter: 0f64,
         }
     }
 
     pub fn new() -> Self {
         Self {
-            big_integer: BigInteger::with_capacity(8),
+            big_unsigned: BigUnsigned::with_capacity(8),
             bit_counter: 0f64,
+        }
+    }
+
+    pub fn extract_trimmed_bytes(self) -> CollectedNumericData<Box<[u8]>> {
+        let trimmed_byte_count = self.trimmed_byte_count();
+        let padded_byte_count = self.padded_byte_count();
+        CollectedNumericData {
+            data: self.big_unsigned.extract_be_bytes().into(),
+            bit_count: self.bit_counter,
+            trimmed_byte_count,
+            padded_byte_count,
+        }
+    }
+
+    pub fn extract_big_unsigned(self) -> CollectedNumericData<BigUnsigned> {
+        CollectedNumericData {
+            trimmed_byte_count: self.trimmed_byte_count(),
+            padded_byte_count: self.padded_byte_count(),
+            bit_count: self.bit_counter,
+            data: self.big_unsigned,
         }
     }
 
@@ -106,72 +125,33 @@ impl NumericCollector {
                     // The specified base is invalid; 0 and 1 aren't supported (0 is nonsensical, 1 is impractical).
                     Err(NumericCollectorRoundError::BaseLessThan2(round_base))
                 } else {
-                    // Push a digit to the end of the integer.
+                    // Push a digit to the end of the unsigned integer.
                     let bits = BASE_BITS_PER_ROUND[(round_base - 2) as usize];
                     self.bit_counter += bits;
-                    self.big_integer.multiply(round_base);
-                    self.big_integer.add(round_value);
+                    self.big_unsigned.multiply_byte(round_base);
+                    self.big_unsigned.add_byte(round_value);
                     Ok((bits, self.bit_counter))
                 }
             }
             NumericCollectorRoundBase::WholeByte => {
-                // Push a digit to the end of the integer.
+                // Push a digit to the end of the unsigned integer.
                 self.bit_counter += 8f64;
-                self.big_integer.multiply(128);
-                self.big_integer.multiply(2);
-                self.big_integer.add(round_value);
+                self.big_unsigned.multiply_short(256);
+                self.big_unsigned.add_byte(round_value);
                 Ok((8f64, self.bit_counter))
             }
         }
     }
 
-    pub fn extract_trimmed_bytes(&mut self) -> CollectedNumericData<Box<[u8]>> {
-        let r = CollectedNumericData {
-            trimmed_byte_count: self.trimmed_byte_count(),
-            padded_byte_count: self.padded_byte_count(),
-            data: self.big_integer.to_be_bytes(),
-            bit_count: self.bit_counter,
-        };
-
-        self.bit_counter = 0f64;
-        // We can zero out the internal bytes by just multiplying by zero,
-        // so we don't leave any potentially sensitive info hanging about.
-        self.big_integer.multiply(0);
-        r
-    }
-
-    pub fn extract_big_integer(
-        &mut self,
-        new_capacity: Option<usize>,
-    ) -> CollectedNumericData<BigInteger> {
-        // The capacity for the new underlying big integer.
-        let capacity = match new_capacity {
-            None => self.trimmed_byte_count(),
-            Some(v) => v,
-        };
-
-        let r = CollectedNumericData {
-            // Swap out the current underlying big integer with a new one, and return the old one.
-            data: mem::replace(&mut self.big_integer, BigInteger::with_capacity(capacity)),
-            trimmed_byte_count: self.trimmed_byte_count(),
-            padded_byte_count: self.padded_byte_count(),
-            bit_count: self.bit_counter,
-        };
-
-        // Reset the bit counter.
-        self.bit_counter = 0f64;
-        r
-    }
-
     pub fn copy_padded_bytes_to(&self, buffer: &mut [u8]) {
         let padding = self.padded_byte_count() - self.trimmed_byte_count();
-        self.big_integer.copy_bytes_to(&mut buffer[padding..]);
+        self.big_unsigned.copy_digits_to(&mut buffer[padding..]);
         // Make sure our leading zeroes are actually zeroes.
         buffer[..padding].fill(0);
     }
 
     pub fn trimmed_byte_count(&self) -> usize {
-        self.big_integer.byte_count()
+        self.big_unsigned.digit_count()
     }
 
     pub fn padded_byte_count(&self) -> usize {

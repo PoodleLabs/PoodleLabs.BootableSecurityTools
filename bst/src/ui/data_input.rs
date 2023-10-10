@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::console::ConsoleWriteable;
-use crate::{console_out::ConsoleOut, integers::BigInteger};
+use crate::{console_out::ConsoleOut, integers::BigUnsigned};
 use alloc::vec::Vec;
 use macros::s16;
 
@@ -41,5 +41,5 @@ pub enum DataInput {
     None,
     Text(Vec<u16>),
     Bytes(Vec<u8>),
-    Number(BigInteger),
+    Number(BigUnsigned),
 }

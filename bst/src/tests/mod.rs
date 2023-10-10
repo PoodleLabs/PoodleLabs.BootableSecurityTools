@@ -17,7 +17,7 @@
 extern crate hex_literal;
 extern crate rand;
 
-mod big_integers;
+mod big_unsigneds;
 mod bitcoin;
 mod hashing;
 mod numeric_collector;

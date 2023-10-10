@@ -17,7 +17,7 @@
 use crate::{
     global_runtime_immutable::GlobalRuntimeImmutable,
     hashing::{Hasher, Sha256, Sha512},
-    integers::{BigInteger, NumericBase, NumericCollector, NumericCollectorRoundBase},
+    integers::{BigUnsigned, NumericBase, NumericCollector, NumericCollectorRoundBase},
 };
 use alloc::vec::Vec;
 
@@ -35,9 +35,9 @@ pub const TEST_NET_PUBLIC_KEY_VERSION: u32 = 0x043587CF;
 const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
 
 // The maximum value for a secp256k1 key.
-static mut SECP256K1_N: GlobalRuntimeImmutable<BigInteger, fn() -> BigInteger> =
+static mut SECP256K1_N: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     GlobalRuntimeImmutable::from(|| {
-        BigInteger::from_be_bytes(&[
+        BigUnsigned::from_be_bytes(&[
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
             0xFF, 0xFE, 0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C,
             0xD0, 0x36, 0x41, 0x41,
@@ -107,13 +107,13 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
         _ = numeric_collector.try_add_round(byte, NumericCollectorRoundBase::WholeByte);
     }
 
-    // Extract the underlying big integer.
+    // Extract the underlying big unsigned integer.
     let integer = numeric_collector
-        .extract_big_integer(Some(0))
+        .extract_big_unsigned()
         .take_data_ownership();
 
     // Build a base-58 string from the big integer.
-    NumericBase::BASE_58.build_string_from_integer(integer, false, 0)
+    NumericBase::BASE_58.build_string_from_big_unsigned(integer, false, 0)
 }
 
 pub fn try_derive_master_key(
@@ -130,14 +130,14 @@ pub fn try_derive_master_key(
     let mut hmac = hasher.build_hmac(KEY_DERIVATION_KEY_BYTES);
     let mut hmac_result = hmac.get_hmac(bytes);
 
-    let mut key_integer = BigInteger::from_be_bytes(&hmac_result[..32]);
+    let mut key_integer = BigUnsigned::from_be_bytes(&hmac_result[..32]);
     if !key_integer.is_non_zero() || &key_integer >= unsafe { SECP256K1_N.value() } {
         // The key must be in the range: 0 < K < N. This shouldn't ever be hit in reality.
         return None;
     }
 
     // Zero out key integer copy of key.
-    key_integer.multiply(0);
+    key_integer.zero();
 
     // Key is the first 32 bytes, Chain Code is the last 32 bytes.
     let mut chain_code = [0u8; 32];

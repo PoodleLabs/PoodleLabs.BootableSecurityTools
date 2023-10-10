@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::BigInteger;
+use super::BigUnsigned;
 use crate::{
     characters::Character, console_out::ConsoleOut, ui::console::ConsoleWriteable, String16,
 };
@@ -269,17 +269,17 @@ impl NumericBase {
         }
     }
 
-    pub fn build_string_from_integer(
+    pub fn build_string_from_big_unsigned(
         &self,
-        mut integer: BigInteger,
+        mut unsigned_integer: BigUnsigned,
         null_terminate: bool,
         pad_to_length: usize,
     ) -> Vec<u16> {
         let mut vec = Vec::new();
 
-        // Pop the next digit off the integer.
-        while integer.is_non_zero() {
-            let remainder = integer.divide(self.base).unwrap();
+        // Pop the next digit off the unsigned integer.
+        while unsigned_integer.is_non_zero() {
+            let remainder = unsigned_integer.divide_byte(self.base).unwrap();
             // We're working from right to left, so we insert at 0.
             vec.insert(0, self.characters[remainder as usize]);
         }
@@ -299,8 +299,8 @@ impl NumericBase {
 
     pub fn build_string_from_bytes(&self, bytes: &[u8], null_terminate: bool) -> Vec<u16> {
         // For bytes, we want our leading zeroes.
-        self.build_string_from_integer(
-            BigInteger::from_be_bytes(bytes),
+        self.build_string_from_big_unsigned(
+            BigUnsigned::from_be_bytes(bytes),
             null_terminate,
             (bytes.len() as f64 * self.digits_per_byte) as usize,
         )
