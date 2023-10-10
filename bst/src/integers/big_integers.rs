@@ -39,7 +39,7 @@ impl PartialOrd for BigUnsigned {
 
 impl Ord for BigUnsigned {
     fn cmp(&self, other: &Self) -> Ordering {
-        Self::cmp(&self.digits, &other.digits)
+        cmp(&self.digits, &other.digits)
     }
 }
 
@@ -440,8 +440,9 @@ impl BigSigned {
         and_be_bytes_signed: and_i8, and_i16, and_i32, and_isize, and_i64, and_big_signed,
     );
 
-    pub fn and_be_bytes_signed(&mut self, _operator_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn and_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
+        self.big_unsigned.and_be_bytes(operator_digits);
+        self.is_negative &= is_negative;
     }
 
     simple_operation_implement_unsigned_types!(
@@ -456,8 +457,9 @@ impl BigSigned {
         xor_be_bytes_signed: xor_i8, xor_i16, xor_i32, xor_isize, xor_i64, xor_big_signed,
     );
 
-    pub fn xor_be_bytes_signed(&mut self, _operator_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn xor_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
+        self.big_unsigned.xor_be_bytes(operator_digits);
+        self.is_negative ^= is_negative;
     }
 
     simple_operation_implement_unsigned_types!(
@@ -472,8 +474,9 @@ impl BigSigned {
         or_be_bytes_signed: or_i8, or_i16, or_i32, or_isize, or_i64, or_big_signed,
     );
 
-    pub fn or_be_bytes_signed(&mut self, _operator_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn or_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
+        self.big_unsigned.or_be_bytes(operator_digits);
+        self.is_negative |= is_negative;
     }
 }
 
@@ -562,7 +565,7 @@ impl BigUnsigned {
             None => return,
         };
 
-        match Self::cmp(&self.digits, subtrahend_digits) {
+        match cmp(&self.digits, subtrahend_digits) {
             Ordering::Greater => {
                 Self::subtract_internal(&mut self.digits, subtrahend_digits);
                 self.trim_leading_zeroes();
@@ -587,7 +590,7 @@ impl BigUnsigned {
         };
 
         // Compare the operand and operator.
-        match Self::cmp(&self.digits, operator_digits) {
+        match cmp(&self.digits, operator_digits) {
             Ordering::Equal => {
                 // The operand and operator are equal. The difference is zero.
                 self.zero();
@@ -864,7 +867,7 @@ impl BigUnsigned {
             return true;
         }
 
-        match Self::cmp(&self.digits, divisor_digits) {
+        match cmp(&self.digits, divisor_digits) {
             Ordering::Less => {
                 // The dividend is less than the divisor. Where X < Y, X / Y = 0, and X % Y = X.
                 // We can just move the dividend into the remainder buffer, then zero the dividend.
@@ -899,7 +902,7 @@ impl BigUnsigned {
                             Some(i) => {
                                 // There are non-zero digits remaining in the working remainder. Extract them.
                                 let remainder = &mut self.digits[remainder_off + i..];
-                                match Self::cmp(remainder, divisor_digits) {
+                                match cmp(remainder, divisor_digits) {
                                     Ordering::Less => {
                                         // The remaining digits are the remainder.
                                         remainder_digits[remainder_digit_count - remainder.len()..]
@@ -950,7 +953,7 @@ impl BigUnsigned {
                     };
 
                     // Compare the working remainder with the divisor.
-                    match Self::cmp(&remainder, divisor_digits) {
+                    match cmp(&remainder, divisor_digits) {
                         Ordering::Greater => {
                             // The working remainder is larger than the divisor.
                             // We will perform division-by-subtraction on it.
@@ -968,7 +971,7 @@ impl BigUnsigned {
                                     &mut self.digits[remainder_off..remainder_off + remainder_len];
 
                                 // Compare the new working remainder to the divisor post-subtraction.
-                                match Self::cmp(&remainder, divisor_digits) {
+                                match cmp(&remainder, divisor_digits) {
                                     Ordering::Less => {
                                         // The working remainder is smaller than the divisor. Carry the remainder over into the next
                                         // iteration of the main loop, expanding to include the next digit.
@@ -1045,8 +1048,23 @@ impl BigSigned {
         add_be_bytes_signed: add_i8, add_i16, add_i32, add_isize, add_i64, add_big_signed,
     );
 
-    pub fn add_be_bytes_signed(&mut self, _addend_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn add_be_bytes_signed(&mut self, addend_digits: &[u8], is_negative: bool) {
+        if is_negative == self.is_negative {
+            // Sign is the same; we're moving away from zero, and can just perform an unsigned add.
+            self.big_unsigned.add_be_bytes(addend_digits)
+        } else {
+            // Sign is different; we're moving toward zero. The result is the difference between the two values, with a sign based on which is larger.
+            self.is_negative = Ordering::Greater
+                == (if self.is_negative {
+                    // Augend is negative, addend is positive. If augend > addend, sum < 0, and we are negative.
+                    cmp(&self.big_unsigned.digits, addend_digits)
+                } else {
+                    // Augend is positive, addend is negative. If addend > augend, sum < 0, and we are negative.
+                    cmp(addend_digits, &self.big_unsigned.digits)
+                });
+
+            self.big_unsigned.difference_be_bytes(addend_digits)
+        }
     }
 
     simple_operation_implement_unsigned_types!(
@@ -1061,8 +1079,9 @@ impl BigSigned {
         subtract_be_bytes_signed: subtract_i8, subtract_i16, subtract_i32, subtract_isize, subtract_i64, subtract_big_signed,
     );
 
-    pub fn subtract_be_bytes_signed(&mut self, _subtrahend_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn subtract_be_bytes_signed(&mut self, subtrahend_digits: &[u8], is_negative: bool) {
+        // Subtracting a negative is addition, and adding a negative is subtraction. We can invert the subtrahend's sign and add it.
+        self.add_be_bytes_signed(subtrahend_digits, !is_negative)
     }
 
     simple_operation_implement_unsigned_types!(
@@ -1077,8 +1096,16 @@ impl BigSigned {
         difference_be_bytes_signed: difference_i8, difference_i16, difference_i32, difference_isize, difference_i64, difference_big_signed,
     );
 
-    pub fn difference_be_bytes_signed(&mut self, _operator_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn difference_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
+        // Differences are an absolute value.
+        self.is_negative = false;
+        if self.is_negative == is_negative {
+            // If the values have the same sign, the difference is the unsigned difference.
+            self.big_unsigned.difference_be_bytes(operator_digits)
+        } else {
+            // If the values have a different sign, the difference is the sum of the unsigned values.
+            self.big_unsigned.add_be_bytes(operator_digits)
+        }
     }
 
     simple_operation_implement_unsigned_types!(
@@ -1093,8 +1120,13 @@ impl BigSigned {
         add_be_bytes_signed: multiply_i8, multiply_i16, multiply_i32, multiply_isize, multiply_i64, multiply_big_signed,
     );
 
-    pub fn multiply_be_bytes_signed(&mut self, _multiplier_digits: &[u8], _is_negative: bool) {
-        todo!()
+    pub fn multiply_be_bytes_signed(&mut self, multiplier_digits: &[u8], is_negative: bool) {
+        // The unsigned value will always just be the product.
+        self.big_unsigned.multiply_be_bytes(multiplier_digits);
+
+        // A negative multiplied by a negative is positive, and a positive multiplied by a positive is negative.
+        // A negative multiplied by a positive is negative, unless the positive value is zero, in which case, the product is zero.
+        self.is_negative = self.is_negative == is_negative || self.is_zero()
     }
 
     // TODO: Division
@@ -1150,29 +1182,6 @@ impl BigUnsigned {
         match digits.iter().enumerate().find(|(_, x)| **x != 0) {
             Some((i, _)) => Some(i),
             None => None,
-        }
-    }
-
-    fn cmp(left: &[u8], right: &[u8]) -> Ordering {
-        // Compares two big-endian unsigned integers with no leading zero digits.
-        match left.len().cmp(&right.len()) {
-            // Left and right have the same number of digits. We need to look for any differing digits.
-            Ordering::Equal => match left.iter().enumerate().find(|(i, d)| **d != right[*i]) {
-                Some((i, left_digit)) => {
-                    // There is a differing digit; we just need to compare the first differing digit to get the comparison result.
-                    if *left_digit < right[i] {
-                        Ordering::Less
-                    } else {
-                        Ordering::Greater
-                    }
-                }
-                // There are no differing digits; left and right are equal.
-                None => Ordering::Equal,
-            },
-            // Left has more digits than right; it's larger.
-            Ordering::Greater => Ordering::Greater,
-            // Left has fewer digits than right; it's smaller.
-            Ordering::Less => Ordering::Less,
         }
     }
 
@@ -1242,5 +1251,28 @@ impl BigUnsigned {
                 }
             }
         }
+    }
+}
+
+fn cmp(left: &[u8], right: &[u8]) -> Ordering {
+    // Compares two big-endian unsigned integers with no leading zero digits.
+    match left.len().cmp(&right.len()) {
+        // Left and right have the same number of digits. We need to look for any differing digits.
+        Ordering::Equal => match left.iter().enumerate().find(|(i, d)| **d != right[*i]) {
+            Some((i, left_digit)) => {
+                // There is a differing digit; we just need to compare the first differing digit to get the comparison result.
+                if *left_digit < right[i] {
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                }
+            }
+            // There are no differing digits; left and right are equal.
+            None => Ordering::Equal,
+        },
+        // Left has more digits than right; it's larger.
+        Ordering::Greater => Ordering::Greater,
+        // Left has fewer digits than right; it's smaller.
+        Ordering::Less => Ordering::Less,
     }
 }
