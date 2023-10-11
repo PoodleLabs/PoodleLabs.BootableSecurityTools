@@ -1097,8 +1097,6 @@ impl BigSigned {
     );
 
     pub fn difference_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
-        // Differences are an absolute value.
-        self.is_negative = false;
         if self.is_negative == is_negative {
             // If the values have the same sign, the difference is the unsigned difference.
             self.big_unsigned.difference_be_bytes(operator_digits)
@@ -1106,6 +1104,9 @@ impl BigSigned {
             // If the values have a different sign, the difference is the sum of the unsigned values.
             self.big_unsigned.add_be_bytes(operator_digits)
         }
+
+        // Differences are an absolute value.
+        self.is_negative = false;
     }
 
     simple_operation_implement_unsigned_types!(
@@ -1117,7 +1118,7 @@ impl BigSigned {
     }
 
     simple_operation_implement_signed_types!(
-        add_be_bytes_signed: multiply_i8, multiply_i16, multiply_i32, multiply_isize, multiply_i64, multiply_big_signed,
+        multiply_be_bytes_signed: multiply_i8, multiply_i16, multiply_i32, multiply_isize, multiply_i64, multiply_big_signed,
     );
 
     pub fn multiply_be_bytes_signed(&mut self, multiplier_digits: &[u8], is_negative: bool) {
@@ -1126,7 +1127,7 @@ impl BigSigned {
 
         // A negative multiplied by a negative is positive, and a positive multiplied by a positive is negative.
         // A negative multiplied by a positive is negative, unless the positive value is zero, in which case, the product is zero.
-        self.is_negative = self.is_negative == is_negative || self.is_zero()
+        self.is_negative = self.is_negative != is_negative || self.is_zero()
     }
 
     // TODO: Division

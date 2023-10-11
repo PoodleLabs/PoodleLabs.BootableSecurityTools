@@ -334,10 +334,7 @@ fn big_unsigned_random_difference() {
         println!("B:{:?};{}", b2.clone_be_bytes(), r2);
         b1.difference_big_unsigned(&b2);
 
-        assert_eq!(
-            big_int_to_u128(&b1),
-            if r1 > r2 { r1 - r2 } else { r2 - r1 }
-        );
+        assert_eq!(big_int_to_u128(&b1), r1.abs_diff(r2));
     }
 }
 
