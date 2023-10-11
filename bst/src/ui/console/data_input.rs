@@ -47,7 +47,7 @@ pub fn prompt_for_bytes_from_any_data_type<TSystemServices: SystemServices>(
         cancel_prompt_string,
         label,
     ) {
-        DataInput::Number(number) => Ok(number.take_ownership_of_bytes()),
+        DataInput::Number(number) => Ok(number.extract_be_bytes()),
         DataInput::None => Err(ProgramExitResult::UserCancelled),
         DataInput::Text(mut text) => {
             // Build a UTF8 buffer.
@@ -127,17 +127,14 @@ pub fn prompt_for_data_input<TSystemServices: SystemServices>(
                 match ConsoleUiNumericInput::from(system_services, constants::BYTE_INPUT)
                     .get_numeric_input(console.size().width(), label, base)
                 {
-                    Some(mut n) => {
+                    Some(n) => {
                         // If the user entered some numbers, grab the padded bytes.
                         let mut vec = vec![0u8; n.padded_byte_count()];
                         n.copy_padded_bytes_to(&mut vec);
 
                         // Pre-emptively zero the numeric collector; there might be sensitive data,
                         // and it's preferable to not rely on dealloc zeroing.
-                        n.extract_big_integer(Some(0))
-                            .take_data_ownership()
-                            .multiply(0);
-
+                        n.extract_big_unsigned().take_data_ownership().zero();
                         break DataInput::Bytes(vec);
                     }
                     None => {
@@ -155,11 +152,9 @@ pub fn prompt_for_data_input<TSystemServices: SystemServices>(
                 match ConsoleUiNumericInput::from(system_services, constants::NUMERIC_INPUT)
                     .get_numeric_input(console.size().width(), label, base)
                 {
-                    Some(mut n) => {
-                        // Extract the underlying big integer and just return it.
-                        break DataInput::Number(
-                            n.extract_big_integer(Some(0)).take_data_ownership(),
-                        );
+                    Some(n) => {
+                        // Extract the underlying big unsigned integer and just return it.
+                        break DataInput::Number(n.extract_big_unsigned().take_data_ownership());
                     }
                     None => {
                         if ConsoleUiConfirmationPrompt::from(system_services)
@@ -319,16 +314,16 @@ fn prompt_for_unsigned_integer<
             _ => return None,
         };
 
-        if number.byte_count() <= SIZE {
+        if number.digit_count() <= SIZE {
             // If the returned number fits within the size of the requested integer, extract its bytes.
             let mut buffer = [0u8; SIZE];
-            number.copy_bytes_to(&mut buffer[SIZE - number.byte_count()..]);
+            number.copy_digits_to(&mut buffer[SIZE - number.digit_count()..]);
 
             // Turn those bytes into the uint type.
             let integer = from_be_bytes(buffer);
 
             // Pre-emptively zero the number now we've turned it into the target uint type.
-            number.multiply(0);
+            number.zero();
 
             // Validate the resulting integer.
             match validate(integer) {
@@ -355,7 +350,7 @@ fn prompt_for_unsigned_integer<
                 });
 
             // Pre-emptively zero the number before we try again.
-            number.multiply(0);
+            number.zero();
         }
     }
 }

@@ -18,7 +18,6 @@ use crate::integers::{NumericCollector, NumericCollectorRoundBase};
 
 #[test]
 fn numeric_collector_multiplies_by_base_and_adds_round() {
-    let mut numeric_collector = NumericCollector::new();
     let rounds = [
         (1, NumericCollectorRoundBase::SubByte(2)),
         (0, NumericCollectorRoundBase::SubByte(2)),
@@ -45,6 +44,7 @@ fn numeric_collector_multiplies_by_base_and_adds_round() {
     ];
 
     for i in 1..rounds.len() {
+        let mut numeric_collector = NumericCollector::new();
         for j in 0..i {
             let (round_value, round_base) = rounds[j];
             numeric_collector

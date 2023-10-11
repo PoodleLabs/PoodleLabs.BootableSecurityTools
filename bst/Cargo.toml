@@ -24,4 +24,5 @@ macros = { path = "../macros" }
 
 [dev-dependencies]
 hex-literal = { version = "0.4.1" }
+rayon = "1.8.0"
 rand = "0.8.5"

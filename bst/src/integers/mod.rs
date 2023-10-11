@@ -18,7 +18,7 @@ mod big_integers;
 mod numeric_base;
 mod numeric_collector;
 
-pub use big_integers::BigInteger;
+pub use big_integers::{BigSigned, BigUnsigned};
 pub use numeric_base::{NumericBase, NumericBaseWithCharacterPredicate, NumericBases};
 pub use numeric_collector::{
     NumericCollector, NumericCollectorRoundBase, NumericCollectorRoundError,

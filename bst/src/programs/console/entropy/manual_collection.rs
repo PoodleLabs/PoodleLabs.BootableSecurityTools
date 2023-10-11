@@ -775,9 +775,9 @@ impl<
 
         // Empty the bytes pre-emptively (they'd otherwise be zeroed on de-allocation).
         collector
-            .extract_big_integer(Some(0))
+            .extract_big_unsigned()
             .take_data_ownership()
-            .multiply(0);
+            .zero();
 
         // Output the raw collected bytes.
         write_bytes(&self.system_services, s16!("Collected Bytes"), &bytes);
