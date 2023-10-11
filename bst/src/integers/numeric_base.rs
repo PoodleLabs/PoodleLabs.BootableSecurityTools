@@ -275,11 +275,11 @@ impl NumericBase {
         null_terminate: bool,
         pad_to_length: usize,
     ) -> Vec<u16> {
+        let mut remainder = 0u8;
         let mut vec = Vec::new();
-
         // Pop the next digit off the unsigned integer.
         while unsigned_integer.is_non_zero() {
-            let remainder = unsigned_integer.divide_byte(self.base).unwrap();
+            assert!(unsigned_integer.divide_u8_with_remainder(self.base, &mut remainder));
             // We're working from right to left, so we insert at 0.
             vec.insert(0, self.characters[remainder as usize]);
         }

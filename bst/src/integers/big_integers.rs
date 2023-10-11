@@ -16,7 +16,7 @@
 
 #![allow(dead_code)]
 
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use core::{cmp::Ordering, mem::size_of};
 
 #[derive(Debug, Clone, Eq)]
@@ -290,7 +290,6 @@ impl BigSigned {
 // Macros //
 //\/\/\/\///
 
-// TODO: Macros for division operations, and signed types.
 macro_rules! simple_operation_implement_unsigned_types {
     ($($digits_name:ident: $u8_name:ident, $u16_name:ident, $u32_name:ident, $usize_name:ident, $u64_name:ident, $u128_name:ident, $big_unsigned_name:ident,)*) => {
     $(
@@ -741,25 +740,26 @@ impl BigUnsigned {
         self.trim_leading_zeroes()
     }
 
-    pub fn divide_byte(&mut self, value: u8) -> Option<u8> {
+    pub fn divide_u8_with_remainder(&mut self, value: u8, remainder_buffer: &mut u8) -> bool {
         if value == 0 {
             // The divisor is zero; we can't divide by zero, so return None.
-            return None;
+            return false;
         }
 
         if value == 1 {
-            // The divisor is one; X / 1 = X r0, so we can just return a remainder of zero.
-            return Some(0);
+            // The divisor is one; X / 1 = X r0, so the remainder is 0.
+            *remainder_buffer = 0;
+            return true;
         }
 
         if self.is_zero() {
-            // The dividend is zero; 0 / X = 0 r0, so we can just return a remainder of zero.
-            return Some(0);
+            // The dividend is zero; 0 / X = 0 r0, the remainder is 0.
+            *remainder_buffer = 0;
+            return true;
         }
 
         // Track the remainder in a bigger integer format.
         let mut remainder = 0u32;
-
         // Iterate over the digits in the dividend from most to least significant.
         for i in 0..self.digits.len() {
             // Any previous remainder becomes the more significant digit. The current digit is the less significant digit.
@@ -773,72 +773,97 @@ impl BigUnsigned {
         }
 
         self.trim_leading_zeroes();
-        Some(remainder as u8)
+        *remainder_buffer = remainder as u8;
+        return true;
     }
 
-    pub fn divide_u8(&mut self, divisor: u16) -> Option<u16> {
-        let mut remainder_buffer = [0u8; 2];
-        match self.divide_be_bytes(&divisor.to_be_bytes(), &mut remainder_buffer) {
-            true => Some(u16::from_be_bytes(remainder_buffer)),
-            false => None,
+    pub fn divide_u16_with_remainder(&mut self, divisor: u16, remainder_buffer: &mut u16) -> bool {
+        let mut remainder_bytes = [0u8; 2];
+        match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
+            true => {
+                *remainder_buffer = u16::from_be_bytes(remainder_bytes);
+                true
+            }
+            false => false,
         }
     }
 
-    pub fn divide_u32(&mut self, divisor: u32) -> Option<u32> {
-        let mut remainder_buffer = [0u8; 4];
-        match self.divide_be_bytes(&divisor.to_be_bytes(), &mut remainder_buffer) {
-            true => Some(u32::from_be_bytes(remainder_buffer)),
-            false => None,
+    pub fn divide_u32_with_remainder(&mut self, divisor: u32, remainder_buffer: &mut u32) -> bool {
+        let mut remainder_bytes = [0u8; 4];
+        match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
+            true => {
+                *remainder_buffer = u32::from_be_bytes(remainder_bytes);
+                true
+            }
+            false => false,
         }
     }
 
-    pub fn divide_usize(&mut self, divisor: usize) -> Option<usize> {
-        let mut remainder_buffer = [0u8; size_of::<usize>()];
-        match self.divide_be_bytes(&divisor.to_be_bytes(), &mut remainder_buffer) {
-            true => Some(usize::from_be_bytes(remainder_buffer)),
-            false => None,
-        }
-    }
-
-    pub fn divide_u64(&mut self, divisor: u64) -> Option<u64> {
-        let mut remainder_buffer = [0u8; 8];
-        match self.divide_be_bytes(&divisor.to_be_bytes(), &mut remainder_buffer) {
-            true => Some(u64::from_be_bytes(remainder_buffer)),
-            false => None,
-        }
-    }
-
-    pub fn divide_big_unsigned(&mut self, divisor: &Self) -> Option<BigUnsigned> {
-        let mut remainder_buffer = vec![0u8; divisor.digit_count()];
-        match self.divide_be_bytes(&divisor.digits, &mut remainder_buffer) {
-            true => Some(BigUnsigned::from_vec(remainder_buffer)),
-            false => None,
-        }
-    }
-
-    pub fn divide_big_unsigned_with_remainder_buffer(
+    pub fn divide_usize_with_remainder(
         &mut self,
-        divisor: &Self,
-        remainder_buffer: &mut Self,
+        divisor: usize,
+        remainder_buffer: &mut usize,
     ) -> bool {
-        // Grow the remainder buffer's internal digits to be able to use it as a buffer safely.
-        if divisor.digits.len() > remainder_buffer.digits.len() {
-            remainder_buffer.digits.splice(
-                0..0,
-                (0..divisor.digits.len() - remainder_buffer.digits.len())
-                    .into_iter()
-                    .map(|_| 0),
-            );
+        let mut remainder_bytes = [0u8; size_of::<usize>()];
+        match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
+            true => {
+                *remainder_buffer = usize::from_be_bytes(remainder_bytes);
+                true
+            }
+            false => false,
         }
-
-        // Perform the division.
-        let result = self.divide_be_bytes(&divisor.digits, &mut remainder_buffer.digits);
-        // Trim any leading zeroes from the remainder buffer.
-        remainder_buffer.trim_leading_zeroes();
-        return result;
     }
 
-    pub fn divide_be_bytes(&mut self, divisor_digits: &[u8], remainder_buffer: &mut [u8]) -> bool {
+    pub fn divide_u64_with_remainder(&mut self, divisor: u64, remainder_buffer: &mut u64) -> bool {
+        let mut remainder_bytes = [0u8; 8];
+        match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
+            true => {
+                *remainder_buffer = u64::from_be_bytes(remainder_bytes);
+                true
+            }
+            false => false,
+        }
+    }
+
+    pub fn divide_u128_with_remainder(
+        &mut self,
+        divisor: u128,
+        remainder_buffer: &mut u128,
+    ) -> bool {
+        let mut remainder_bytes = [0u8; 16];
+        match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
+            true => {
+                *remainder_buffer = u128::from_be_bytes(remainder_bytes);
+                true
+            }
+            false => false,
+        }
+    }
+
+    pub fn divide_big_unsigned_with_remainder(
+        &mut self,
+        divisor: &BigUnsigned,
+        remainder_buffer: &mut BigUnsigned,
+    ) -> bool {
+        remainder_buffer.zero();
+        remainder_buffer
+            .digits
+            .extend((0..divisor.digit_count() - 1).into_iter().map(|_| 0));
+
+        match self.divide_be_bytes_with_remainder(&divisor.digits, &mut remainder_buffer.digits) {
+            true => {
+                remainder_buffer.trim_leading_zeroes();
+                true
+            }
+            false => false,
+        }
+    }
+
+    pub fn divide_be_bytes_with_remainder(
+        &mut self,
+        divisor_digits: &[u8],
+        remainder_buffer: &mut [u8],
+    ) -> bool {
         let divisor_digits = match Self::first_non_zero_digit_index(divisor_digits) {
             // Skip any leading zero digits in the divisor.
             Some(i) => &divisor_digits[i..],
@@ -862,11 +887,12 @@ impl BigUnsigned {
 
         if divisor_digits.len() == 1 {
             // The divisor has a single digit; we can use the simple division algorithm.
-            let remainder = self.divide_byte(divisor_digits[0]);
+            let mut remainder = 0u8;
+            assert!(self.divide_u8_with_remainder(divisor_digits[0], &mut remainder));
 
             // This is guaranteed to succeed as we already checked the divisor is non-zero.
             // Write the remainder to the remainder buffer, and return true.
-            remainder_digits[0] = remainder.unwrap();
+            remainder_digits[0] = remainder;
             return true;
         }
 
@@ -1136,9 +1162,7 @@ impl BigSigned {
         // A negative multiplied by a negative is positive, and a positive multiplied by a positive is negative.
         // A negative multiplied by a positive is negative, unless the positive value is zero, in which case, the product is zero.
         self.is_negative = self.is_negative != is_negative || self.is_zero()
-    }
-
-    // TODO: Division
+    } // TODO: Division
 }
 
 //\/\/\/\/\/\/\/\/\///

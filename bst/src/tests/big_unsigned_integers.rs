@@ -195,12 +195,14 @@ fn big_unsigned_random_add() {
         const MAX :u128 = 0b10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000;
         if r1 >= MAX {
             r1 /= 2;
-            b1.divide_byte(2);
+            let mut r = 0u8;
+            b1.divide_u8_with_remainder(2, &mut r);
         }
 
         if r2 >= MAX {
             r2 /= 2;
-            b2.divide_byte(2);
+            let mut r = 0u8;
+            b2.divide_u8_with_remainder(2, &mut r);
         }
 
         println!("AUG:{:?};{}", b1.clone_be_bytes(), r1);
@@ -247,76 +249,94 @@ fn big_unsigned_random_multiply() {
 
 #[test]
 fn big_unsigned_edge_case_divide() {
+    let mut remainder_buffer = BigUnsigned::with_capacity(16);
+
     let mut b1 = BigUnsigned::from_be_bytes(&[53, 224, 51, 154, 252]);
     let b2 = BigUnsigned::from_be_bytes(&[53, 224]);
-    let remainder = b1.divide_big_unsigned(&b2).unwrap();
+    assert!(b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer));
 
     assert_eq!(b1, BigUnsigned::from_be_bytes(&[1, 0, 0, 245]));
-    assert_eq!(remainder, BigUnsigned::from_be_bytes(&[11, 156]));
+    assert_eq!(remainder_buffer, BigUnsigned::from_be_bytes(&[11, 156]));
 
     let mut b1 = BigUnsigned::from_be_bytes(&[136, 105, 0, 123, 4, 215]);
     let b2 = BigUnsigned::from_be_bytes(&[136, 105]);
-    let remainder = b1.divide_big_unsigned(&b2).unwrap();
+    assert!(b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer));
 
     assert_eq!(
         b1,
         BigUnsigned::from_be_bytes(&[0x1, 0x00, 0x00, 0x00, 0xE6])
     );
-    assert_eq!(remainder, BigUnsigned::from_be_bytes(&[0x76, 0x81]));
+    assert_eq!(remainder_buffer, BigUnsigned::from_be_bytes(&[0x76, 0x81]));
 
     let mut b1 = BigUnsigned::from_be_bytes(&[96, 46, 249, 138, 0, 164, 186]);
     let b2 = BigUnsigned::from_be_bytes(&[85, 117]);
-    let remainder = b1.divide_big_unsigned(&b2).unwrap();
+    assert!(b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer));
 
     assert_eq!(
         b1,
         BigUnsigned::from_be_bytes(&[0x01, 0x20, 0x22, 0x00, 0x00, 0x01])
     );
-    assert_eq!(remainder, BigUnsigned::from_be_bytes(&[0x4F, 0x45]));
+    assert_eq!(remainder_buffer, BigUnsigned::from_be_bytes(&[0x4F, 0x45]));
 
     let mut b1 = BigUnsigned::from_be_bytes(&[209, 168, 158, 45]);
     let b2 = BigUnsigned::from_be_bytes(&[209, 97, 34]);
-    let remainder = b1.divide_big_unsigned(&b2).unwrap();
+    assert!(b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer));
 
     assert_eq!(b1, BigUnsigned::from_be_bytes(&[0x01, 0x00]));
-    assert_eq!(remainder, BigUnsigned::from_be_bytes(&[0x47, 0x7C, 0x2D]));
+    assert_eq!(
+        remainder_buffer,
+        BigUnsigned::from_be_bytes(&[0x47, 0x7C, 0x2D])
+    );
 
     let mut b1 = BigUnsigned::from_be_bytes(&[47, 19, 124, 18, 12]);
     let b2 = BigUnsigned::from_be_bytes(&[4, 250]);
-    let remainder = b1.divide_big_unsigned(&b2).unwrap();
+    assert!(b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer));
 
     assert_eq!(b1, BigUnsigned::from_be_bytes(&[0x09, 0x75, 0xA5, 0xFE]));
-    assert_eq!(remainder, BigUnsigned::from_be_bytes(&[0]));
+    assert_eq!(remainder_buffer, BigUnsigned::from_be_bytes(&[0]));
 
     let mut b1 = BigUnsigned::from_be_bytes(&[32, 11, 158, 185, 81, 0]);
     let b2 = BigUnsigned::from_be_bytes(&[26, 233]);
-    let remainder = b1.divide_big_unsigned(&b2).unwrap();
+    assert!(b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer));
 
     assert_eq!(
         b1,
         BigUnsigned::from_be_bytes(&[0x01, 0x30, 0xDA, 0x29, 0x00])
     );
-    assert_eq!(remainder, BigUnsigned::from_be_bytes(&[0]));
+    assert_eq!(remainder_buffer, BigUnsigned::from_be_bytes(&[0]));
 }
 
 #[test]
 fn big_unsigned_random_divide() {
-    (0..RANDOM_ITERATIONS).into_par_iter().for_each(|_| {
-        let (mut r1_bytes, r1, mut r2_bytes, r2) = random_starter_values(8);
-        add_random_count_leading_zero(&mut r1_bytes);
-        add_random_count_leading_zero(&mut r2_bytes);
-
-        let mut b1 = BigUnsigned::from_be_bytes(&r1_bytes);
-        let b2 = BigUnsigned::from_be_bytes(&r2_bytes);
-        println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
-
-        if r2 == 0 {
-            assert_eq!(b1.divide_big_unsigned(&b2), None);
+    let parallel_threads = rayon::max_num_threads();
+    (0..parallel_threads).into_par_iter().for_each(|i| {
+        let iterations = if i == parallel_threads - 1 {
+            RANDOM_ITERATIONS / parallel_threads + RANDOM_ITERATIONS % parallel_threads
         } else {
-            let r = b1.divide_big_unsigned(&b2).unwrap();
-            assert_eq!(big_int_to_u128(&b1), r1 / r2);
-            assert_eq!(big_int_to_u128(&r), r1 % r2);
+            RANDOM_ITERATIONS / parallel_threads
+        };
+
+        let mut remainder_buffer = BigUnsigned::with_capacity(16);
+        for _ in 0..iterations {
+            let (mut r1_bytes, r1, mut r2_bytes, r2) = random_starter_values(8);
+            add_random_count_leading_zero(&mut r1_bytes);
+            add_random_count_leading_zero(&mut r2_bytes);
+
+            let mut b1 = BigUnsigned::from_be_bytes(&r1_bytes);
+            let b2 = BigUnsigned::from_be_bytes(&r2_bytes);
+            println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
+            println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
+
+            let successful_division =
+                b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer);
+
+            if r2 == 0 {
+                assert!(!successful_division);
+            } else {
+                assert!(successful_division);
+                assert_eq!(big_int_to_u128(&b1), r1 / r2);
+                assert_eq!(big_int_to_u128(&remainder_buffer), r1 % r2);
+            }
         }
     });
 }
