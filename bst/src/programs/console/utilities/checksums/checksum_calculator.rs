@@ -68,12 +68,14 @@ impl<TSystemServices: SystemServices> Program for ChecksumCalculator<TSystemServ
             _ => return ProgramExitResult::UserCancelled,
         };
 
-        console.line_start().new_line();
         if input.len() < 1 {
             // If there's no data, we can't calculate a (meaningful) checksum.
-            console.in_colours(constants::ERROR_COLOURS, |c| {
-                c.output_utf16_line(s16!("No bytes input; cannot calculate a checksum."))
-            });
+            console
+                .line_start()
+                .new_line()
+                .in_colours(constants::ERROR_COLOURS, |c| {
+                    c.output_utf16_line(s16!("No bytes input; cannot calculate a checksum."))
+                });
 
             return ProgramExitResult::UserCancelled;
         }
@@ -86,9 +88,14 @@ impl<TSystemServices: SystemServices> Program for ChecksumCalculator<TSystemServ
             let checksum = hasher.calculate_double_hash_checksum_for(&input[..input.len() - 4]);
 
             if checksum == input[input.len() - 4..] {
-                console.in_colours(constants::WARNING_COLOURS, |c| {
-                    c.output_utf16_line(s16!("The input appears to already contain a checksum."))
-                });
+                console
+                    .line_start()
+                    .new_line()
+                    .in_colours(constants::WARNING_COLOURS, |c| {
+                        c.output_utf16_line(s16!(
+                            "The input appears to already contain a checksum."
+                        ))
+                    });
 
                 if !ConsoleUiConfirmationPrompt::from(&self.system_services)
                     .prompt_for_confirmation(s16!("Append a checksum anyway?"))
