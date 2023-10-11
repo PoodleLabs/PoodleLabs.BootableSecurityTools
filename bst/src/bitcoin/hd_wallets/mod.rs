@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    global_runtime_immutable::GlobalRuntimeImmutable,
+    cryptography::asymmetric::secp256k1,
     hashing::{Hasher, Sha256, Sha512},
     integers::{BigUnsigned, NumericBase, NumericCollector, NumericCollectorRoundBase},
 };
@@ -33,16 +33,6 @@ pub const TEST_NET_PUBLIC_KEY_VERSION: u32 = 0x043587CF;
 
 // The key used for HMAC-based BIP 32 master key derivation.
 const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
-
-// The maximum value for a secp256k1 key.
-static mut SECP256K1_N: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
-    GlobalRuntimeImmutable::from(|| {
-        BigUnsigned::from_be_bytes(&[
-            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFE, 0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C,
-            0xD0, 0x36, 0x41, 0x41,
-        ])
-    });
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum KeyType {
@@ -131,7 +121,7 @@ pub fn try_derive_master_key(
     let mut hmac_result = hmac.get_hmac(bytes);
 
     let mut key_integer = BigUnsigned::from_be_bytes(&hmac_result[..32]);
-    if !key_integer.is_non_zero() || &key_integer >= unsafe { SECP256K1_N.value() } {
+    if !key_integer.is_non_zero() || &key_integer >= secp256k1::n() {
         // The key must be in the range: 0 < K < N. This shouldn't ever be hit in reality.
         return None;
     }
