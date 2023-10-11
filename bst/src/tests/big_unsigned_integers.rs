@@ -318,7 +318,7 @@ fn big_unsigned_random_divide() {
 
         let mut remainder_buffer = BigUnsigned::with_capacity(16);
         for _ in 0..iterations {
-            let (mut r1_bytes, r1, mut r2_bytes, r2) = random_starter_values(8);
+            let (mut r1_bytes, r1, mut r2_bytes, r2) = random_starter_values(16);
             add_random_count_leading_zero(&mut r1_bytes);
             add_random_count_leading_zero(&mut r2_bytes);
 

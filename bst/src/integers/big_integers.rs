@@ -361,7 +361,7 @@ macro_rules! big_unsigned_division_implementation {
     }
 }
 
-macro_rules! big_signed_division_implementation_for_unsigned {
+macro_rules! big_signed_division_implementation_for_unsigned_with_remainder {
     ($($division_name:ident: $divisor_type:ty, $remainder_type:ty,)*) => {
         $(
             pub fn $division_name(
@@ -375,6 +375,32 @@ macro_rules! big_signed_division_implementation_for_unsigned {
                     .$division_name(divisor, remainder_buffer)
                 {
                     *remainder_is_negative = self.is_negative;
+                    self.is_negative = self.is_negative && !self.is_zero();
+                    true
+                } else {
+                    false
+                }
+            }
+        )*
+        }
+}
+
+macro_rules! big_signed_division_implementation_for_signed_with_remainder {
+    ($(($division_name:ident, $unsigned_division_name:ident): $divisor_type:ty, $remainder_type:ty,)*) => {
+        $(
+            pub fn $division_name(&mut self, divisor: $divisor_type, remainder_buffer: $remainder_type) -> bool {
+                let mut unsigned_remainder = 0;
+                if self
+                    .big_unsigned
+                    .$unsigned_division_name(divisor.unsigned_abs(), &mut unsigned_remainder)
+                {
+                    *remainder_buffer = if self.is_negative {
+                        -(unsigned_remainder as $divisor_type)
+                    } else {
+                        unsigned_remainder as $divisor_type
+                    };
+
+                    self.is_negative = self.is_negative != (divisor < 0) && !self.is_zero();
                     true
                 } else {
                     false
@@ -1132,10 +1158,10 @@ impl BigSigned {
 
         // A negative multiplied by a negative is positive, and a positive multiplied by a positive is negative.
         // A negative multiplied by a positive is negative, unless the positive value is zero, in which case, the product is zero.
-        self.is_negative = self.is_negative != is_negative || self.is_zero()
+        self.is_negative = self.is_negative != is_negative && !self.is_zero()
     }
 
-    big_signed_division_implementation_for_unsigned!(
+    big_signed_division_implementation_for_unsigned_with_remainder!(
         divide_u8_with_remainder: u8, &mut u8,
         divide_u16_with_remainder: u16, &mut u16,
         divide_u32_with_remainder: u32, &mut u32,
@@ -1144,7 +1170,75 @@ impl BigSigned {
         divide_u128_with_remainder: u128, &mut u128,
         divide_big_unsigned_with_remainder: &BigUnsigned, &mut BigUnsigned,
         divide_be_bytes_with_remainder: &[u8], &mut [u8],
-    ); // TODO: Division by signed types & true modulo variants
+    );
+
+    big_signed_division_implementation_for_signed_with_remainder!(
+        (divide_i8_with_remainder, divide_u8_with_remainder): i8, &mut i8,
+        (divide_i16_with_remainder, divide_u16_with_remainder): i16, &mut i16,
+        (divide_i32_with_remainder, divide_u32_with_remainder): i32, &mut i32,
+        (divide_isize_with_remainder, divide_usize_with_remainder): isize, &mut isize,
+        (divide_i64_with_remainder, divide_u64_with_remainder): i64, &mut i64,
+        (divide_i128_with_remainder, divide_u128_with_remainder): i128, &mut i128,
+    );
+
+    pub fn divide_big_signed_with_remainder(
+        &mut self,
+        divisor: &BigSigned,
+        remainder_buffer: &mut BigSigned,
+    ) -> bool {
+        if self.big_unsigned.divide_big_unsigned_with_remainder(
+            &divisor.big_unsigned,
+            &mut remainder_buffer.big_unsigned,
+        ) {
+            remainder_buffer.is_negative = self.is_negative && !remainder_buffer.is_zero();
+            self.is_negative = self.is_negative != divisor.is_negative && !self.is_zero();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn divide_be_bytes_with_remainder_signed(
+        &mut self,
+        divisor: &[u8],
+        divisor_is_negative: bool,
+        remainder_buffer: &mut [u8],
+        remainder_is_negative: &mut bool,
+    ) -> bool {
+        if self
+            .big_unsigned
+            .divide_be_bytes_with_remainder(&divisor, remainder_buffer)
+        {
+            *remainder_is_negative = self.is_negative && !remainder_buffer.iter().all(|d| *d == 0);
+            self.is_negative = self.is_negative != divisor_is_negative && !self.is_zero();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn divide_big_signed_with_modulus(
+        &mut self,
+        divisor: &BigSigned,
+        modulus_buffer: &mut BigSigned,
+    ) -> bool {
+        let dividend_was_negative = self.is_negative;
+        if self.divide_big_signed_with_remainder(divisor, modulus_buffer) {
+            if modulus_buffer.is_non_zero() {
+                if dividend_was_negative != divisor.is_negative {
+                    modulus_buffer
+                        .big_unsigned
+                        .difference_big_unsigned(&divisor.big_unsigned);
+                }
+
+                modulus_buffer.is_negative = divisor.is_negative;
+            }
+
+            true
+        } else {
+            false
+        }
+    }
 }
 
 //\/\/\/\/\/\/\/\/\///
