@@ -16,3 +16,9 @@
 
 pub mod ecc;
 pub mod secp256k1;
+
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+pub enum AsymmetricKeyType {
+    Private,
+    Public,
+}

@@ -101,7 +101,6 @@ pub enum Key {
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ToggleKeys(u8);
 
-#[allow(dead_code)]
 impl ToggleKeys {
     pub const NONE: Self = Self(0);
     pub const NUM_LOCK: Self = Self(1);
@@ -174,7 +173,6 @@ impl BitXorAssign for ToggleKeys {
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ModifierKeys(u16);
 
-#[allow(dead_code)]
 impl ModifierKeys {
     pub const NONE: Self = Self(0);
     pub const RIGHT_SHIFT: Self = Self(1);
@@ -320,7 +318,6 @@ impl KeyPress {
         self.modifier_keys
     }
 
-    #[allow(dead_code)]
     pub const fn toggle_keys(self) -> ToggleKeys {
         self.toggle_keys
     }

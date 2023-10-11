@@ -236,7 +236,6 @@ pub fn prompt_for_u32<
     )
 }
 
-#[allow(dead_code)]
 pub fn prompt_for_u64<
     'a,
     TSystemServices: SystemServices,
@@ -259,7 +258,6 @@ pub fn prompt_for_u64<
     )
 }
 
-#[allow(dead_code)]
 pub fn prompt_for_u128<
     'a,
     TSystemServices: SystemServices,

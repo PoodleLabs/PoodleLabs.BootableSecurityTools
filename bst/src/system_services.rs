@@ -35,7 +35,6 @@ pub enum PowerAction {
     Reset,
 }
 
-#[allow(dead_code)]
 pub fn clock_cycle_count() -> u64 {
     #[cfg(target_arch = "aarch64")]
     unsafe {

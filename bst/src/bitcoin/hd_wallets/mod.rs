@@ -24,24 +24,11 @@ use alloc::vec::Vec;
 // Serialized keys are prefixed with version bytes.
 pub const MAIN_NET_PRIVATE_KEY_VERSION: u32 = 0x0488ADE4;
 pub const TEST_NET_PRIVATE_KEY_VERSION: u32 = 0x04358394;
-
-#[allow(dead_code)]
 pub const MAIN_NET_PUBLIC_KEY_VERSION: u32 = 0x0488B21E;
-
-#[allow(dead_code)]
 pub const TEST_NET_PUBLIC_KEY_VERSION: u32 = 0x043587CF;
 
 // The key used for HMAC-based BIP 32 master key derivation.
 const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
-
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum KeyType {
-    #[allow(dead_code)]
-    Private,
-
-    #[allow(dead_code)]
-    Public,
-}
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip32KeyVersion {
@@ -134,7 +121,7 @@ pub fn try_derive_master_key(
     chain_code.copy_from_slice(&hmac_result[32..]);
 
     // The serialized form of a private key is left-padded with a single 0 byte.
-    let key_material = serialized_private_key_bytes(&hmac_result[..32]);
+    let key_material = secp256k1::serialized_private_key_bytes(&hmac_result[..32]);
 
     // Fill HMAC copy of key & chain code.
     hmac_result.fill(0);
@@ -150,11 +137,4 @@ pub fn try_derive_master_key(
         chain_code,
         depth: 0,
     })
-}
-
-fn serialized_private_key_bytes(key: &[u8]) -> [u8; 33] {
-    // Private keys are prefixed with a single 0 byte in the format.
-    let mut bytes = [0u8; 33];
-    bytes[1..].copy_from_slice(key);
-    bytes
 }

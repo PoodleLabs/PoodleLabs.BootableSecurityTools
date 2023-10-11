@@ -52,7 +52,6 @@ impl ConsoleCursorState {
         self.position
     }
 
-    #[allow(dead_code)]
     pub const fn visible(&self) -> bool {
         self.visible
     }
@@ -102,7 +101,6 @@ impl ConsoleColours {
         }
     }
 
-    #[allow(dead_code)]
     pub const fn background_only(colour: ConsoleColour) -> Self {
         Self {
             foreground: ConsoleColour::Inherit,
