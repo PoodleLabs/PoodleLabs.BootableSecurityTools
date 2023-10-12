@@ -16,12 +16,16 @@
 
 use crate::integers::{BigSigned, BigUnsigned};
 
-struct Point {
+pub struct Point {
     x: BigSigned,
     y: BigSigned,
 }
 
 impl Point {
+    pub fn from(x: BigSigned, y: BigSigned) -> Self {
+        Self { x, y }
+    }
+
     pub fn is_infinity(&self) -> bool {
         // The identity point of the curve; (X, Y) + -(X, Y) = Infinity.
         // Where I is Infinity, and P is another point:
@@ -167,9 +171,15 @@ impl Point {
         // Yr = (λ * (Xp - Xr)) - Yp
         self.y.subtract_big_signed(&context.y_augend);
     }
+
+    fn zero(&mut self) {
+        self.x.zero();
+        self.y.zero();
+    }
 }
 
-struct PointMultiplicationContext {
+pub struct PointMultiplicationContext {
+    integer_byte_capacity: usize,
     a: &'static BigUnsigned,
     x_augend: BigSigned,
     y_augend: BigSigned,
@@ -177,6 +187,47 @@ struct PointMultiplicationContext {
 }
 
 impl PointMultiplicationContext {
+    pub fn new(a: &'static BigUnsigned, integer_byte_capacity: usize) -> Self {
+        Self {
+            x_augend: BigSigned::with_capacity(integer_byte_capacity),
+            y_augend: BigSigned::with_capacity(integer_byte_capacity),
+            lambda: BigSigned::with_capacity(integer_byte_capacity),
+            integer_byte_capacity,
+            a,
+        }
+    }
+
+    pub fn multiply(
+        &mut self,
+        x: &BigUnsigned,
+        y: &BigUnsigned,
+        mut multiplier: BigUnsigned,
+    ) -> Point {
+        let mut aggregate = Point::from(
+            BigSigned::with_capacity(self.integer_byte_capacity),
+            BigSigned::with_capacity(self.integer_byte_capacity),
+        );
+
+        let mut working_point = Point::from(
+            BigSigned::from_unsigned(false, x.clone()),
+            BigSigned::from_unsigned(false, y.clone()),
+        );
+
+        let mut remainder = 0u8;
+        while multiplier.is_non_zero() {
+            if multiplier.is_even() {
+                working_point.double(self);
+            } else {
+                aggregate.add(&working_point, self)
+            }
+
+            multiplier.divide_u8_with_remainder(2, &mut remainder);
+        }
+
+        self.zero();
+        aggregate
+    }
+
     fn prepare_doubling(&mut self, point: &Point) {
         self.x_augend.set_equal_to(&point.x);
         self.y_augend.set_equal_to(&point.y);
@@ -185,5 +236,11 @@ impl PointMultiplicationContext {
     fn prepare_addition(&mut self, augend: &Point) {
         self.x_augend.set_equal_to(&augend.x);
         self.y_augend.set_equal_to(&augend.y);
+    }
+
+    fn zero(&mut self) {
+        self.x_augend.zero();
+        self.y_augend.zero();
+        self.lambda.zero()
     }
 }

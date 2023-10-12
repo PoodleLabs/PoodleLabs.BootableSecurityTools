@@ -102,7 +102,7 @@ impl BigUnsigned {
         Self { digits: bytes }
     }
 
-    fn from_vec(digits: Vec<u8>) -> Self {
+    pub fn from_vec(digits: Vec<u8>) -> Self {
         let mut value = Self { digits };
         value.trim_leading_zeroes();
         value
@@ -110,7 +110,7 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
-    fn from_unsigned(is_negative: bool, big_unsigned: BigUnsigned) -> Self {
+    pub fn from_unsigned(is_negative: bool, big_unsigned: BigUnsigned) -> Self {
         Self {
             is_negative: is_negative && big_unsigned.is_non_zero(),
             big_unsigned,
@@ -121,7 +121,7 @@ impl BigSigned {
         Self::from_unsigned(is_negative, BigUnsigned::from_be_bytes(be_bytes))
     }
 
-    fn from_vec(is_negative: bool, digits: Vec<u8>) -> Self {
+    pub fn from_vec(is_negative: bool, digits: Vec<u8>) -> Self {
         Self::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
     }
 
