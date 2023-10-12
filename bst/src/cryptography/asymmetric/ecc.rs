@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::integers::BigSigned;
+use crate::integers::{BigSigned, BigUnsigned};
 
 struct Point {
     x: BigSigned,
@@ -44,15 +44,35 @@ impl Point {
             return;
         }
 
+        // Store X and Y's original values. X and Y can now be used as temporary value buffers.
         context.prepare_doubling(&self);
 
         // Point addition and doubling both consist of two steps: calculating a lambda value λ, then applying it.
         // The application of λ is the same for doubling and addition, but the calculation of λ is different.
         // Where p is the point to double, for doubling, the calculation is:
-        // λ = (3 * (Xp * Xp) + a) / (2 * Yp)
-        // TODO
+        // λ = (3 * (Xp^2) + a) / (2 * Yp)
 
-        self.update_With_lambda(context);
+        // λ = Xp
+        context.lambda.set_equal_to(&self.x);
+
+        // λ = Xp * Xp = Xp^2
+        context.lambda.multiply_big_signed(&context.x_augend);
+
+        // λ = 3 * Xp^2
+        context.lambda.multiply_u8(3);
+
+        // λ = 3 * Xp^2 + a
+        context.lambda.add_big_unsigned(context.a);
+
+        // Y = 2 * Yp
+        self.y.multiply_u8(2);
+
+        // λ = (3 * Xp^2 + a) / (2 * Yp)
+        context
+            .lambda
+            .divide_big_signed_with_remainder(&self.y, &mut self.x);
+
+        self.update_with_lambda(context, None);
     }
 
     pub fn add(&mut self, addend: &Point, context: &mut PointMultiplicationContext) {
@@ -81,18 +101,39 @@ impl Point {
             return;
         }
 
-        context.prepare_addition(&self, addend);
+        // Store the original X and Y values of the augend. X and Y can now be used as temporary value buffers.
+        context.prepare_addition(&self);
 
         // Point addition and doubling both consist of two steps: calculating a lambda value λ, then applying it.
         // The application of λ is the same for doubling and addition, but the calculation of λ is different.
         // Where p = augend, q = addend, for addition, the calculation is:
         // λ = (Yq - Yp) / (Xq - Xp)
-        // TODO
 
-        self.update_With_lambda(context);
+        // λ = Yq
+        context.lambda.set_equal_to(&addend.y);
+
+        // λ = Yq - Yp
+        context.lambda.subtract_big_signed(&self.y);
+
+        // Y = Xq
+        self.y.set_equal_to(&addend.x);
+
+        // Y = Xq - Xp
+        self.y.subtract_big_signed(&self.x);
+
+        // λ = (Yq - Yp) / (Xq - Xp)
+        context
+            .lambda
+            .divide_big_signed_with_remainder(&self.y, &mut self.x);
+
+        self.update_with_lambda(context, Some(&addend.x));
     }
 
-    fn update_With_lambda(&mut self, context: &mut PointMultiplicationContext) {
+    fn update_with_lambda(
+        &mut self,
+        context: &mut PointMultiplicationContext,
+        x_addend: Option<&BigSigned>,
+    ) {
         // Where p = augend, q = addend, r is the result, and λ is the temporary field from point addition or doubling:
         // Xr = λ^2 - Xp - Xq
         // Yr = (λ * (Xp - Xr)) - Yp
@@ -107,7 +148,12 @@ impl Point {
         self.x.subtract_big_signed(&context.x_augend);
 
         // Xr = λ^2 - Xp - Xq
-        self.x.subtract_big_signed(&context.x_addend);
+        self.x.subtract_big_signed(match x_addend {
+            // We passed in the addend's X value from addition.
+            Some(x) => x,
+            // We didn't pass in an addend X value; we're doubling, and Xq = Xp
+            None => &context.x_augend,
+        });
 
         // Yr = Xp
         self.y.set_equal_to(&context.x_augend);
@@ -124,21 +170,19 @@ impl Point {
 }
 
 struct PointMultiplicationContext {
+    a: &'static BigUnsigned,
     x_augend: BigSigned,
     y_augend: BigSigned,
-    x_addend: BigSigned,
     lambda: BigSigned,
 }
 
 impl PointMultiplicationContext {
     fn prepare_doubling(&mut self, point: &Point) {
-        self.x_addend.set_equal_to(&point.x);
         self.x_augend.set_equal_to(&point.x);
         self.y_augend.set_equal_to(&point.y);
     }
 
-    fn prepare_addition(&mut self, augend: &Point, addend: &Point) {
-        self.x_addend.set_equal_to(&addend.x);
+    fn prepare_addition(&mut self, augend: &Point) {
         self.x_augend.set_equal_to(&augend.x);
         self.y_augend.set_equal_to(&augend.y);
     }
