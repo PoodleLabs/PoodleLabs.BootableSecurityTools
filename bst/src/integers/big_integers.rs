@@ -259,6 +259,11 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
+    pub fn set_equal_to_unsigned(&mut self, unsigned_value: &BigUnsigned, is_negative: bool) {
+        self.big_unsigned.set_equal_to(unsigned_value);
+        self.is_negative = is_negative;
+    }
+
     pub fn set_equal_to(&mut self, value: &Self) {
         self.big_unsigned.set_equal_to(&value.big_unsigned);
         self.is_negative = value.is_negative;
