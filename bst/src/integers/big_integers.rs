@@ -104,15 +104,20 @@ impl BigUnsigned {
         Self { digits: bytes }
     }
 
-    fn from_vec(digits: Vec<u8>) -> Self {
+    pub fn from_vec(digits: Vec<u8>) -> Self {
         let mut value = Self { digits };
-        value.trim_leading_zeroes();
+        if value.digit_count() == 0 {
+            value.digits.push(0);
+        } else {
+            value.trim_leading_zeroes();
+        }
+
         value
     }
 }
 
 impl BigSigned {
-    fn from_unsigned(is_negative: bool, big_unsigned: BigUnsigned) -> Self {
+    pub fn from_unsigned(is_negative: bool, big_unsigned: BigUnsigned) -> Self {
         Self {
             is_negative: is_negative && big_unsigned.is_non_zero(),
             big_unsigned,
@@ -123,7 +128,7 @@ impl BigSigned {
         Self::from_unsigned(is_negative, BigUnsigned::from_be_bytes(be_bytes))
     }
 
-    fn from_vec(is_negative: bool, digits: Vec<u8>) -> Self {
+    pub fn from_vec(is_negative: bool, digits: Vec<u8>) -> Self {
         Self::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
     }
 
@@ -1232,6 +1237,55 @@ impl BigSigned {
                 }
 
                 modulus_buffer.is_negative = divisor.is_negative;
+            }
+
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn divide_big_unsigned_with_modulus(
+        &mut self,
+        divisor: &BigUnsigned,
+        modulus_buffer: &mut BigUnsigned,
+    ) -> bool {
+        let dividend_was_negative = self.is_negative;
+        let mut remainder_is_negative = false;
+        if self.divide_big_unsigned_with_remainder(
+            divisor,
+            modulus_buffer,
+            &mut remainder_is_negative,
+        ) {
+            if modulus_buffer.is_non_zero() {
+                if dividend_was_negative {
+                    modulus_buffer.difference_big_unsigned(&divisor);
+                }
+            }
+
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn divide_big_unsigned_with_signed_modulus(
+        &mut self,
+        divisor: &BigUnsigned,
+        modulus_buffer: &mut BigSigned,
+    ) -> bool {
+        let dividend_was_negative = self.is_negative;
+        let mut remainder_is_negative = false;
+        if self.divide_big_unsigned_with_remainder(
+            divisor,
+            &mut modulus_buffer.big_unsigned,
+            &mut remainder_is_negative,
+        ) {
+            modulus_buffer.is_negative = false;
+            if modulus_buffer.is_non_zero() {
+                if dividend_was_negative {
+                    modulus_buffer.difference_big_unsigned(&divisor);
+                }
             }
 
             true

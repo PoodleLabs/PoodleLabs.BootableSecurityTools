@@ -14,10 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::integers::BigSigned;
+use crate::{
+    integers::{BigSigned, BigUnsigned},
+    tests::bit_integers::{
+        big_signed_to_i128, big_signed_to_u128, big_unsigned_to_u128, random_big_signed,
+        random_big_unsigned,
+    },
+};
 use alloc::vec;
 use core::cmp::Ordering;
-use rand::{random, thread_rng, Rng};
+use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 const RANDOM_ITERATIONS: usize = 100000;
@@ -208,12 +214,16 @@ fn big_signed_greater_than() {
 #[test]
 fn big_signed_random_and_test() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(16);
+        let (mut b1, r1) = random_big_signed(16);
+        let (b2, r2) = random_big_signed(16);
         println!("ORD:{:?};{}", b1.clone_be_bytes(), r1);
         println!("ORR:{:?};{}", b2.clone_be_bytes(), r2);
         b1.and_big_signed(&b2);
 
-        assert_eq!(big_int_to_u128(&b1), r1.unsigned_abs() & r2.unsigned_abs());
+        assert_eq!(
+            big_signed_to_u128(&b1),
+            r1.unsigned_abs() & r2.unsigned_abs()
+        );
         assert_eq!(b1.is_negative(), (r1 < 0) & (r2 < 0))
     }
 }
@@ -221,12 +231,16 @@ fn big_signed_random_and_test() {
 #[test]
 fn big_signed_random_xor_test() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(16);
+        let (mut b1, r1) = random_big_signed(16);
+        let (b2, r2) = random_big_signed(16);
         println!("ORD:{:?};{}", b1.clone_be_bytes(), r1);
         println!("ORR:{:?};{}", b2.clone_be_bytes(), r2);
         b1.xor_big_signed(&b2);
 
-        assert_eq!(big_int_to_u128(&b1), r1.unsigned_abs() ^ r2.unsigned_abs());
+        assert_eq!(
+            big_signed_to_u128(&b1),
+            r1.unsigned_abs() ^ r2.unsigned_abs()
+        );
         assert_eq!(b1.is_negative(), (r1 < 0) ^ (r2 < 0))
     }
 }
@@ -234,12 +248,16 @@ fn big_signed_random_xor_test() {
 #[test]
 fn big_signed_random_or_test() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(16);
+        let (mut b1, r1) = random_big_signed(16);
+        let (b2, r2) = random_big_signed(16);
         println!("ORD:{:?};{}", b1.clone_be_bytes(), r1);
         println!("ORR:{:?};{}", b2.clone_be_bytes(), r2);
         b1.or_big_signed(&b2);
 
-        assert_eq!(big_int_to_u128(&b1), r1.unsigned_abs() | r2.unsigned_abs());
+        assert_eq!(
+            big_signed_to_u128(&b1),
+            r1.unsigned_abs() | r2.unsigned_abs()
+        );
         assert_eq!(b1.is_negative(), (r1 < 0) | (r2 < 0))
     }
 }
@@ -247,13 +265,14 @@ fn big_signed_random_or_test() {
 #[test]
 fn big_signed_random_add() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(14);
+        let (mut b1, r1) = random_big_signed(14);
+        let (b2, r2) = random_big_signed(14);
         println!("AUG:{:?};{}", b1.clone_be_bytes(), r1);
         println!("ADD:{:?};{}", b2.clone_be_bytes(), r2);
         b1.add_big_signed(&b2);
 
         let expected_sum = r1 + r2;
-        assert_eq!(big_int_to_i128(&b1), expected_sum);
+        assert_eq!(big_signed_to_i128(&b1), expected_sum);
         assert_eq!(b1.is_negative(), expected_sum < 0);
     }
 }
@@ -261,13 +280,14 @@ fn big_signed_random_add() {
 #[test]
 fn big_signed_random_subtract() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(16);
+        let (mut b1, r1) = random_big_signed(16);
+        let (b2, r2) = random_big_signed(16);
         println!("M:{:?};{}", b1.clone_be_bytes(), r1);
         println!("S:{:?};{}", b2.clone_be_bytes(), r2);
         b1.subtract_big_signed(&b2);
 
         let expected_result = r1 - r2;
-        assert_eq!(big_int_to_i128(&b1), expected_result);
+        assert_eq!(big_signed_to_i128(&b1), expected_result);
         assert_eq!(b1.is_negative(), expected_result < 0);
     }
 }
@@ -275,13 +295,14 @@ fn big_signed_random_subtract() {
 #[test]
 fn big_signed_random_multiply() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(8);
+        let (mut b1, r1) = random_big_signed(8);
+        let (b2, r2) = random_big_signed(8);
         println!("MPD:{:?};{}", b1.clone_be_bytes(), r1);
         println!("MPR:{:?};{}", b2.clone_be_bytes(), r2);
         b1.multiply_big_signed(&b2);
 
         let expected_product = r1 * r2;
-        assert_eq!(big_int_to_i128(&b1), expected_product);
+        assert_eq!(big_signed_to_i128(&b1), expected_product);
         assert_eq!(b1.is_negative(), expected_product < 0);
     }
 }
@@ -289,12 +310,13 @@ fn big_signed_random_multiply() {
 #[test]
 fn big_signed_random_difference() {
     for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1, b2, r2) = random_starter_values(16);
+        let (mut b1, r1) = random_big_signed(16);
+        let (b2, r2) = random_big_signed(16);
         println!("A:{:?};{}", b1.clone_be_bytes(), r1);
         println!("B:{:?};{}", b2.clone_be_bytes(), r2);
         b1.difference_big_signed(&b2);
 
-        assert_eq!(big_int_to_u128(&b1), r1.abs_diff(r2));
+        assert_eq!(big_signed_to_u128(&b1), r1.abs_diff(r2));
         assert!(!b1.is_negative());
     }
 }
@@ -311,7 +333,8 @@ fn big_signed_random_divide() {
 
         let mut remainder_buffer = BigSigned::with_capacity(16);
         for _ in 0..iterations {
-            let (mut b1, r1, b2, r2) = random_starter_values(16);
+            let (mut b1, r1) = random_big_signed(16);
+            let (b2, r2) = random_big_signed(16);
             println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
             println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
 
@@ -323,11 +346,11 @@ fn big_signed_random_divide() {
             } else {
                 assert!(successful_division);
                 let expected_quotient = r1 / r2;
-                assert_eq!(big_int_to_i128(&b1), expected_quotient);
+                assert_eq!(big_signed_to_i128(&b1), expected_quotient);
                 assert_eq!(b1.is_negative(), expected_quotient < 0);
 
                 let expected_remainder = r1 % r2;
-                assert_eq!(big_int_to_i128(&remainder_buffer), expected_remainder);
+                assert_eq!(big_signed_to_i128(&remainder_buffer), expected_remainder);
                 assert_eq!(remainder_buffer.is_negative(), expected_remainder < 0);
             }
         }
@@ -335,7 +358,7 @@ fn big_signed_random_divide() {
 }
 
 #[test]
-fn big_signed_random_divide_with_modulus() {
+fn big_signed_random_divide_by_signed_with_modulus() {
     let parallel_threads = rayon::max_num_threads();
     (0..parallel_threads).into_par_iter().for_each(|i| {
         let iterations = if i == parallel_threads - 1 {
@@ -346,7 +369,8 @@ fn big_signed_random_divide_with_modulus() {
 
         let mut modulus_buffer = BigSigned::with_capacity(16);
         for _ in 0..iterations {
-            let (mut b1, r1, b2, r2) = random_starter_values(16);
+            let (mut b1, r1) = random_big_signed(16);
+            let (b2, r2) = random_big_signed(16);
             println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
             println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
 
@@ -356,72 +380,89 @@ fn big_signed_random_divide_with_modulus() {
             } else {
                 assert!(successful_division);
                 let expected_quotient = r1 / r2;
-                assert_eq!(big_int_to_i128(&b1), expected_quotient);
+                assert_eq!(big_signed_to_i128(&b1), expected_quotient);
                 assert_eq!(b1.is_negative(), expected_quotient < 0);
 
                 let expected_modulus = ((r1 % r2) + r2) % r2;
-                assert_eq!(big_int_to_i128(&modulus_buffer), expected_modulus);
+                assert_eq!(big_signed_to_i128(&modulus_buffer), expected_modulus);
                 assert_eq!(modulus_buffer.is_negative(), expected_modulus < 0);
             }
         }
     });
 }
 
-fn big_int_to_i128(big_signed: &BigSigned) -> i128 {
-    let bytes = big_signed.clone_be_bytes();
-    let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
-        Some((i, _)) => &bytes[i..],
-        None => return 0,
-    };
+#[test]
+fn big_signed_random_divide_by_unsigned_with_unsigned_modulus() {
+    let parallel_threads = rayon::max_num_threads();
+    (0..parallel_threads).into_par_iter().for_each(|i| {
+        let iterations = if i == parallel_threads - 1 {
+            RANDOM_ITERATIONS / parallel_threads + RANDOM_ITERATIONS % parallel_threads
+        } else {
+            RANDOM_ITERATIONS / parallel_threads
+        };
 
-    let mut i128_buffer = [0u8; 16];
-    i128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
-    let unsigned = i128::from_be_bytes(i128_buffer);
-    if big_signed.is_negative() {
-        -unsigned
-    } else {
-        unsigned
-    }
+        let mut modulus_buffer = BigUnsigned::with_capacity(16);
+        for _ in 0..iterations {
+            let (mut b1, r1) = random_big_signed(16);
+            let (b2, r2) = random_big_unsigned(15);
+            let r2i = r2 as i128;
+
+            println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
+            println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
+
+            let successful_division = b1.divide_big_unsigned_with_modulus(&b2, &mut modulus_buffer);
+            if r2 == 0 {
+                assert!(!successful_division);
+            } else {
+                assert!(successful_division);
+                let expected_quotient = r1 / r2i;
+                assert_eq!(big_signed_to_i128(&b1), expected_quotient);
+                assert_eq!(b1.is_negative(), expected_quotient < 0);
+
+                let expected_modulus = ((r1 % r2i) + r2i) % r2i;
+                assert_eq!(
+                    big_unsigned_to_u128(&modulus_buffer) as i128,
+                    expected_modulus
+                );
+                assert!(expected_modulus >= 0);
+            }
+        }
+    });
 }
 
-fn big_int_to_u128(big_unsigned: &BigSigned) -> u128 {
-    let bytes = big_unsigned.clone_be_bytes();
-    let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
-        Some((i, _)) => &bytes[i..],
-        None => return 0,
-    };
+#[test]
+fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
+    let parallel_threads = rayon::max_num_threads();
+    (0..parallel_threads).into_par_iter().for_each(|i| {
+        let iterations = if i == parallel_threads - 1 {
+            RANDOM_ITERATIONS / parallel_threads + RANDOM_ITERATIONS % parallel_threads
+        } else {
+            RANDOM_ITERATIONS / parallel_threads
+        };
 
-    let mut u128_buffer = [0u8; 16];
-    u128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
-    u128::from_be_bytes(u128_buffer)
-}
+        let mut modulus_buffer = BigSigned::with_capacity(16);
+        for _ in 0..iterations {
+            let (mut b1, r1) = random_big_signed(16);
+            let (b2, r2) = random_big_unsigned(15);
+            let r2i = r2 as i128;
 
-fn i128_to_big_signed(value: i128) -> BigSigned {
-    BigSigned::from_be_bytes(value < 0, &value.unsigned_abs().to_be_bytes())
-}
+            println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
+            println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
 
-fn bytes_to_i128(bytes: &[u8]) -> i128 {
-    let mut i128_buffer = [0u8; 16];
-    i128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
-    i128::from_be_bytes(i128_buffer)
-}
+            let successful_division =
+                b1.divide_big_unsigned_with_signed_modulus(&b2, &mut modulus_buffer);
+            if r2 == 0 {
+                assert!(!successful_division);
+            } else {
+                assert!(successful_division);
+                let expected_quotient = r1 / r2i;
+                assert_eq!(big_signed_to_i128(&b1), expected_quotient);
+                assert_eq!(b1.is_negative(), expected_quotient < 0);
 
-fn random_starter_values(max_bytes: u8) -> (BigSigned, i128, BigSigned, i128) {
-    let r1 = random_byte_length_i128(max_bytes);
-    let r2 = random_byte_length_i128(max_bytes);
-    (i128_to_big_signed(r1), r1, i128_to_big_signed(r2), r2)
-}
-
-fn random_byte_length_i128(max_bytes: u8) -> i128 {
-    let bytes: Vec<u8> = (1..thread_rng().gen_range(1..max_bytes + 1))
-        .into_iter()
-        .map(|_| random::<u8>())
-        .collect();
-
-    let i = bytes_to_i128(&bytes);
-    if random::<bool>() {
-        -i
-    } else {
-        i
-    }
+                let expected_modulus = ((r1 % r2i) + r2i) % r2i;
+                assert_eq!(big_signed_to_i128(&modulus_buffer), expected_modulus);
+                assert_eq!(modulus_buffer.is_negative(), expected_modulus < 0);
+            }
+        }
+    });
 }
