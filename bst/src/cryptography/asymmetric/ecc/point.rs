@@ -15,13 +15,13 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::EllipticCurvePointAdditionContext;
-use crate::integers::BigSigned;
+use crate::integers::{BigSigned, BigUnsigned};
 
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub(in crate::cryptography::asymmetric::ecc) is_infinity: bool,
-    pub(in crate::cryptography::asymmetric::ecc) x: BigSigned,
-    pub(in crate::cryptography::asymmetric::ecc) y: BigSigned,
+    is_infinity: bool,
+    x: BigSigned,
+    y: BigSigned,
 }
 
 impl Point {
@@ -63,5 +63,23 @@ impl Point {
 
     pub fn double(&mut self, addition_context: &mut EllipticCurvePointAdditionContext) {
         todo!()
+    }
+
+    pub fn set_equal_to_unsigned(&mut self, x: &BigUnsigned, y: &BigUnsigned) {
+        self.x.set_equal_to_unsigned(x, false);
+        self.y.set_equal_to_unsigned(y, false);
+        self.is_infinity = x.is_zero() && y.is_zero();
+    }
+
+    pub fn set_equal_to(&mut self, other: &Point) {
+        self.is_infinity = other.is_infinity;
+        self.x.set_equal_to(&other.x);
+        self.y.set_equal_to(&other.y);
+    }
+
+    pub fn zero(&mut self) {
+        self.is_infinity = true;
+        self.x.zero();
+        self.y.zero();
     }
 }

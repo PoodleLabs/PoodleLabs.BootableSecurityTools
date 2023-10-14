@@ -20,12 +20,45 @@ pub use point::Point;
 
 use crate::{
     bits::{get_first_high_bit_index, try_get_bit_at_index},
-    integers::BigUnsigned,
+    integers::{BigSigned, BigUnsigned},
 };
 
 pub struct EllipticCurvePointAdditionContext {
     p: &'static BigUnsigned,
     a: &'static BigUnsigned,
+    slope: BigSigned,
+    augend: Point,
+}
+
+impl EllipticCurvePointAdditionContext {
+    pub fn slope(&self) -> &BigSigned {
+        &self.slope
+    }
+
+    pub fn p(&self) -> &BigUnsigned {
+        self.p
+    }
+
+    pub fn a(&self) -> &BigUnsigned {
+        self.a
+    }
+
+    pub fn augend(&self) -> &Point {
+        &self.augend
+    }
+
+    pub fn store_augend(&mut self, augend: &Point) {
+        self.augend.set_equal_to(augend);
+    }
+
+    pub fn slope_mut(&mut self) -> &mut BigSigned {
+        &mut self.slope
+    }
+
+    pub fn zero(&mut self) {
+        self.augend.zero();
+        self.slope.zero();
+    }
 }
 
 pub struct EllipticCurvePointMultiplicationContext {
@@ -34,6 +67,18 @@ pub struct EllipticCurvePointMultiplicationContext {
 }
 
 impl EllipticCurvePointMultiplicationContext {
+    pub fn new(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
+        Self {
+            working_point: Point::infinity(integer_capacity),
+            addition_context: EllipticCurvePointAdditionContext {
+                slope: BigSigned::with_capacity(integer_capacity),
+                augend: Point::infinity(integer_capacity),
+                p,
+                a,
+            },
+        }
+    }
+
     pub fn multiply_point(
         &mut self,
         x: &BigUnsigned,
@@ -109,8 +154,7 @@ impl EllipticCurvePointMultiplicationContext {
         let mut product = Point::infinity(self.addition_context.p.digit_count());
 
         // Prepare our addend to equal the value we're multiplying.
-        self.working_point.x.set_equal_to_unsigned(x, false);
-        self.working_point.y.set_equal_to_unsigned(y, false);
+        self.working_point.set_equal_to_unsigned(x, y);
 
         // Iterate over the bits in the multiplier from least to most significant.
         for i in (multiplier_bit_start..multiplier_bit_count).rev() {
@@ -123,6 +167,12 @@ impl EllipticCurvePointMultiplicationContext {
             self.working_point.double(&mut self.addition_context);
         }
 
+        self.zero();
         Some(product)
+    }
+
+    fn zero(&mut self) {
+        self.addition_context.zero();
+        self.working_point.zero();
     }
 }
