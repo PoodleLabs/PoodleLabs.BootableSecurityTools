@@ -55,14 +55,13 @@ pub use mnemonic_length::MnemonicLength;
 pub use mnemonic_version::MnemonicVersion;
 pub use parser::MnemonicParser;
 
-use super::{
-    bip_39, build_utf8_mnemonic_string, try_get_bit_start_offset, Bip32DevivationSettings,
-    MnemonicFormat, MnemonicTextNormalizationSettings, MnemonicWordList,
-};
 use crate::{
     bitcoin::mnemonics::{
-        bip_39::try_parse_bip39_mnemonic, try_get_bit_at_index, try_set_bit_at_index,
+        bip_39, bip_39::try_parse_bip39_mnemonic, build_utf8_mnemonic_string,
+        Bip32DevivationSettings, MnemonicFormat, MnemonicTextNormalizationSettings,
+        MnemonicWordList,
     },
+    bits::{try_get_bit_at_index, try_get_bit_start_offset, try_set_bit_at_index},
     hashing::{Hasher, Hmac, Sha512},
     integers::ceil,
     String16,

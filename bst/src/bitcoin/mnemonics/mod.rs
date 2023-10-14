@@ -51,46 +51,6 @@ pub trait MnemonicParseResult {
     fn can_get_bytes(&self) -> bool;
 }
 
-const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Option<usize> {
-    let available_bits = byte_count * 8;
-    if available_bits < bit_count {
-        None
-    } else {
-        // Read the trailing bits if we have more than we need.
-        Some(available_bits - bit_count)
-    }
-}
-
-fn try_set_bit_at_index(bit_index: usize, value: bool, bytes: &mut [u8]) -> bool {
-    let byte_index = bit_index / 8;
-    if byte_index >= bytes.len() {
-        return false;
-    }
-
-    let byte = bytes[byte_index];
-    let bit_index = bit_index % 8;
-    let bit_mask = 0b10000000u8 >> bit_index;
-    bytes[byte_index] = if value {
-        byte | bit_mask
-    } else {
-        byte & (!bit_mask)
-    };
-
-    true
-}
-
-const fn try_get_bit_at_index(bit_index: usize, bytes: &[u8]) -> Option<bool> {
-    let byte_index = bit_index / 8;
-    if byte_index >= bytes.len() {
-        return None;
-    }
-
-    let byte = bytes[byte_index];
-    let bit_index = bit_index % 8;
-    let bit_mask = 0b10000000u8 >> bit_index;
-    Some((bit_mask & byte) != 0)
-}
-
 fn build_utf8_mnemonic_string<'a>(
     word_space_characters: String16<'a>,
     mnemonic: &Vec<String16<'a>>,
