@@ -56,7 +56,7 @@ impl EllipticCurvePointAdditionContext {
     }
 
     pub fn zero(&mut self) {
-        self.augend.zero();
+        self.augend.set_infinity();
         self.slope.zero();
     }
 }
@@ -173,6 +173,6 @@ impl EllipticCurvePointMultiplicationContext {
 
     fn zero(&mut self) {
         self.addition_context.zero();
-        self.working_point.zero();
+        self.working_point.set_infinity();
     }
 }
