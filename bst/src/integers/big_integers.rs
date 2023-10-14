@@ -154,6 +154,10 @@ impl BigUnsigned {
         (&self.digits[..]).into()
     }
 
+    pub fn borrow_digits(&self) -> &[u8] {
+        &self.digits
+    }
+
     pub fn digit_count(&self) -> usize {
         self.digits.len()
     }
@@ -197,6 +201,10 @@ impl BigSigned {
 
     pub fn clone_be_bytes(&self) -> Box<[u8]> {
         self.big_unsigned.clone_be_bytes()
+    }
+
+    pub fn borrow_digits(&self) -> &[u8] {
+        self.big_unsigned.borrow_digits()
     }
 
     pub fn digit_count(&self) -> usize {
@@ -266,6 +274,11 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
+    pub fn set_equal_to_unsigned(&mut self, value: &BigUnsigned, is_negative: bool) {
+        self.big_unsigned.set_equal_to(&value);
+        self.is_negative = is_negative;
+    }
+
     pub fn set_equal_to(&mut self, value: &Self) {
         self.big_unsigned.set_equal_to(&value.big_unsigned);
         self.is_negative = value.is_negative;
