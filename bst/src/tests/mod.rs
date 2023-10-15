@@ -23,3 +23,5 @@ mod bitcoin;
 mod cryptography;
 mod hashing;
 mod numeric_collector;
+
+const PARALLELIZED_TEST_THREAD_COUNT: usize = 8;

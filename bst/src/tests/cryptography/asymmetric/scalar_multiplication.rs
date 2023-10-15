@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::integers::BigUnsigned;
+use crate::{integers::BigUnsigned, tests::PARALLELIZED_TEST_THREAD_COUNT};
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
@@ -22,13 +22,12 @@ const RANDOM_ITERATIONS: usize = 10;
 
 #[test]
 fn secp256k1_derive_pubkey_random_privkey() {
-    let parallel_threads = rayon::max_num_threads();
-    (0..parallel_threads).into_par_iter().for_each(|i| {
+    (0..PARALLELIZED_TEST_THREAD_COUNT).into_par_iter().for_each(|i| {
         let secp_context = secp256k1::Secp256k1::new();
-        let iterations = if i == parallel_threads - 1 {
-            RANDOM_ITERATIONS / parallel_threads + RANDOM_ITERATIONS % parallel_threads
+        let iterations = if i == PARALLELIZED_TEST_THREAD_COUNT - 1 {
+            RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT + RANDOM_ITERATIONS % PARALLELIZED_TEST_THREAD_COUNT
         } else {
-            RANDOM_ITERATIONS / parallel_threads
+            RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
         };
 
         let mut context =

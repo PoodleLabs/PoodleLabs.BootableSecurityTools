@@ -16,7 +16,10 @@
 
 use crate::{
     integers::BigUnsigned,
-    tests::big_integers::{big_unsigned_to_u128, random_big_unsigned},
+    tests::{
+        big_integers::{big_unsigned_to_u128, random_big_unsigned},
+        PARALLELIZED_TEST_THREAD_COUNT,
+    },
 };
 use alloc::vec;
 use core::cmp::Ordering;
@@ -283,33 +286,35 @@ fn big_unsigned_edge_case_divide() {
 
 #[test]
 fn big_unsigned_random_divide() {
-    let parallel_threads = rayon::max_num_threads();
-    (0..parallel_threads).into_par_iter().for_each(|i| {
-        let iterations = if i == parallel_threads - 1 {
-            RANDOM_ITERATIONS / parallel_threads + RANDOM_ITERATIONS % parallel_threads
-        } else {
-            RANDOM_ITERATIONS / parallel_threads
-        };
-
-        let mut remainder_buffer = BigUnsigned::with_capacity(16);
-        for _ in 0..iterations {
-            let (mut b1, r1) = random_big_unsigned(16);
-            let (b2, r2) = random_big_unsigned(16);
-            println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
-            println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
-
-            let successful_division =
-                b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer);
-
-            if r2 == 0 {
-                assert!(!successful_division);
+    (0..PARALLELIZED_TEST_THREAD_COUNT)
+        .into_par_iter()
+        .for_each(|i| {
+            let iterations = if i == PARALLELIZED_TEST_THREAD_COUNT - 1 {
+                RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
+                    + RANDOM_ITERATIONS % PARALLELIZED_TEST_THREAD_COUNT
             } else {
-                assert!(successful_division);
-                assert_eq!(big_unsigned_to_u128(&b1), r1 / r2);
-                assert_eq!(big_unsigned_to_u128(&remainder_buffer), r1 % r2);
+                RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
+            };
+
+            let mut remainder_buffer = BigUnsigned::with_capacity(16);
+            for _ in 0..iterations {
+                let (mut b1, r1) = random_big_unsigned(16);
+                let (b2, r2) = random_big_unsigned(16);
+                println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
+                println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
+
+                let successful_division =
+                    b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer);
+
+                if r2 == 0 {
+                    assert!(!successful_division);
+                } else {
+                    assert!(successful_division);
+                    assert_eq!(big_unsigned_to_u128(&b1), r1 / r2);
+                    assert_eq!(big_unsigned_to_u128(&remainder_buffer), r1 % r2);
+                }
             }
-        }
-    });
+        });
 }
 
 #[test]
