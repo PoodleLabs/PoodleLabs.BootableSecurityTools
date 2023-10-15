@@ -16,7 +16,7 @@
 
 mod point;
 
-pub use point::Point;
+pub use point::EccPoint;
 
 use crate::{
     bits::{get_first_high_bit_index, try_get_bit_at_index},
@@ -27,10 +27,19 @@ pub struct EllipticCurvePointAdditionContext {
     p: &'static BigUnsigned,
     a: &'static BigUnsigned,
     slope: BigSigned,
-    augend: Point,
+    augend: EccPoint,
 }
 
 impl EllipticCurvePointAdditionContext {
+    pub fn from(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
+        Self {
+            slope: BigSigned::with_capacity(integer_capacity),
+            augend: EccPoint::infinity(integer_capacity),
+            p,
+            a,
+        }
+    }
+
     pub fn slope(&self) -> &BigSigned {
         &self.slope
     }
@@ -43,11 +52,11 @@ impl EllipticCurvePointAdditionContext {
         self.a
     }
 
-    pub fn augend(&self) -> &Point {
+    pub fn augend(&self) -> &EccPoint {
         &self.augend
     }
 
-    pub fn store_augend(&mut self, augend: &Point) {
+    pub fn store_augend(&mut self, augend: &EccPoint) {
         self.augend.set_equal_to(augend);
     }
 
@@ -63,19 +72,14 @@ impl EllipticCurvePointAdditionContext {
 
 pub struct EllipticCurvePointMultiplicationContext {
     addition_context: EllipticCurvePointAdditionContext,
-    working_point: Point,
+    working_point: EccPoint,
 }
 
 impl EllipticCurvePointMultiplicationContext {
     pub fn new(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
         Self {
-            working_point: Point::infinity(integer_capacity),
-            addition_context: EllipticCurvePointAdditionContext {
-                slope: BigSigned::with_capacity(integer_capacity),
-                augend: Point::infinity(integer_capacity),
-                p,
-                a,
-            },
+            addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
+            working_point: EccPoint::infinity(integer_capacity),
         }
     }
 
@@ -84,7 +88,7 @@ impl EllipticCurvePointMultiplicationContext {
         x: &BigUnsigned,
         y: &BigUnsigned,
         multiplier: &BigUnsigned,
-    ) -> Option<Point> {
+    ) -> Option<EccPoint> {
         let multiplier_bytes = multiplier.borrow_digits();
         let multiplier_bit_count = multiplier.digit_count() * 8;
         let multiplier_bit_start = match get_first_high_bit_index(0, multiplier_bytes) {
@@ -151,7 +155,7 @@ impl EllipticCurvePointMultiplicationContext {
         // the number of addition operations required for the simple repeated addition algorithm.
 
         // Prepare a zero product (in an elliptic curve, 'infinity' is a neutral element where X + Infinity = X).
-        let mut product = Point::infinity(self.addition_context.p.digit_count());
+        let mut product = EccPoint::infinity(self.addition_context.p.digit_count());
 
         // Prepare our addend to equal the value we're multiplying.
         self.working_point.set_equal_to_unsigned(x, y);

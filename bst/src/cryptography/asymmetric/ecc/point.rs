@@ -264,28 +264,28 @@ use crate::integers::{BigSigned, BigUnsigned};
 // within bound constraints. To achieve this, the equation:
 // y^2 = x^3 + ax + b
 // Simply becomes:
-// (y^2 = x^3 + ax + b) mod p
+// y^2 = x^3 + ax + b (mod p)
 // Where p is a prime number, and is the upper bound of the finite field.
 // We apply the same modulus to all equations:
 //
 // Distinct point addition slope:
-// slope = ((Yp - Yq) / (Xp - Xq)) mod p
+// slope = (Yp - Yq) / (Xp - Xq) (mod p)
 //
 // Point doubling slope:
-// slope = (((3 * Xp^2) + a) / (2 * Yp)) mod p
+// slope = ((3 * Xp^2) + a) / (2 * Yp) (mod p)
 //
 // Point addition/doubling sum from slope:
-// Xr = (slope^2 - Xp - Xq) mod p
-// Yr = (Yp + (slope * (Xp - Xr))) mod p
+// Xr = slope^2 - Xp - Xq (mod p)
+// Yr = Yp + (slope * (Xp - Xr)) (mod p)
 
-#[derive(Debug, Clone)]
-pub struct Point {
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct EccPoint {
     is_infinity: bool,
     x: BigSigned,
     y: BigSigned,
 }
 
-impl Point {
+impl EccPoint {
     // A serialized, uncompressed point is identified with a leading byte of 4.
     pub const UNCOMPRESSED_SERIALIZATION_IDENTIFIER_BYTE: u8 = 0x04;
 
@@ -341,12 +341,13 @@ impl Point {
 
     pub fn add(
         &mut self,
-        addend: &Point,
+        addend: &EccPoint,
         addition_context: &mut EllipticCurvePointAdditionContext,
     ) {
         if self.is_infinity {
             // Infinity + X = X
             self.set_equal_to(addend);
+            return;
         }
 
         if addend.is_infinity {
@@ -374,9 +375,9 @@ impl Point {
         // 2. From the slope, we can calculate the next point at which the line intersects the curve. That is our addition/doubling result.
         //
         // We are adding two distinct points; we need to calculate the slope, then calculate the result from that slope.
-        // The augend is P, and the addend is Q. The slope is: ((Yp - Yq) / (Xp - Xq)) mod p
+        // The augend is P, and the addend is Q. The slope is: (Yp - Yq) / (Xp - Xq) (mod p)
 
-        // Store the augend's original value for later.
+        // Store the augend's original value for later. The X and Y values on the augend can now be used as working buffers.
         addition_context.store_augend(&self);
 
         // TODO: Calculate the slope.
@@ -404,9 +405,9 @@ impl Point {
         // 2. From the slope, we can calculate the next point at which the line intersects the curve. That is our addition/doubling result.
         //
         // We are doubling a point; we need to calculate the slope, then calculate the result from that slope.
-        // The addend and augend are P and Q, and P = Q. The slope is the tangent, which is: (((3 * Xp^2) + a) / (2 * Yp)) mod p
+        // The addend and augend are P and Q, and P = Q. The slope is the tangent, which is: ((3 * Xp^2) + a) / (2 * Yp) (mod p)
 
-        // Store the point's original value for later.
+        // Store the point's original value for later. The X and Y values on the augend can now be used as working buffers.
         addition_context.store_augend(&self);
 
         // TODO: Calculate the slope.
@@ -423,7 +424,7 @@ impl Point {
         self.is_infinity = x.is_zero() && y.is_zero();
     }
 
-    pub fn set_equal_to(&mut self, other: &Point) {
+    pub fn set_equal_to(&mut self, other: &EccPoint) {
         self.is_infinity = other.is_infinity;
         self.x.set_equal_to(&other.x);
         self.y.set_equal_to(&other.y);
@@ -441,7 +442,7 @@ impl Point {
 
     fn calculate_new_point_from_slope(
         &mut self,
-        addend: Option<&Point>,
+        addend: Option<&EccPoint>,
         addition_context: &mut EllipticCurvePointAdditionContext,
     ) {
         // Point addition and doubling has two steps:
@@ -451,8 +452,8 @@ impl Point {
         // We have calulated the slope already. It, along with the original augend point, is stored in the provided point addition context.
         // In the case of distinct point addition, the addend is passed in as the other parameter. In the case of point doubling, the
         // addend is the same as the augend.
-        // Xr = (slope^2 - Xp - Xq) mod p
-        // Yr = (Yp + (slope * (Xp - Xr))) mod p
+        // Xr = slope^2 - Xp - Xq (mod p)
+        // Yr = Yp + (slope * (Xp - Xr)) (mod p)
 
         todo!()
     }

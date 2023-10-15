@@ -19,5 +19,6 @@ extern crate rand;
 
 mod bit_integers;
 mod bitcoin;
+mod cryptography;
 mod hashing;
 mod numeric_collector;
