@@ -77,7 +77,7 @@ static mut N: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     });
 
 pub fn point_multiplication_context() -> EllipticCurvePointMultiplicationContext {
-    EllipticCurvePointMultiplicationContext::new(p(), a(), 32)
+    EllipticCurvePointMultiplicationContext::new(n(), p(), a(), 32)
 }
 
 pub fn serialized_private_key_bytes(key: &[u8]) -> [u8; 33] {

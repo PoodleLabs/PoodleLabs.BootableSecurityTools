@@ -74,13 +74,20 @@ impl EllipticCurvePointAdditionContext {
 pub struct EllipticCurvePointMultiplicationContext {
     addition_context: EllipticCurvePointAdditionContext,
     working_point: EllipticCurvePoint,
+    n: &'static BigUnsigned,
 }
 
 impl EllipticCurvePointMultiplicationContext {
-    pub fn new(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
+    pub fn new(
+        n: &'static BigUnsigned,
+        p: &'static BigUnsigned,
+        a: &'static BigUnsigned,
+        integer_capacity: usize,
+    ) -> Self {
         Self {
             addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
             working_point: EllipticCurvePoint::infinity(integer_capacity),
+            n,
         }
     }
 
@@ -98,6 +105,11 @@ impl EllipticCurvePointMultiplicationContext {
             // A multiplier of 0 just yields infinity; there's no point in constructing a new point for that.
             None => return None,
         };
+
+        if multiplier >= self.n {
+            // Private keys must be less than the order of the curve.
+            return None;
+        }
 
         // This method uses the double and add algorithm for multiplying a point by an integer.
         //
