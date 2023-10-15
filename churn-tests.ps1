@@ -17,7 +17,8 @@
 $ErrorActionPreference = "Stop";
 Write-Progress "Churning Tests";
 while ($true) {
-    cargo test --release;
+    cargo test --release --quiet;
+    # cargo test --release --quiet -- --nocapture;
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Tests failed.";
         return $LASTEXITCODE;

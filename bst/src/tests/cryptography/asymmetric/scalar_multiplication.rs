@@ -33,6 +33,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
         let mut context =
             crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
         let secp_context = secp256k1::Secp256k1::new();
+        let mut padded_private_key = [0u8; 32];
 
         for j in 0..iterations {
             let private_key = BigUnsigned::from_be_bytes(
@@ -49,8 +50,11 @@ fn secp256k1_derive_pubkey_random_privkey() {
                 &private_key,
             ) {
                 Some(p) => {
+                    // secp256k1 library requires exactly 32 bytes.
+                    padded_private_key[..32 - private_key.digit_count()].fill(0);
+                    private_key.copy_digits_to(&mut padded_private_key[32 - private_key.digit_count()..]);
                     let expected_serialized_key_bytes =
-                        secp256k1::SecretKey::from_slice(&private_key.clone_be_bytes())
+                        secp256k1::SecretKey::from_slice(&padded_private_key)
                             .unwrap()
                             .public_key(&secp_context)
                             .serialize();
@@ -58,7 +62,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
                     let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
 
                     println!("{},{}E: {:?}", i, j, expected_serialized_key_bytes);
-                    println!("{},{}IA: {:?}", i, j, actual_serialized_key_bytes);
+                    println!("{},{}A: {:?}", i, j, actual_serialized_key_bytes);
                     assert_eq!(
                         actual_serialized_key_bytes,
                         expected_serialized_key_bytes
