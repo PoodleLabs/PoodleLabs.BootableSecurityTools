@@ -20,10 +20,11 @@ pub use point::EccPoint;
 
 use crate::{
     bits::{get_first_high_bit_index, try_get_bit_at_index},
-    integers::{BigSigned, BigUnsigned},
+    integers::{BigSigned, BigUnsigned, BigUnsignedModInverseCalculator},
 };
 
 pub struct EllipticCurvePointAdditionContext {
+    mod_inverse_calculator: BigUnsignedModInverseCalculator,
     p: &'static BigUnsigned,
     a: &'static BigUnsigned,
     slope: BigSigned,
@@ -33,6 +34,7 @@ pub struct EllipticCurvePointAdditionContext {
 impl EllipticCurvePointAdditionContext {
     pub fn from(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
         Self {
+            mod_inverse_calculator: BigUnsignedModInverseCalculator::new(integer_capacity),
             slope: BigSigned::with_capacity(integer_capacity),
             augend: EccPoint::infinity(integer_capacity),
             p,
@@ -67,6 +69,21 @@ impl EllipticCurvePointAdditionContext {
     pub fn zero(&mut self) {
         self.augend.set_infinity();
         self.slope.zero();
+    }
+
+    pub fn mod_inverse(&mut self, value: &mut BigSigned) -> bool {
+        let is_negative = value.is_negative();
+        let success = self.mod_inverse_calculator.calculate_mod_inverse(
+            &mut value.borrow_unsigned_mut(),
+            is_negative,
+            self.p,
+        );
+
+        if success && is_negative {
+            value.negate();
+        }
+
+        success
     }
 }
 

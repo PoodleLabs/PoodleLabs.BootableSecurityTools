@@ -195,8 +195,16 @@ impl BigSigned {
         self.big_unsigned.extract_be_bytes()
     }
 
+    pub fn borrow_unsigned_mut(&mut self) -> &mut BigUnsigned {
+        &mut self.big_unsigned
+    }
+
     pub fn copy_digits_to(&self, buffer: &mut [u8]) {
         self.big_unsigned.copy_digits_to(buffer)
+    }
+
+    pub fn borrow_unsigned(&self) -> &BigUnsigned {
+        &self.big_unsigned
     }
 
     pub fn clone_be_bytes(&self) -> Box<[u8]> {

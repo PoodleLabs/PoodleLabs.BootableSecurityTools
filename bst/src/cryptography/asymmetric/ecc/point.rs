@@ -277,6 +277,9 @@ use crate::integers::{BigSigned, BigUnsigned};
 // Point addition/doubling sum from slope:
 // Xr = slope^2 - Xp - Xq (mod p)
 // Yr = Yp + (slope * (Xp - Xr)) (mod p)
+//
+// Note: (mod p) means that all arithmetic within the equation must be modular; we cannot just take
+// the mod of the result.
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct EccPoint {
@@ -370,17 +373,39 @@ impl EccPoint {
             return;
         }
 
-        // Point addition and doubling has two steps:
-        // 1. Draw a line between the two points or, if the points are identical, draw a line at the tangent to the curve. Take the slope of that line.
-        // 2. From the slope, we can calculate the next point at which the line intersects the curve. That is our addition/doubling result.
-        //
-        // We are adding two distinct points; we need to calculate the slope, then calculate the result from that slope.
-        // The augend is P, and the addend is Q. The slope is: (Yp - Yq) / (Xp - Xq) (mod p)
-
         // Store the augend's original value for later. The X and Y values on the augend can now be used as working buffers.
         addition_context.store_augend(&self);
 
-        // TODO: Calculate the slope.
+        // We need to calculate the slope of the line between points P and Q.
+        // The formula is (Yp - Yq) / (Xp - Xq) (mod p)
+        //
+        // Using the modular inverse of the divisor simplifies things here:
+        // a = Xq
+        // a -= Xp
+        // a mod inverse
+        // b = Yq
+        // b = Yp
+        // a *= b
+
+        // X = Xq
+        self.x.set_equal_to(&addend.x);
+
+        // X -= Xp
+        self.x.subtract_big_signed(&addition_context.augend.x);
+
+        // X mod inverse
+        addition_context.mod_inverse(&mut self.x);
+
+        // Y = Yq
+        self.y.set_equal_to(&addend.y);
+
+        // Y -= Yp
+        self.y.subtract_big_signed(&addition_context.augend.y);
+
+        // X *= Y
+        self.x.multiply_big_signed(&self.y);
+
+        addition_context.slope.set_equal_to(&self.x);
 
         // The sum-from-slope calculation is identical for distinct point addition and point doubling.
         // The slope is stored in the point addition context, along with the original augend value.
@@ -400,17 +425,43 @@ impl EccPoint {
             return;
         }
 
-        // Point addition and doubling has two steps:
-        // 1. Draw a line between the two points or, if the points are identical, draw a line at the tangent to the curve. Take the slope of that line.
-        // 2. From the slope, we can calculate the next point at which the line intersects the curve. That is our addition/doubling result.
-        //
-        // We are doubling a point; we need to calculate the slope, then calculate the result from that slope.
-        // The addend and augend are P and Q, and P = Q. The slope is the tangent, which is: ((3 * Xp^2) + a) / (2 * Yp) (mod p)
-
         // Store the point's original value for later. The X and Y values on the augend can now be used as working buffers.
         addition_context.store_augend(&self);
 
-        // TODO: Calculate the slope.
+        // We need to calculate the tangent of P on the curve.
+        // The formula is ((3 * Xp^2) + a) / (2 * Yp) (mod p)
+        //
+        // Using the modular inverse of the divisor simplifies things here:
+        // a = Yp
+        // a *= 2
+        // a mod inverse
+        // b = Xp
+        // b *= Xp
+        // b *= 3
+        // b += a
+        // a *= b
+
+        // Y = Yp
+        // Y *= 2
+        self.y.multiply_u8(2);
+
+        // Y mod inverse
+        addition_context.mod_inverse(&mut self.y);
+
+        // X = Xp
+        // X *= Xp
+        self.x.multiply_big_signed(&addition_context.augend.x);
+
+        // X *= 3
+        self.x.multiply_u8(3);
+
+        // X += a
+        self.x.add_big_unsigned(addition_context.a);
+
+        // X *= Y
+        self.x.multiply_big_signed(&self.y);
+
+        addition_context.slope.set_equal_to(&self.x);
 
         // The sum-from-slope calculation is identical for distinct point addition and point doubling.
         // The slope is stored in the point addition context, along with the original point.
@@ -445,16 +496,61 @@ impl EccPoint {
         addend: Option<&EccPoint>,
         addition_context: &mut EllipticCurvePointAdditionContext,
     ) {
-        // Point addition and doubling has two steps:
-        // 1. Draw a line between the two points or, if the points are identical, draw a line at the tangent to the curve. Take the slope of that line.
-        // 2. From the slope, we can calculate the next point at which the line intersects the curve. That is our addition/doubling result.
+        // The slope is stored in the context's slope buffer, and the original augend (Xp, Yp) is stored in the context's augend buffer.
+        // In point addition, the addend (Xq, Yq) is passed in. In point doubling, the addend is the same as the augend.
         //
-        // We have calulated the slope already. It, along with the original augend point, is stored in the provided point addition context.
-        // In the case of distinct point addition, the addend is passed in as the other parameter. In the case of point doubling, the
-        // addend is the same as the augend.
+        // We can calculate R with the following steps:
+        //
         // Xr = slope^2 - Xp - Xq (mod p)
-        // Yr = Yp + (slope * (Xp - Xr)) (mod p)
+        // a = slope
+        // a *= slope
+        // a -= Xp
+        // a -= Xq
+        // a mod p
+        //
+        // Yr = (slope * (Xp - Xr)) - Yp (mod p)
+        // a = Xp
+        // a -= Xr
+        // a *= slope
+        // a -= Yp
+        // a mod p
 
-        todo!()
+        // Y = slope
+        self.y.set_equal_to(&addition_context.slope);
+
+        // Y *= slope
+        self.y.multiply_big_signed(&addition_context.slope);
+
+        // Y -= Xp
+        self.y.subtract_big_signed(&addition_context.augend.x);
+
+        // Y -= Xq
+        self.y.subtract_big_signed(match addend {
+            Some(addend) => &addend.x,
+            None => &addition_context.augend.x,
+        });
+
+        // X = Y mod p = Xr
+        self.y
+            .divide_big_unsigned_with_signed_modulus(addition_context.p, &mut self.x);
+
+        // Y = Xp
+        self.y.set_equal_to(&addition_context.augend.x);
+
+        // Y -= Xr
+        self.y.subtract_big_signed(&self.x);
+
+        // slope *= Y
+        addition_context.slope.multiply_big_signed(&self.y);
+
+        // slope -= Yp
+        addition_context
+            .slope
+            .subtract_big_signed(&addition_context.augend.y);
+
+        // Y = slope mod p = Yr
+        addition_context
+            .slope
+            .divide_big_unsigned_with_signed_modulus(addition_context.p, &mut self.y);
     }
 }

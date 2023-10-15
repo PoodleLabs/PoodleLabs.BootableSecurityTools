@@ -15,8 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    integers::BigUnsigned,
-    tests::bit_integers::{big_unsigned_to_u128, random_big_unsigned},
+    integers::{BigUnsigned, BigUnsignedModInverseCalculator},
+    tests::big_integers::{big_unsigned_to_u128, random_big_unsigned},
 };
 use alloc::vec;
 use core::cmp::Ordering;
