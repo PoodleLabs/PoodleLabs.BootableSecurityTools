@@ -16,6 +16,7 @@
 
 extern crate hex_literal;
 extern crate rand;
+extern crate secp256k1;
 
 mod big_integers;
 mod bitcoin;

@@ -14,21 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+pub mod secp256k1;
+
 mod point;
 
-pub use point::EccPoint;
+pub use point::EllipticCurvePoint;
 
 use crate::{
     bits::{get_first_high_bit_index, try_get_bit_at_index},
     integers::{BigSigned, BigUnsigned, BigUnsignedModInverseCalculator},
 };
 
+const PRIVATE_KEY_PREFIX: u8 = 0x00;
+
 pub struct EllipticCurvePointAdditionContext {
     mod_inverse_calculator: BigUnsignedModInverseCalculator,
     p: &'static BigUnsigned,
     a: &'static BigUnsigned,
     slope: BigSigned,
-    augend: EccPoint,
+    augend: EllipticCurvePoint,
 }
 
 impl EllipticCurvePointAdditionContext {
@@ -36,34 +40,14 @@ impl EllipticCurvePointAdditionContext {
         Self {
             mod_inverse_calculator: BigUnsignedModInverseCalculator::new(integer_capacity),
             slope: BigSigned::with_capacity(integer_capacity),
-            augend: EccPoint::infinity(integer_capacity),
+            augend: EllipticCurvePoint::infinity(integer_capacity),
             p,
             a,
         }
     }
 
-    pub fn slope(&self) -> &BigSigned {
-        &self.slope
-    }
-
-    pub fn p(&self) -> &BigUnsigned {
-        self.p
-    }
-
-    pub fn a(&self) -> &BigUnsigned {
-        self.a
-    }
-
-    pub fn augend(&self) -> &EccPoint {
-        &self.augend
-    }
-
-    pub fn store_augend(&mut self, augend: &EccPoint) {
+    pub fn store_augend(&mut self, augend: &EllipticCurvePoint) {
         self.augend.set_equal_to(augend);
-    }
-
-    pub fn slope_mut(&mut self) -> &mut BigSigned {
-        &mut self.slope
     }
 
     pub fn zero(&mut self) {
@@ -89,14 +73,14 @@ impl EllipticCurvePointAdditionContext {
 
 pub struct EllipticCurvePointMultiplicationContext {
     addition_context: EllipticCurvePointAdditionContext,
-    working_point: EccPoint,
+    working_point: EllipticCurvePoint,
 }
 
 impl EllipticCurvePointMultiplicationContext {
     pub fn new(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
         Self {
             addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
-            working_point: EccPoint::infinity(integer_capacity),
+            working_point: EllipticCurvePoint::infinity(integer_capacity),
         }
     }
 
@@ -105,7 +89,7 @@ impl EllipticCurvePointMultiplicationContext {
         x: &BigUnsigned,
         y: &BigUnsigned,
         multiplier: &BigUnsigned,
-    ) -> Option<EccPoint> {
+    ) -> Option<EllipticCurvePoint> {
         let multiplier_bytes = multiplier.borrow_digits();
         let multiplier_bit_count = multiplier.digit_count() * 8;
         let multiplier_bit_start = match get_first_high_bit_index(0, multiplier_bytes) {
@@ -172,7 +156,7 @@ impl EllipticCurvePointMultiplicationContext {
         // the number of addition operations required for the simple repeated addition algorithm.
 
         // Prepare a zero product (in an elliptic curve, 'infinity' is a neutral element where X + Infinity = X).
-        let mut product = EccPoint::infinity(self.addition_context.p.digit_count());
+        let mut product = EllipticCurvePoint::infinity(self.addition_context.p.digit_count());
 
         // Prepare our addend to equal the value we're multiplying.
         self.working_point.set_equal_to_unsigned(x, y);

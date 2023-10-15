@@ -282,14 +282,15 @@ use crate::integers::{BigSigned, BigUnsigned};
 // the mod of the result.
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct EccPoint {
+pub struct EllipticCurvePoint {
     is_infinity: bool,
     x: BigSigned,
     y: BigSigned,
 }
 
-impl EccPoint {
+impl EllipticCurvePoint {
     // A serialized, uncompressed point is identified with a leading byte of 4.
+    #[allow(dead_code)]
     pub const UNCOMPRESSED_SERIALIZATION_IDENTIFIER_BYTE: u8 = 0x04;
 
     pub fn infinity(integer_capacity: usize) -> Self {
@@ -330,21 +331,9 @@ impl EccPoint {
         Some(buffer)
     }
 
-    pub fn is_infinity(&self) -> bool {
-        self.is_infinity
-    }
-
-    pub fn x(&self) -> &BigSigned {
-        &self.x
-    }
-
-    pub fn y(&self) -> &BigSigned {
-        &self.y
-    }
-
     pub fn add(
         &mut self,
-        addend: &EccPoint,
+        addend: &EllipticCurvePoint,
         addition_context: &mut EllipticCurvePointAdditionContext,
     ) {
         if self.is_infinity {
@@ -475,7 +464,7 @@ impl EccPoint {
         self.is_infinity = x.is_zero() && y.is_zero();
     }
 
-    pub fn set_equal_to(&mut self, other: &EccPoint) {
+    pub fn set_equal_to(&mut self, other: &EllipticCurvePoint) {
         self.is_infinity = other.is_infinity;
         self.x.set_equal_to(&other.x);
         self.y.set_equal_to(&other.y);
@@ -487,13 +476,9 @@ impl EccPoint {
         self.y.zero();
     }
 
-    pub fn negate(&mut self) {
-        self.y.negate();
-    }
-
     fn calculate_new_point_from_slope(
         &mut self,
-        addend: Option<&EccPoint>,
+        addend: Option<&EllipticCurvePoint>,
         addition_context: &mut EllipticCurvePointAdditionContext,
     ) {
         // The slope is stored in the context's slope buffer, and the original augend (Xp, Yp) is stored in the context's augend buffer.

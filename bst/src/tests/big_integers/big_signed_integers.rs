@@ -15,7 +15,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    cryptography::asymmetric::ecc::EllipticCurvePointAdditionContext,
     integers::{BigSigned, BigUnsigned},
     tests::big_integers::{
         big_signed_to_i128, big_signed_to_u128, big_unsigned_to_u128, random_big_signed,

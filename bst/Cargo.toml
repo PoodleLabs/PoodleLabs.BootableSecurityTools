@@ -21,6 +21,7 @@ name = "bst"
 
 [dependencies]
 macros = { path = "../macros" }
+secp256k1 = "0.28.0"
 
 [dev-dependencies]
 hex-literal = { version = "0.4.1" }

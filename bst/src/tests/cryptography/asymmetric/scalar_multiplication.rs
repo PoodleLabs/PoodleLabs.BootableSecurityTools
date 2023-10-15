@@ -13,3 +13,61 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+use crate::integers::BigUnsigned;
+use rand::random;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+
+const RANDOM_ITERATIONS: usize = 10;
+
+#[test]
+fn secp256k1_derive_pubkey_random_privkey() {
+    let parallel_threads = rayon::max_num_threads();
+    (0..parallel_threads).into_par_iter().for_each(|i| {
+        let secp_context = secp256k1::Secp256k1::new();
+        let iterations = if i == parallel_threads - 1 {
+            RANDOM_ITERATIONS / parallel_threads + RANDOM_ITERATIONS % parallel_threads
+        } else {
+            RANDOM_ITERATIONS / parallel_threads
+        };
+
+        let mut context =
+            crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+
+        for _ in 0..iterations {
+            let private_key = BigUnsigned::from_be_bytes(
+                &(0..32)
+                    .into_iter()
+                    .map(|_| random::<u8>())
+                    .collect::<Vec<u8>>(),
+            );
+
+            match context.multiply_point(
+                crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
+                crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
+                &private_key,
+            ) {
+                Some(p) => {
+                    let expected_serialized_key_bytes =
+                        secp256k1::SecretKey::from_slice(&private_key.clone_be_bytes())
+                            .unwrap()
+                            .public_key(&secp_context)
+                            .serialize();
+
+                    let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
+
+                    println!("priv: {:?}", private_key.clone_be_bytes());
+                    println!("exp: {:?}", expected_serialized_key_bytes);
+                    println!("act: {:?}", actual_serialized_key_bytes);
+                    assert_eq!(
+                        actual_serialized_key_bytes,
+                        expected_serialized_key_bytes
+                    );
+                }
+                None => {
+                    assert!(private_key.is_zero());
+                }
+            };
+        }
+    });
+}

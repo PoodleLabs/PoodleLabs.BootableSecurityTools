@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    cryptography::asymmetric::ecc::{EccPoint, EllipticCurvePointAdditionContext},
+    cryptography::asymmetric::ecc::{EllipticCurvePoint, EllipticCurvePointAdditionContext},
     global_runtime_immutable::GlobalRuntimeImmutable,
     integers::{BigSigned, BigUnsigned},
 };
@@ -45,7 +45,7 @@ fn point_addition_1() {
     let p5 = point(993, 1231);
 
     // Infinity
-    let inf = EccPoint::infinity(4);
+    let inf = EllipticCurvePoint::infinity(4);
     let mut p = inf.clone();
 
     // Inf + Inf = Inf
@@ -214,7 +214,7 @@ fn point_addition_2() {
     let p5 = point(56, 8);
 
     // Infinity
-    let inf = EccPoint::infinity(2);
+    let inf = EllipticCurvePoint::infinity(2);
     let mut p = inf.clone();
 
     // Inf + Inf = Inf
@@ -375,7 +375,7 @@ fn point_addition_2() {
 #[test]
 fn point_doubling_1() {
     let mut context = point_addition_context_1();
-    let mut p = EccPoint::infinity(4);
+    let mut p = EllipticCurvePoint::infinity(4);
 
     // (22, 2321) + (22, 2321) = (605, 851)
     p = double(p, &point(22, 2321), &mut context);
@@ -401,7 +401,7 @@ fn point_doubling_1() {
 #[test]
 fn point_doubling_2() {
     let mut context = point_addition_context_2();
-    let mut p = EccPoint::infinity(2);
+    let mut p = EllipticCurvePoint::infinity(2);
 
     // (17, 10) + (17, 10) = (32, 90)
     p = double(p, &point(17, 10), &mut context);
@@ -448,29 +448,29 @@ fn a2() -> &'static BigUnsigned {
     unsafe { A2.value() }
 }
 
-fn point(x: u16, y: u16) -> EccPoint {
-    EccPoint::from(
+fn point(x: u16, y: u16) -> EllipticCurvePoint {
+    EllipticCurvePoint::from(
         BigSigned::from_unsigned(false, BigUnsigned::from_be_bytes(&x.to_be_bytes())),
         BigSigned::from_unsigned(false, BigUnsigned::from_be_bytes(&y.to_be_bytes())),
     )
 }
 
 fn add(
-    mut p: EccPoint,
-    augend: &EccPoint,
-    addend: &EccPoint,
+    mut p: EllipticCurvePoint,
+    augend: &EllipticCurvePoint,
+    addend: &EllipticCurvePoint,
     addition_context: &mut EllipticCurvePointAdditionContext,
-) -> EccPoint {
+) -> EllipticCurvePoint {
     p.set_equal_to(augend);
     p.add(addend, addition_context);
     p
 }
 
 fn double(
-    mut p: EccPoint,
-    point: &EccPoint,
+    mut p: EllipticCurvePoint,
+    point: &EllipticCurvePoint,
     addition_context: &mut EllipticCurvePointAdditionContext,
-) -> EccPoint {
+) -> EllipticCurvePoint {
     p.set_equal_to(point);
     p.double(addition_context);
     p
