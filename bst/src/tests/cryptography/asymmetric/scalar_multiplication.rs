@@ -16,10 +16,10 @@
 
 use crate::{integers::BigUnsigned, tests::PARALLELIZED_TEST_THREAD_COUNT};
 use core::cmp::Ordering;
-use rand::random;
+use rand::{random, thread_rng, Rng};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 16;
+const RANDOM_ITERATIONS: usize = 32;
 
 #[test]
 fn secp256k1_derive_pubkey_random_privkey() {
@@ -37,7 +37,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
 
         for j in 0..iterations {
             let private_key = BigUnsigned::from_be_bytes(
-                &(0..32)
+                &(0..thread_rng().gen_range(0..33))
                     .into_iter()
                     .map(|_| random::<u8>())
                     .collect::<Vec<u8>>(),
