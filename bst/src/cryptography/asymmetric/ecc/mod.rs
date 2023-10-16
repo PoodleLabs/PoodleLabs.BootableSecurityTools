@@ -21,18 +21,20 @@ mod point;
 pub use point::EllipticCurvePoint;
 
 use crate::{
-    bits::{get_first_high_bit_index, try_get_bit_at_index},
+    bits::{try_get_bit_at_index, try_set_bit_at_index},
     integers::{BigSigned, BigUnsigned, BigUnsignedModInverseCalculator},
 };
+use alloc::{boxed::Box, vec, vec::Vec};
+use core::cmp::Ordering;
 
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
 pub struct EllipticCurvePointAdditionContext {
     mod_inverse_calculator: BigUnsignedModInverseCalculator,
+    augend: EllipticCurvePoint,
     p: &'static BigUnsigned,
     a: &'static BigUnsigned,
     slope: BigSigned,
-    augend: EllipticCurvePoint,
 }
 
 impl EllipticCurvePointAdditionContext {
@@ -73,8 +75,11 @@ impl EllipticCurvePointAdditionContext {
 
 pub struct EllipticCurvePointMultiplicationContext {
     addition_context: EllipticCurvePointAdditionContext,
+    side_channel_mitigation_point: EllipticCurvePoint,
+    comparison_box: Box<Option<Ordering>>,
     working_point: EllipticCurvePoint,
     n: &'static BigUnsigned,
+    bit_buffer: Vec<u8>,
 }
 
 impl EllipticCurvePointMultiplicationContext {
@@ -84,9 +89,16 @@ impl EllipticCurvePointMultiplicationContext {
         a: &'static BigUnsigned,
         integer_capacity: usize,
     ) -> Self {
+        if n.digit_count() == 0 {
+            panic!("Zero-length N for Elliptic Curve Point Multiplication Context.");
+        }
+
         Self {
             addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
+            side_channel_mitigation_point: EllipticCurvePoint::infinity(integer_capacity),
             working_point: EllipticCurvePoint::infinity(integer_capacity),
+            bit_buffer: vec![0u8; n.digit_count()],
+            comparison_box: Box::from(None),
             n,
         }
     }
@@ -97,20 +109,6 @@ impl EllipticCurvePointMultiplicationContext {
         y: &BigUnsigned,
         multiplier: &BigUnsigned,
     ) -> Option<EllipticCurvePoint> {
-        let multiplier_bytes = multiplier.borrow_digits();
-        let multiplier_bit_count = multiplier.digit_count() * 8;
-        let multiplier_bit_start = match get_first_high_bit_index(0, multiplier_bytes) {
-            Some(start) => start,
-            // There are no high bits in the multiplier; that means it's zero.
-            // A multiplier of 0 just yields infinity; there's no point in constructing a new point for that.
-            None => return None,
-        };
-
-        if multiplier >= self.n {
-            // Private keys must be less than the order of the curve.
-            return None;
-        }
-
         // This method uses the double and add algorithm for multiplying a point by an integer.
         //
         // Multiplication is repeated additions:
@@ -167,6 +165,97 @@ impl EllipticCurvePointMultiplicationContext {
         // algorithm would require only 165 double operations, and 84 addition operations, which is... a few fewer operations than
         // the number of addition operations required for the simple repeated addition algorithm.
 
+        if multiplier.digit_count() > self.n.digit_count() {
+            // The multiplier has more digits than N. It's definitely too large, and therefore is invalid, and we can't derive a public key.
+            return None;
+        }
+
+        let multiplier_digits = multiplier.borrow_digits();
+
+        // Constant-time zero check on the multiplier.
+        let zero_check = multiplier_digits[multiplier_digits.len() - 1] as u16
+            | if multiplier_digits.len() > 1 {
+                0xFF00
+            } else {
+                0x0000
+            };
+
+        if zero_check == 0x0000 {
+            // The multiplier is 0; it's invalid, and we can't derive a public key.
+            return None;
+        }
+
+        // Constant-time comparison between the multiplier and N.
+        let m_is_less_than_n = {
+            let mut throwaway_comparison = Some(Ordering::Less);
+            let mut first_differing_comparison = None;
+            let n_digits = self.n.borrow_digits();
+
+            // We have already guaranteed that M has as many or fewer digits than N.
+            // If it has fewer, it is definitely smaller, so we will compare to a zeroed out buffer with length equal to N's length.
+            // If it has the same number of digits, we will perform an actual comparison.
+            let m_digits = if n_digits.len() > multiplier_digits.len() {
+                &self.bit_buffer[..]
+            } else {
+                multiplier_digits
+            };
+
+            for i in 0..n_digits.len() {
+                match m_digits[i].cmp(&n_digits[i]) {
+                    Ordering::Greater => {
+                        if first_differing_comparison == None {
+                            first_differing_comparison = Some(Ordering::Greater);
+                        } else {
+                            throwaway_comparison = Some(Ordering::Greater);
+                        }
+                    }
+                    Ordering::Equal => {
+                        if first_differing_comparison == None {
+                            throwaway_comparison = Some(Ordering::Greater);
+                        } else {
+                            throwaway_comparison = Some(Ordering::Less);
+                        }
+                    }
+                    Ordering::Less => {
+                        if first_differing_comparison == None {
+                            first_differing_comparison = Some(Ordering::Less);
+                        } else {
+                            throwaway_comparison = Some(Ordering::Less);
+                        }
+                    }
+                }
+            }
+
+            // Do something with the throwaway comparison to avoid it being optimized away.
+            *self.comparison_box = throwaway_comparison;
+
+            // M is less than N only if there was a differing digit, and the first differing digit was smaller.
+            first_differing_comparison.is_some_and(|o| o == Ordering::Less)
+        };
+
+        if !m_is_less_than_n {
+            // The multiplier is >= N; it's invalid, and we can't derive a public key.
+            return None;
+        }
+
+        // Constant-time copy of the bits from the multiplier into our local bit buffer with a fixed length.
+        for i in 0..self.bit_buffer.len() {
+            let j = multiplier_digits
+                .len()
+                .wrapping_sub(self.bit_buffer.len() - i);
+
+            let byte = if j >= multiplier_digits.len() {
+                self.bit_buffer[i]
+            } else {
+                multiplier_digits[j]
+            };
+
+            for j in 0..8 {
+                let bit = ((1 << 7 - j) & byte) != 0;
+                assert!(try_set_bit_at_index(i * 8 + j, bit, &mut self.bit_buffer));
+            }
+        }
+
         // Prepare a zero product (in an elliptic curve, 'infinity' is a neutral element where X + Infinity = X).
         let mut product = EllipticCurvePoint::infinity(self.addition_context.p.digit_count());
 
@@ -174,22 +263,33 @@ impl EllipticCurvePointMultiplicationContext {
         self.working_point.set_equal_to_unsigned(x, y);
 
         // Iterate over the bits in the multiplier from least to most significant.
-        for i in (multiplier_bit_start..multiplier_bit_count).rev() {
-            if try_get_bit_at_index(i, multiplier_bytes).unwrap() {
-                // The bit at the current index is high; we should add.
+        for i in (0..self.bit_buffer.len() * 8).rev() {
+            if try_get_bit_at_index(i, &self.bit_buffer).unwrap() {
+                // The bit at the current index is high; we should add to our product.
                 product.add(&self.working_point, &mut self.addition_context);
+            } else {
+                // The bit at the current index is low; we should add to our throwaway value.
+                // This results in the number of operations always being the same.
+                self.side_channel_mitigation_point
+                    .add(&self.working_point, &mut self.addition_context)
             }
 
             // We always double the addend before moving to the next bit.
             self.working_point.double(&mut self.addition_context);
         }
 
+        // Zero out our working values; they could otherwise leak sensitive information.
         self.zero();
+
+        // Return our product, which is guaranteed to be non-infinity.
         Some(product)
     }
 
     fn zero(&mut self) {
+        self.bit_buffer.fill(0);
+        *self.comparison_box = None;
         self.addition_context.zero();
         self.working_point.set_infinity();
+        self.side_channel_mitigation_point.set_infinity();
     }
 }

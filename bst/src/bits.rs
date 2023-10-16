@@ -53,18 +53,3 @@ pub fn try_set_bit_at_index(bit_index: usize, value: bool, bytes: &mut [u8]) -> 
 
     true
 }
-
-pub fn get_first_high_bit_index(start_bit_index: usize, bytes: &[u8]) -> Option<usize> {
-    for i in start_bit_index..bytes.len() * 8 {
-        let bit = match try_get_bit_at_index(i, bytes) {
-            None => return None,
-            Some(bit) => bit,
-        };
-
-        if bit {
-            return Some(i);
-        }
-    }
-
-    None
-}

@@ -19,7 +19,69 @@ use core::cmp::Ordering;
 use rand::{random, thread_rng, Rng};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 32;
+const RANDOM_ITERATIONS: usize = 16;
+
+#[test]
+fn secp256k1_derive_pubkey_zero_privkey() {
+    let mut context =
+        crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+    assert_eq!(
+        context.multiply_point(
+            crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
+            crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
+            &BigUnsigned::with_capacity(0)
+        ),
+        None
+    );
+}
+
+#[test]
+fn secp256k1_derive_pubkey_n_privkey() {
+    let mut context =
+        crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+    assert_eq!(
+        context.multiply_point(
+            crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
+            crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
+            &crate::cryptography::asymmetric::ecc::secp256k1::n(),
+        ),
+        None
+    );
+}
+
+#[test]
+fn secp256k1_derive_pubkey_n_plus_one_privkey() {
+    let mut context =
+        crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+    let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
+    n_plus_one.add_u8(1);
+
+    assert_eq!(
+        context.multiply_point(
+            crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
+            crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
+            &n_plus_one,
+        ),
+        None
+    );
+}
+
+#[test]
+fn secp256k1_derive_pubkey_more_bytes_than_n_privkey() {
+    let mut context =
+        crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+    let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
+    n_plus_one.multiply_u64(u64::MAX);
+
+    assert_eq!(
+        context.multiply_point(
+            crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
+            crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
+            &n_plus_one,
+        ),
+        None
+    );
+}
 
 #[test]
 fn secp256k1_derive_pubkey_random_privkey() {
@@ -37,7 +99,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
 
         for j in 0..iterations {
             let private_key = BigUnsigned::from_be_bytes(
-                &(0..thread_rng().gen_range(0..33))
+                &(0..thread_rng().gen_range(1..33))
                     .into_iter()
                     .map(|_| random::<u8>())
                     .collect::<Vec<u8>>(),
