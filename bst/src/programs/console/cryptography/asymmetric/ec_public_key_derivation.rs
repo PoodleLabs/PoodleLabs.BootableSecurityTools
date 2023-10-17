@@ -89,9 +89,9 @@ impl<TSystemServices: SystemServices> Program
                     } else if b.cmp(secp256k1::n()) != Ordering::Less {
                         // Private keys must be less than the N value of the curve. We'll ask the user what to do.
                         console.in_colours(constants::WARNING_COLOURS, |c| {
-                            c.line_start().new_line().output_utf16(s16!(
-                                "The input is greater than or equal to the curve's N value; we cannot derive a public key from it directly."
-                            ))
+                            c.line_start().new_line().output_utf16_line(s16!(
+                                "The input is >= the curve's N value; we cannot derive a public key from it directly."
+                            )).output_utf16(s16!("If you use it as a private key, it will not be portable with other applications!"))
                         });
 
                         // The user can either try inputting a different key, or we can iteratively hash the key until we
