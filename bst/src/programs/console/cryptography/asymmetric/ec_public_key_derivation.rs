@@ -84,6 +84,8 @@ impl<TSystemServices: SystemServices> Program
                                 .new_line()
                                 .output_utf16(s16!("Zero is not a valid private key."))
                         });
+
+                        continue;
                     } else if b.cmp(secp256k1::n()) != Ordering::Less {
                         // Private keys must be less than the N value of the curve. We'll ask the user what to do.
                         console.in_colours(constants::WARNING_COLOURS, |c| {
