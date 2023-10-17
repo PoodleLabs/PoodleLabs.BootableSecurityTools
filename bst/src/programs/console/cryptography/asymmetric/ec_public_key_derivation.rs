@@ -17,10 +17,12 @@
 use crate::{
     console_out::ConsoleOut,
     constants,
-    cryptography::asymmetric::ecc::secp256k1,
     hashing::{Hasher, Sha512},
     integers::BigUnsigned,
-    programs::{console::write_bytes, Program, ProgramExitResult},
+    programs::{
+        console::{cryptography::asymmetric::prompt_for_curve_selection, write_bytes},
+        Program, ProgramExitResult,
+    },
     system_services::SystemServices,
     ui::{
         console::{
@@ -65,7 +67,11 @@ impl<TSystemServices: SystemServices> Program
             .output_utf16_line(s16!("This program derives a public key from a private key using Elliptic Curve cryptography."));
         const CANCEL_PROMPT: String16 = s16!("Cancel public key derivation?");
 
-        // TODO: Select a curve.
+        // Select a curve.
+        let mut curve = match prompt_for_curve_selection(&self.system_services, CANCEL_PROMPT) {
+            None => return ProgramExitResult::UserCancelled,
+            Some(c) => c,
+        };
 
         // Get the private key to derive a public key from.
         let mut private_key = loop {
@@ -86,7 +92,7 @@ impl<TSystemServices: SystemServices> Program
                         });
 
                         continue;
-                    } else if b.cmp(secp256k1::n()) != Ordering::Less {
+                    } else if b.cmp(curve.n) != Ordering::Less {
                         // Private keys must be less than the N value of the curve. We'll ask the user what to do.
                         console.in_colours(constants::WARNING_COLOURS, |c| {
                             c.line_start().new_line().output_utf16_line(s16!(
@@ -106,14 +112,12 @@ impl<TSystemServices: SystemServices> Program
                             let mut hmac = hasher.build_hmac(ITERATIVE_HASHING_KEY);
                             break loop {
                                 hmac.write_hmac_to(&b.borrow_digits(), &mut hash_buffer);
-                                // TODO: 32 should depend on the byte size of a private key.
-                                hash_buffer.truncate(32);
+                                // Take the first X bytes where X is the private key length for the curve.
+                                hash_buffer.truncate(curve.key_length);
 
                                 // Give the hash buffer to a BigUnsigned; we'll compare and, if it's a valid private key, use it.
                                 let integer = BigUnsigned::from_vec(hash_buffer);
-                                if integer.is_non_zero()
-                                    && integer.cmp(secp256k1::n()) == Ordering::Less
-                                {
+                                if integer.is_non_zero() && integer.cmp(curve.n) == Ordering::Less {
                                     // Zero out the original integer, reset the hasher, and exit the loop with our new value.
                                     b.zero();
                                     hasher.reset();
@@ -150,33 +154,33 @@ impl<TSystemServices: SystemServices> Program
                 .output_utf16(s16!("Deriving public key..."))
         });
 
-        let point = match secp256k1::point_multiplication_context().multiply_point(
-            secp256k1::g_x(),
-            secp256k1::g_y(),
-            &private_key,
-        ) {
-            Some(point) => point,
-            None => {
-                console.in_colours(constants::ERROR_COLOURS, |c| {
-                    c.line_start().new_line().output_utf16(s16!(
-                        "Failed to derive a public key; this shouldn't have happened."
-                    ))
-                });
+        let point =
+            match curve
+                .multiplication_context
+                .multiply_point(curve.g_x, curve.g_y, &private_key)
+            {
+                Some(point) => point,
+                None => {
+                    console.in_colours(constants::ERROR_COLOURS, |c| {
+                        c.line_start().new_line().output_utf16(s16!(
+                            "Failed to derive a public key; this shouldn't have happened."
+                        ))
+                    });
 
-                ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
-                return ProgramExitResult::String16Error(
-                    s16!("Public key derivation failure.")
-                        .content_slice()
-                        .into(),
-                );
-            }
-        };
+                    ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
+                    return ProgramExitResult::String16Error(
+                        s16!("Public key derivation failure.")
+                            .content_slice()
+                            .into(),
+                    );
+                }
+            };
 
         // We're done with the private key; zero it.
         private_key.zero();
 
         // Serialize the public key for output.
-        let serialized_point = match secp256k1::serialized_public_key_bytes(point) {
+        let serialized_point = match (curve.point_serializer)(point) {
             Some(serialized_point) => serialized_point,
             None => {
                 console.in_colours(constants::ERROR_COLOURS, |c| {
@@ -197,10 +201,7 @@ impl<TSystemServices: SystemServices> Program
         write_bytes(&self.system_services, s16!("Public Key"), &serialized_point);
         prompt_for_clipboard_write(
             &self.system_services,
-            crate::clipboard::ClipboardEntry::Bytes(
-                s16!("secp256k1 Public Key"),
-                (&serialized_point[..]).into(),
-            ),
+            crate::clipboard::ClipboardEntry::Bytes(s16!("secp256k1 Public Key"), serialized_point),
         );
 
         ProgramExitResult::Success
