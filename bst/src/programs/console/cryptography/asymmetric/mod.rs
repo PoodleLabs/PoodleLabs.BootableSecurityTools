@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod ec_private_key_fitting;
 mod ec_public_key_derivation;
 
 use crate::{
@@ -36,6 +37,7 @@ use crate::{
     String16,
 };
 use alloc::sync::Arc;
+use ec_private_key_fitting::ConsoleEllipticCurvePrivateKeyFittingProgram;
 use ec_public_key_derivation::ConsoleEllipticCurvePublicKeyDerivationProgram;
 use macros::s16;
 
@@ -49,9 +51,14 @@ pub fn get_asymmetric_cryptography_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 1] = [Arc::from(
-        ConsoleEllipticCurvePublicKeyDerivationProgram::from(system_services.clone()),
-    )];
+    let programs: [Arc<dyn Program>; 2] = [
+        Arc::from(ConsoleEllipticCurvePrivateKeyFittingProgram::from(
+            system_services.clone(),
+        )),
+        Arc::from(ConsoleEllipticCurvePublicKeyDerivationProgram::from(
+            system_services.clone(),
+        )),
+    ];
     ProgramList::from(Arc::from(programs), s16!("Asymmetric Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }
@@ -81,6 +88,8 @@ impl CurveOption {
                 Some(b) => Some(b[..].into()),
                 None => None,
             },
+            s16!("secp256k1 private key"),
+            s16!("secp256k1 public key"),
             secp256k1::g_x(),
             secp256k1::g_y(),
             secp256k1::n(),
@@ -98,6 +107,8 @@ impl ConsoleWriteable for CurveOption {
 struct SelectedCurveContext {
     multiplication_context: EllipticCurvePointMultiplicationContext,
     point_serializer: fn(EllipticCurvePoint) -> Option<Arc<[u8]>>,
+    private_key_clipboard_name: String16<'static>,
+    public_key_clipboard_name: String16<'static>,
     g_x: &'static BigUnsigned,
     g_y: &'static BigUnsigned,
     n: &'static BigUnsigned,
@@ -108,12 +119,16 @@ impl SelectedCurveContext {
     pub const fn from(
         multiplication_context: EllipticCurvePointMultiplicationContext,
         point_serializer: fn(EllipticCurvePoint) -> Option<Arc<[u8]>>,
+        private_key_clipboard_name: String16<'static>,
+        public_key_clipboard_name: String16<'static>,
         g_x: &'static BigUnsigned,
         g_y: &'static BigUnsigned,
         n: &'static BigUnsigned,
         key_length: usize,
     ) -> Self {
         Self {
+            private_key_clipboard_name,
+            public_key_clipboard_name,
             multiplication_context,
             point_serializer,
             key_length,

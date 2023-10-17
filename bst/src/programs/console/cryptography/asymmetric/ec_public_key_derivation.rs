@@ -17,8 +17,6 @@
 use crate::{
     console_out::ConsoleOut,
     constants,
-    hashing::{Hasher, Sha512},
-    integers::BigUnsigned,
     programs::{
         console::{cryptography::asymmetric::prompt_for_curve_selection, write_bytes},
         Program, ProgramExitResult,
@@ -26,18 +24,15 @@ use crate::{
     system_services::SystemServices,
     ui::{
         console::{
-            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiConfirmationPrompt,
-            ConsoleUiContinuePrompt, ConsoleUiTitle, ConsoleWriteable,
+            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiContinuePrompt,
+            ConsoleUiTitle, ConsoleWriteable,
         },
-        ConfirmationPrompt, ContinuePrompt, DataInput, DataInputType,
+        ContinuePrompt, DataInput, DataInputType,
     },
     String16,
 };
-use alloc::vec;
 use core::cmp::Ordering;
 use macros::s16;
-
-const ITERATIVE_HASHING_KEY: &[u8] = "Extremely Large Numer Private Key".as_bytes();
 
 pub struct ConsoleEllipticCurvePublicKeyDerivationProgram<TSystemServices: SystemServices> {
     system_services: TSystemServices,
@@ -94,54 +89,18 @@ impl<TSystemServices: SystemServices> Program
                         continue;
                     } else if b.cmp(curve.n) != Ordering::Less {
                         // Private keys must be less than the N value of the curve. We'll ask the user what to do.
-                        console.in_colours(constants::WARNING_COLOURS, |c| {
-                            c.line_start().new_line().output_utf16_line(s16!(
-                                "The input is >= the curve's N value; we cannot derive a public key from it directly."
-                            )).output_utf16(s16!("If you use it as a private key, it will not be portable with other applications!"))
+                        console.in_colours(constants::ERROR_COLOURS, |c| {
+                            c.line_start().new_line()
+                                .output_utf16_line(s16!(
+                                    "The input is >= the curve's N value; we cannot derive a public key from it directly."))
+                                .output_utf16_line(s16!("You may wish to use the private key fitter program."))
                         });
 
-                        // The user can either try inputting a different key, or we can iteratively hash the key until we
-                        // get a valid key. Prompt them to select a behaviour.
-                        if ConsoleUiConfirmationPrompt::from(&self.system_services)
-                            .prompt_for_confirmation(s16!(
-                                "Use the input by hashing until it yields a valid private key?"
-                            ))
-                        {
-                            let mut hasher = Sha512::new();
-                            let mut hash_buffer = vec![0u8; Sha512::HASH_SIZE];
-                            let mut hmac = hasher.build_hmac(ITERATIVE_HASHING_KEY);
-                            break loop {
-                                hmac.write_hmac_to(&b.borrow_digits(), &mut hash_buffer);
-                                // Take the first X bytes where X is the private key length for the curve.
-                                hash_buffer.truncate(curve.key_length);
-
-                                // Give the hash buffer to a BigUnsigned; we'll compare and, if it's a valid private key, use it.
-                                let integer = BigUnsigned::from_vec(hash_buffer);
-                                if integer.is_non_zero() && integer.cmp(curve.n) == Ordering::Less {
-                                    // Zero out the original integer, reset the hasher, and exit the loop with our new value.
-                                    b.zero();
-                                    hasher.reset();
-                                    break integer;
-                                }
-
-                                // Increment the oversized private key.
-                                b.add_u8(1);
-
-                                // Take back ownership of the hash buffer.
-                                hash_buffer = integer.extract_be_bytes();
-
-                                // Reset the hash buffer to the correct length.
-                                hash_buffer.truncate(0);
-                                hash_buffer.extend((0..Sha512::HASH_SIZE).into_iter().map(|_| 0))
-                            };
-                        } else {
-                            // We don't want to hash to use the provided oversized private key; zero it and try input again.
-                            b.zero();
-                            continue;
-                        }
+                        b.zero();
+                        continue;
                     }
 
-                    // The key was not zero, and not oversized; we can use it as-is.
+                    // The key was not zero, and not oversized; we can use it.
                     break b;
                 }
                 _ => return ProgramExitResult::UserCancelled,
@@ -201,7 +160,10 @@ impl<TSystemServices: SystemServices> Program
         write_bytes(&self.system_services, s16!("Public Key"), &serialized_point);
         prompt_for_clipboard_write(
             &self.system_services,
-            crate::clipboard::ClipboardEntry::Bytes(s16!("secp256k1 Public Key"), serialized_point),
+            crate::clipboard::ClipboardEntry::Bytes(
+                curve.public_key_clipboard_name,
+                serialized_point,
+            ),
         );
 
         ProgramExitResult::Success
