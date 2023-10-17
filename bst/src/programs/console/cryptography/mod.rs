@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod asymmetric;
 mod bip_32_master_key_derivation;
 
 use crate::{
@@ -39,9 +40,16 @@ pub fn get_cryptography_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 1] = [Arc::from(
-        ConsoleBip32MasterKeyDerivationProgram::from(system_services.clone()),
-    )];
+    let programs: [Arc<dyn Program>; 2] = [
+        Arc::from(ConsoleBip32MasterKeyDerivationProgram::from(
+            system_services.clone(),
+        )),
+        Arc::from(asymmetric::get_asymmetric_cryptography_program_list(
+            system_services,
+            program_selector,
+            exit_result_handler,
+        )),
+    ];
     ProgramList::from(Arc::from(programs), s16!("Cryptography Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }

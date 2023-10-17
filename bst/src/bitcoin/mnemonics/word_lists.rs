@@ -14,8 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{try_get_bit_at_index, try_get_bit_start_offset};
-use crate::{bitcoin::mnemonics::try_set_bit_at_index, String16};
+use crate::{
+    bits::{try_get_bit_at_index, try_get_bit_start_offset, try_set_bit_at_index},
+    String16,
+};
 use alloc::{vec, vec::Vec};
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]

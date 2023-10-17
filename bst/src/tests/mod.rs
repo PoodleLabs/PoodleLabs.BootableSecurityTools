@@ -16,8 +16,12 @@
 
 extern crate hex_literal;
 extern crate rand;
+extern crate secp256k1;
 
-mod bit_integers;
+mod big_integers;
 mod bitcoin;
+mod cryptography;
 mod hashing;
 mod numeric_collector;
+
+const PARALLELIZED_TEST_THREAD_COUNT: usize = 8;

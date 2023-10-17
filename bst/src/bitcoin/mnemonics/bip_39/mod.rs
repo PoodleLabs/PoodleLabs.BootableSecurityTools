@@ -22,10 +22,10 @@ pub use mnemonic_length::MnemonicLength;
 pub use parser::MnemonicParser;
 
 use super::{
-    try_get_bit_at_index, try_get_bit_start_offset, try_set_bit_at_index, Bip32DevivationSettings,
-    MnemonicFormat, MnemonicTextNormalizationSettings, MnemonicWordList,
+    Bip32DevivationSettings, MnemonicFormat, MnemonicTextNormalizationSettings, MnemonicWordList,
 };
 use crate::{
+    bits::{try_get_bit_at_index, try_get_bit_start_offset, try_set_bit_at_index},
     hashing::{Hasher, Sha256},
     String16,
 };
