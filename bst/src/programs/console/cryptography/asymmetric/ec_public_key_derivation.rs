@@ -88,7 +88,7 @@ impl<TSystemServices: SystemServices> Program
 
                         continue;
                     } else if b.cmp(curve.n) != Ordering::Less {
-                        // Private keys must be less than the N value of the curve. We'll ask the user what to do.
+                        // Private keys must be less than the N value of the curve.
                         console.in_colours(constants::ERROR_COLOURS, |c| {
                             c.line_start().new_line()
                                 .output_utf16_line(s16!(

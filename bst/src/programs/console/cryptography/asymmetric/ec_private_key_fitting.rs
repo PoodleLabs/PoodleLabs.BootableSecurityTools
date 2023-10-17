@@ -72,7 +72,7 @@ impl<TSystemServices: SystemServices> Program
             Some(c) => c,
         };
 
-        // Get the private key to derive a public key from.
+        // Get the data to fit into a private key.
         let mut private_key = loop {
             match prompt_for_data_input(
                 None,
@@ -128,13 +128,13 @@ impl<TSystemServices: SystemServices> Program
                         };
                     }
 
+                    // The key was not zero, and not oversized; we can use it as-is.
                     console.in_colours(constants::SUCCESS_COLOURS, |c| {
                         c.line_start()
                             .new_line()
                             .output_utf16(s16!("Private key < N; no fitting required.."))
                     });
 
-                    // The key was not zero, and not oversized; we can use it as-is.
                     break b;
                 }
                 _ => return ProgramExitResult::UserCancelled,
