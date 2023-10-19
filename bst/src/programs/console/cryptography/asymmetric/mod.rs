@@ -59,8 +59,12 @@ pub fn get_asymmetric_cryptography_program_list<
             system_services.clone(),
         )),
     ];
-    ProgramList::from(Arc::from(programs), s16!("Asymmetric Programs"))
-        .as_program(program_selector.clone(), exit_result_handler.clone())
+
+    ProgramList::from(
+        Arc::from(programs),
+        s16!("Asymmetric Cryptography Programs"),
+    )
+    .as_program(program_selector.clone(), exit_result_handler.clone())
 }
 
 struct CurveOption {

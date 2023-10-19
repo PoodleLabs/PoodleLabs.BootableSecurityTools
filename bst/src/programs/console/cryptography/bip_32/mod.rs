@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod asymmetric;
-mod bip_32;
+mod bip_32_master_key_derivation;
 
 use crate::{
     programs::{
@@ -26,9 +25,10 @@ use crate::{
     system_services::SystemServices,
 };
 use alloc::sync::Arc;
+use bip_32_master_key_derivation::ConsoleBip32MasterKeyDerivationProgram;
 use macros::s16;
 
-pub fn get_cryptography_program_list<
+pub fn get_bip_32_program_list<
     'a,
     TSystemServices: SystemServices,
     TProgramSelector: ProgramSelector + 'static,
@@ -38,18 +38,10 @@ pub fn get_cryptography_program_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 2] = [
-        Arc::from(bip_32::get_bip_32_program_list(
-            system_services,
-            program_selector,
-            exit_result_handler,
-        )),
-        Arc::from(asymmetric::get_asymmetric_cryptography_program_list(
-            system_services,
-            program_selector,
-            exit_result_handler,
-        )),
-    ];
-    ProgramList::from(Arc::from(programs), s16!("Cryptography Programs"))
+    let programs: [Arc<dyn Program>; 1] = [Arc::from(
+        ConsoleBip32MasterKeyDerivationProgram::from(system_services.clone()),
+    )];
+
+    ProgramList::from(Arc::from(programs), s16!("BIP 32 Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }
