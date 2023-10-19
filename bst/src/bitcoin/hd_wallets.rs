@@ -18,24 +18,22 @@ use crate::{
     cryptography::asymmetric::ecc::secp256k1,
     hashing::{Hasher, Sha256, Sha512},
     integers::{BigUnsigned, NumericBase, NumericCollector, NumericCollectorRoundBase},
+    String16,
 };
 use alloc::vec::Vec;
+use macros::s16;
 
 // Serialized keys are prefixed with version bytes.
-pub const MAIN_NET_PRIVATE_KEY_VERSION: u32 = 0x0488ADE4;
-pub const TEST_NET_PRIVATE_KEY_VERSION: u32 = 0x04358394;
-
-#[allow(dead_code)]
-pub const MAIN_NET_PUBLIC_KEY_VERSION: u32 = 0x0488B21E;
-
-#[allow(dead_code)]
-pub const TEST_NET_PUBLIC_KEY_VERSION: u32 = 0x043587CF;
+const MAIN_NET_PRIVATE_KEY_VERSION: u32 = 0x0488ADE4;
+const TEST_NET_PRIVATE_KEY_VERSION: u32 = 0x04358394;
+const MAIN_NET_PUBLIC_KEY_VERSION: u32 = 0x0488B21E;
+const TEST_NET_PUBLIC_KEY_VERSION: u32 = 0x043587CF;
 
 // The key used for HMAC-based BIP 32 master key derivation.
 const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum KeyType {
+pub enum Bip32KeyType {
     #[allow(dead_code)]
     Private,
 
@@ -44,9 +42,63 @@ pub enum KeyType {
 }
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Bip32KeyVersion {
+pub enum Bip32KeyNetwork {
     MainNet,
     TestNet,
+}
+
+impl Into<String16<'static>> for Bip32KeyNetwork {
+    fn into(self) -> String16<'static> {
+        match self {
+            Bip32KeyNetwork::MainNet => s16!("Main Net"),
+            Bip32KeyNetwork::TestNet => s16!("Test Net"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Bip32KeyTypeAndNetwork {
+    key_network: Bip32KeyNetwork,
+    key_type: Bip32KeyType,
+}
+
+impl Bip32KeyTypeAndNetwork {
+    const fn from(key_network: Bip32KeyNetwork, key_type: Bip32KeyType) -> Self {
+        Self {
+            key_network,
+            key_type,
+        }
+    }
+
+    pub const fn key_network(&self) -> Bip32KeyNetwork {
+        self.key_network
+    }
+
+    pub const fn key_type(&self) -> Bip32KeyType {
+        self.key_type
+    }
+}
+
+impl TryFrom<u32> for Bip32KeyTypeAndNetwork {
+    type Error = String16<'static>;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            MAIN_NET_PRIVATE_KEY_VERSION => {
+                Ok(Self::from(Bip32KeyNetwork::MainNet, Bip32KeyType::Private))
+            }
+            TEST_NET_PRIVATE_KEY_VERSION => {
+                Ok(Self::from(Bip32KeyNetwork::TestNet, Bip32KeyType::Private))
+            }
+            MAIN_NET_PUBLIC_KEY_VERSION => {
+                Ok(Self::from(Bip32KeyNetwork::MainNet, Bip32KeyType::Public))
+            }
+            TEST_NET_PUBLIC_KEY_VERSION => {
+                Ok(Self::from(Bip32KeyNetwork::TestNet, Bip32KeyType::Public))
+            }
+            _ => Err(s16!("Unknown key version bytes.")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
@@ -60,6 +112,43 @@ pub struct SerializedExtendedKey {
 }
 
 impl SerializedExtendedKey {
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() < 78 {
+            return None;
+        }
+
+        let mut chain_code = [0u8; 32];
+        let mut key_material = [0u8; 33];
+
+        chain_code.copy_from_slice(&bytes[13..13 + 32]);
+        key_material.copy_from_slice(&bytes[13 + 32..13 + 32 + 33]);
+
+        Some(Self {
+            version: [bytes[0], bytes[1], bytes[2], bytes[3]],
+            depth: bytes[4],
+            parent_fingerprint: [bytes[5], bytes[6], bytes[7], bytes[8]],
+            child_number: [bytes[9], bytes[10], bytes[11], bytes[12]],
+            chain_code,
+            key_material,
+        })
+    }
+
+    pub const fn parent_fingerprint(&self) -> &[u8] {
+        &self.parent_fingerprint
+    }
+
+    pub const fn child_number(&self) -> &[u8] {
+        &self.child_number
+    }
+
+    pub const fn depth(&self) -> u8 {
+        self.depth
+    }
+
+    pub fn try_get_key_type(&self) -> Result<Bip32KeyTypeAndNetwork, String16<'static>> {
+        u32::from_be_bytes(self.version).try_into()
+    }
+
     pub fn as_bytes(&self) -> [u8; 78] {
         let mut bytes = [0u8; 78];
         bytes[00..04].copy_from_slice(&self.version);
@@ -107,7 +196,7 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
 }
 
 pub fn try_derive_master_key(
-    key_network: Bip32KeyVersion,
+    key_network: Bip32KeyNetwork,
     bytes: &[u8],
 ) -> Option<SerializedExtendedKey> {
     if bytes.len() < 16 || bytes.len() > 64 {
@@ -141,8 +230,8 @@ pub fn try_derive_master_key(
 
     Some(SerializedExtendedKey {
         version: match key_network {
-            Bip32KeyVersion::MainNet => MAIN_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
-            Bip32KeyVersion::TestNet => TEST_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
+            Bip32KeyNetwork::MainNet => MAIN_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
+            Bip32KeyNetwork::TestNet => TEST_NET_PRIVATE_KEY_VERSION.to_be_bytes(),
         },
         parent_fingerprint: [0, 0, 0, 0],
         child_number: [0, 0, 0, 0],

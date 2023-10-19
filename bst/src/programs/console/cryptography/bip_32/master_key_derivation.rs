@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, Bip32KeyVersion},
+    bitcoin::hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, Bip32KeyNetwork},
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
@@ -89,7 +89,7 @@ impl<TSystemServices: SystemServices> Program
         let mut version_list = ConsoleUiList::from(
             ConsoleUiTitle::from(s16!(" KEY TYPE "), constants::SMALL_TITLE),
             constants::SELECT_LIST,
-            &[Bip32KeyVersion::MainNet, Bip32KeyVersion::TestNet][..],
+            &[Bip32KeyNetwork::MainNet, Bip32KeyNetwork::TestNet][..],
         );
 
         // Prompt the user to select a BIP 32 key version.
@@ -141,11 +141,11 @@ impl<TSystemServices: SystemServices> Program
     }
 }
 
-impl ConsoleWriteable for Bip32KeyVersion {
+impl ConsoleWriteable for Bip32KeyNetwork {
     fn write_to<T: ConsoleOut>(&self, console: &T) {
         console.output_utf16(match self {
-            Bip32KeyVersion::MainNet => s16!("Main Net"),
-            Bip32KeyVersion::TestNet => s16!("Test Net"),
+            Bip32KeyNetwork::MainNet => s16!("Main Net"),
+            Bip32KeyNetwork::TestNet => s16!("Test Net"),
         });
     }
 }

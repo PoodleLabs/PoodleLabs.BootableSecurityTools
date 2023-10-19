@@ -15,17 +15,17 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::programs::ProgramExitResult;
-#[cfg(test)]
-use alloc::string::String;
-use alloc::vec::Vec;
-#[cfg(test)]
-use core::fmt::{self, Debug, Formatter};
-use core::{char::decode_utf16, cmp::Ordering, slice::Iter};
+use alloc::{string::String, vec::Vec};
+use core::{
+    char::decode_utf16,
+    cmp::Ordering,
+    fmt::{self, Debug, Formatter},
+    slice::Iter,
+};
 
 #[derive(Clone, Copy)]
 pub struct String16<'a>(&'a [u16]);
 
-#[cfg(test)]
 impl Debug for String16<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("String16")
