@@ -160,9 +160,7 @@ impl<TMnemonicEncoder: MnemonicEncoder, TSystemServices: SystemServices> Program
                     match message {
                         Some(message) => {
                             // We can't create a mnemonic with the provided bytes for some reason; print the error.
-                            return ProgramExitResult::String16Error(
-                                message.content_slice().into(),
-                            );
+                            return message.to_program_error();
                         }
                         None => {
                             // The user cancelled mnemonic generation.

@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::programs::ProgramExitResult;
 #[cfg(test)]
 use alloc::string::String;
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 #[cfg(test)]
 use core::fmt::{self, Debug, Formatter};
 use core::{char::decode_utf16, cmp::Ordering, slice::Iter};
@@ -117,7 +118,7 @@ impl<'a> String16<'a> {
         self.0.len() == 0 || self.0[0] == 0
     }
 
-    pub fn to_program_error(&self) -> Box<[u16]> {
-        self.0.into()
+    pub fn to_program_error(&self) -> ProgramExitResult {
+        ProgramExitResult::String16Error(self.0.into())
     }
 }

@@ -134,10 +134,8 @@ impl<TSystemServices: SystemServices> Program
             None => {
                 // We generated a key outside the bounds of valid secp256k1 keys. This is extremely unlikely,
                 // and knowing the input would be a useful test vector because such a test vector is not yet known.
-                ProgramExitResult::String16Error(
-                    s16!("BIP 32 Key Derivation escaped the range of valid secp256k1 keys.")
-                        .to_program_error(),
-                )
+                s16!("BIP 32 Key Derivation escaped the range of valid secp256k1 keys.")
+                    .to_program_error()
             }
         }
     }
