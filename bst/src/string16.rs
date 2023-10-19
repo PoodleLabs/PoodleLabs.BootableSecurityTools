@@ -16,7 +16,7 @@
 
 #[cfg(test)]
 use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 #[cfg(test)]
 use core::fmt::{self, Debug, Formatter};
 use core::{char::decode_utf16, cmp::Ordering, slice::Iter};
@@ -115,5 +115,9 @@ impl<'a> String16<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.0.len() == 0 || self.0[0] == 0
+    }
+
+    pub fn to_program_error(&self) -> Box<[u16]> {
+        self.0.into()
     }
 }

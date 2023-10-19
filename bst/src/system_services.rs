@@ -127,7 +127,7 @@ pub trait SystemServices: Clone + 'static {
 static mut PANIC_COUNTER: usize = 0;
 
 const PANIC_HEADER: String16 =
-    s16!("[PANIC]: An unrecoverable error has occurred. Exiting BST in 60 seconds...\r\n\r\nPlease consider reporting this in an issue at:\r\nhttps://github.com/PoodleLabs/PoodleLabs.BST\r\n\r\nInclude details of what you were doing, and the following message:");
+    s16!("[PANIC]: An unrecoverable error has occurred. Exiting BST in 60 seconds...\r\n\r\nPlease consider reporting this in an issue at:\r\nhttps://github.com/PoodleLabs/PoodleLabs.BootableSecurityTools\r\n\r\nInclude details of what you were doing, and the following message:");
 
 const PANIC_RECURSE: String16 =
     s16!("Three panics occurred recursively; this is likely due to you running out of memory.");

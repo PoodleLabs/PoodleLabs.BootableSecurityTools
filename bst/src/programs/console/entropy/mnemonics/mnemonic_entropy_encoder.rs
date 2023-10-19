@@ -160,14 +160,6 @@ impl<TMnemonicEncoder: MnemonicEncoder, TSystemServices: SystemServices> Program
                     match message {
                         Some(message) => {
                             // We can't create a mnemonic with the provided bytes for some reason; print the error.
-                            console
-                                .line_start()
-                                .new_line()
-                                .in_colours(constants::ERROR_COLOURS, |c| {
-                                    c.output_utf16_line(message)
-                                });
-                            ConsoleUiContinuePrompt::from(&self.system_services)
-                                .prompt_for_continue();
                             return ProgramExitResult::String16Error(
                                 message.content_slice().into(),
                             );

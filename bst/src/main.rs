@@ -77,14 +77,14 @@ fn initialize_console<T: SystemServices>(
 }
 
 fn run_console_ui<T: SystemServices>(system_services: T) {
-    let console = initialize_console(&system_services, constants::DEFAULT_COLOURS);
+    initialize_console(&system_services, constants::DEFAULT_COLOURS);
     let program_selector = ConsoleUiProgramSelector::from(
         constants::BIG_TITLE,
         constants::SELECT_LIST,
         system_services.clone(),
     );
 
-    let exit_handler = ConsoleDumpingProgramExitResultHandler::from(console.clone());
+    let exit_handler = ConsoleDumpingProgramExitResultHandler::from(system_services.clone());
     loop {
         get_programs_list(&system_services, &program_selector, &exit_handler).run();
         if ConsoleUiConfirmationPrompt::from(&system_services)

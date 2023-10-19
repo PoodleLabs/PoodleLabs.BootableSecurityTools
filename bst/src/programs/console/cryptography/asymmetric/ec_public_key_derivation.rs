@@ -24,10 +24,9 @@ use crate::{
     system_services::SystemServices,
     ui::{
         console::{
-            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiContinuePrompt,
-            ConsoleUiTitle, ConsoleWriteable,
+            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiTitle, ConsoleWriteable,
         },
-        ContinuePrompt, DataInput, DataInputType,
+        DataInput, DataInputType,
     },
     String16,
 };
@@ -120,15 +119,8 @@ impl<TSystemServices: SystemServices> Program
             {
                 Some(point) => point,
                 None => {
-                    console.in_colours(constants::ERROR_COLOURS, |c| {
-                        c.line_start().new_line().output_utf16(s16!(
-                            "Failed to derive a public key; this shouldn't have happened."
-                        ))
-                    });
-
-                    ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
                     return ProgramExitResult::String16Error(
-                        s16!("Public key derivation failure.")
+                        s16!("Failed to derive a public key.")
                             .content_slice()
                             .into(),
                     );
@@ -142,15 +134,8 @@ impl<TSystemServices: SystemServices> Program
         let serialized_point = match (curve.point_serializer)(point) {
             Some(serialized_point) => serialized_point,
             None => {
-                console.in_colours(constants::ERROR_COLOURS, |c| {
-                    c.line_start().new_line().output_utf16(s16!(
-                        "Failed to serialize the public key; this shouldn't have happened."
-                    ))
-                });
-
-                ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
                 return ProgramExitResult::String16Error(
-                    s16!("Public key serialization failure.")
+                    s16!("Failed to serialize the public key.")
                         .content_slice()
                         .into(),
                 );
