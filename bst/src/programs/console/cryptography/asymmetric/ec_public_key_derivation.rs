@@ -24,10 +24,9 @@ use crate::{
     system_services::SystemServices,
     ui::{
         console::{
-            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiContinuePrompt,
-            ConsoleUiTitle, ConsoleWriteable,
+            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiTitle, ConsoleWriteable,
         },
-        ContinuePrompt, DataInput, DataInputType,
+        DataInput, DataInputType,
     },
     String16,
 };
@@ -119,20 +118,7 @@ impl<TSystemServices: SystemServices> Program
                 .multiply_point(curve.g_x, curve.g_y, &private_key)
             {
                 Some(point) => point,
-                None => {
-                    console.in_colours(constants::ERROR_COLOURS, |c| {
-                        c.line_start().new_line().output_utf16(s16!(
-                            "Failed to derive a public key; this shouldn't have happened."
-                        ))
-                    });
-
-                    ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
-                    return ProgramExitResult::String16Error(
-                        s16!("Public key derivation failure.")
-                            .content_slice()
-                            .into(),
-                    );
-                }
+                None => return s16!("Failed to derive a public key.").to_program_error(),
             };
 
         // We're done with the private key; zero it.
@@ -141,20 +127,7 @@ impl<TSystemServices: SystemServices> Program
         // Serialize the public key for output.
         let serialized_point = match (curve.point_serializer)(point) {
             Some(serialized_point) => serialized_point,
-            None => {
-                console.in_colours(constants::ERROR_COLOURS, |c| {
-                    c.line_start().new_line().output_utf16(s16!(
-                        "Failed to serialize the public key; this shouldn't have happened."
-                    ))
-                });
-
-                ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
-                return ProgramExitResult::String16Error(
-                    s16!("Public key serialization failure.")
-                        .content_slice()
-                        .into(),
-                );
-            }
+            None => return s16!("Failed to serialize the public key.").to_program_error(),
         };
 
         write_bytes(&self.system_services, s16!("Public Key"), &serialized_point);

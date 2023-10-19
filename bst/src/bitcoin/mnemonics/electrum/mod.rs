@@ -183,7 +183,7 @@ pub fn try_generate_mnemonic(
         if i == start_bit_offset {
             // We ran out of increment space; all the bits are 1. The user did something stupid.
             return Err(s16!(
-                "Mnemonic generation failed due to integer overflow; your entropy was bad."
+                "Mnemonic generation failed due to integer overflow; your entropy was probably bad."
             ));
         }
 

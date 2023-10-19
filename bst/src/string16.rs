@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::programs::ProgramExitResult;
 #[cfg(test)]
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -115,5 +116,9 @@ impl<'a> String16<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.0.len() == 0 || self.0[0] == 0
+    }
+
+    pub fn to_program_error(&self) -> ProgramExitResult {
+        ProgramExitResult::String16Error(self.0.into())
     }
 }

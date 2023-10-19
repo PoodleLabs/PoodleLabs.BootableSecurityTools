@@ -24,10 +24,9 @@ use crate::{
     ui::{
         console::{
             prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiConfirmationPrompt,
-            ConsoleUiContinuePrompt, ConsoleUiLabel, ConsoleUiList, ConsoleUiTitle,
-            ConsoleWriteable,
+            ConsoleUiLabel, ConsoleUiList, ConsoleUiTitle, ConsoleWriteable,
         },
-        ConfirmationPrompt, ContinuePrompt, DataInput, DataInputType,
+        ConfirmationPrompt, DataInput, DataInputType,
     },
     String16,
 };
@@ -135,18 +134,8 @@ impl<TSystemServices: SystemServices> Program
             None => {
                 // We generated a key outside the bounds of valid secp256k1 keys. This is extremely unlikely,
                 // and knowing the input would be a useful test vector because such a test vector is not yet known.
-                console.in_colours(constants::ERROR_COLOURS, |c| {
-                    c.line_start().new_line().output_utf16(s16!("A key could not be derived from the input bytes. This shouldn't have happened; please report a bug."))
-                });
-
-                ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
-                ProgramExitResult::String16Error(
-                    unsafe {
-                        s16!("BIP 32 key derivation escaped the range of valid secp256k1 keys.")
-                            .get_underlying_slice()
-                    }
-                    .into(),
-                )
+                s16!("BIP 32 Key Derivation escaped the range of valid secp256k1 keys.")
+                    .to_program_error()
             }
         }
     }
