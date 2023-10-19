@@ -15,10 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::hd_wallets::{Bip32KeyType, SerializedExtendedKey},
+    bitcoin::{
+        hd_wallets::{Bip32KeyType, SerializedExtendedKey},
+        validate_checksum_in,
+    },
     console_out::ConsoleOut,
     constants,
-    hashing::{Hasher, Sha256},
     integers::{NumericBase, NumericBases},
     programs::{Program, ProgramExitResult},
     system_services::SystemServices,
@@ -73,11 +75,8 @@ impl<TSystemServices: SystemServices> Program
                 DataInput::Bytes(mut b) => {
                     // We should expect a 4 byte checksum at the end of the key, but it shouldn't break things if it's not present.
                     if b.len() == 82 {
-                        // Calculate the expected checksum for the leading bytes.
-                        let checksum =
-                            Sha256::new().calculate_double_hash_checksum_for(&b[..b.len() - 4]);
-
-                        if checksum != b[78..] {
+                        let (checksum_is_valid, _) = validate_checksum_in(&b);
+                        if !checksum_is_valid {
                             // The checksum failed; check if the user wants to use the key anyway.
                             if !ConsoleUiConfirmationPrompt::from(&self.system_services)
                                 .prompt_for_confirmation(s16!(

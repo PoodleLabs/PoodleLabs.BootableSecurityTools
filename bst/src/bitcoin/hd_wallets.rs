@@ -16,12 +16,14 @@
 
 use crate::{
     cryptography::asymmetric::ecc::secp256k1,
-    hashing::{Hasher, Sha256, Sha512},
+    hashing::{Hasher, Sha512},
     integers::{BigUnsigned, NumericBase, NumericCollector, NumericCollectorRoundBase},
     String16,
 };
 use alloc::vec::Vec;
 use macros::s16;
+
+use super::calculate_checksum_for;
 
 // Serialized keys are prefixed with version bytes.
 const MAIN_NET_PRIVATE_KEY_VERSION: u32 = 0x0488ADE4;
@@ -172,7 +174,7 @@ impl SerializedExtendedKey {
 
 pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
     // Calculate the double SHA256 hash checksum.
-    let checksum = Sha256::new().calculate_double_hash_checksum_for(&bytes);
+    let checksum = calculate_checksum_for(bytes);
 
     // Build a numeric collector for combining the bytes and their checksum.
     let mut numeric_collector = NumericCollector::with_byte_capacity(bytes.len() + 4);
