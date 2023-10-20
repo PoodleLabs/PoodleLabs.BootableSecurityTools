@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#![allow(dead_code)]
-
 use alloc::{boxed::Box, vec::Vec};
 use core::{cmp::Ordering, mem::size_of};
 
@@ -128,6 +126,7 @@ impl BigSigned {
         Self::from_unsigned(is_negative, BigUnsigned::from_be_bytes(be_bytes))
     }
 
+    #[allow(dead_code)]
     pub fn from_vec(is_negative: bool, digits: Vec<u8>) -> Self {
         Self::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
     }
@@ -185,12 +184,14 @@ impl BigUnsigned {
         self.digits[self.digits.len() - 1] & 1 == 0
     }
 
+    #[allow(dead_code)]
     pub fn is_odd(&self) -> bool {
         !self.is_even()
     }
 }
 
 impl BigSigned {
+    #[allow(dead_code)]
     pub fn extract_be_bytes(self) -> Vec<u8> {
         self.big_unsigned.extract_be_bytes()
     }
@@ -203,6 +204,7 @@ impl BigSigned {
         self.big_unsigned.copy_digits_to(buffer)
     }
 
+    #[allow(dead_code)]
     pub fn borrow_unsigned(&self) -> &BigUnsigned {
         &self.big_unsigned
     }
@@ -211,6 +213,7 @@ impl BigSigned {
         self.big_unsigned.clone_be_bytes()
     }
 
+    #[allow(dead_code)]
     pub fn borrow_digits(&self) -> &[u8] {
         self.big_unsigned.borrow_digits()
     }
@@ -227,26 +230,11 @@ impl BigSigned {
         !self.is_non_zero()
     }
 
-    pub fn is_not_one(&self) -> bool {
-        self.big_unsigned.is_not_one() || self.is_negative
-    }
-
-    pub fn is_one(&self) -> bool {
-        !self.is_not_one()
-    }
-
-    pub fn is_not_negative_one(&self) -> bool {
-        self.big_unsigned.is_not_one() || !self.is_negative
-    }
-
-    pub fn is_negative_one(&self) -> bool {
-        !self.is_not_one()
-    }
-
     pub fn is_negative(&self) -> bool {
         self.is_negative
     }
 
+    #[allow(dead_code)]
     pub fn is_positive(&self) -> bool {
         !self.is_negative
     }
@@ -255,6 +243,7 @@ impl BigSigned {
         self.big_unsigned.is_even()
     }
 
+    #[allow(dead_code)]
     pub fn is_odd(&self) -> bool {
         !self.is_even()
     }
@@ -297,16 +286,6 @@ impl BigSigned {
         self.big_unsigned.zero();
     }
 
-    pub fn one(&mut self) {
-        self.is_negative = false;
-        self.big_unsigned.one();
-    }
-
-    pub fn negative_one(&mut self) {
-        self.is_negative = true;
-        self.big_unsigned.one();
-    }
-
     pub fn negate(&mut self) {
         self.is_negative = !self.is_negative;
     }
@@ -318,9 +297,12 @@ impl BigSigned {
 
 macro_rules! simple_operation_implement_unsigned_type {
     ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
-        $(pub fn $operation_name(&mut self, operator: $operator_type) {
-            self.$digits_name(&operator.to_be_bytes())
-        })*
+        $(
+            #[allow(dead_code)]
+            pub fn $operation_name(&mut self, operator: $operator_type) {
+                self.$digits_name(&operator.to_be_bytes())
+            }
+        )*
     };
 }
 
@@ -336,6 +318,7 @@ macro_rules! simple_operation_implement_unsigned_types {
             ($digits_name, $u128_name): u128,
         );
 
+        #[allow(dead_code)]
         pub fn $big_unsigned_name(&mut self, value: &BigUnsigned) {
             self.$digits_name(&value.digits)
         }
@@ -345,9 +328,12 @@ macro_rules! simple_operation_implement_unsigned_types {
 
 macro_rules! simple_operation_implement_signed_type {
     ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
-        $(pub fn $operation_name(&mut self, operator: $operator_type) {
-            self.$digits_name(&operator.unsigned_abs().to_be_bytes(), operator < 0)
-        })*
+        $(
+            #[allow(dead_code)]
+            pub fn $operation_name(&mut self, operator: $operator_type) {
+                self.$digits_name(&operator.unsigned_abs().to_be_bytes(), operator < 0)
+            }
+        )*
     };
 }
 
@@ -363,6 +349,7 @@ macro_rules! simple_operation_implement_signed_types {
             ($digits_name, $i128_name): i128,
         );
 
+        #[allow(dead_code)]
         pub fn $big_unsigned_name(&mut self, value: &BigSigned) {
             self.$digits_name(&value.big_unsigned.digits, value.is_negative)
         }
@@ -373,6 +360,7 @@ macro_rules! simple_operation_implement_signed_types {
 macro_rules! big_unsigned_division_implementation {
     ($($division_name:ident: $division_type:ident, $remainder_buffer_size:expr,)*) => {
     $(
+        #[allow(dead_code)]
         pub fn $division_name(&mut self, divisor: $division_type, remainder_buffer: &mut $division_type) -> bool {
             let mut remainder_bytes = [0u8; $remainder_buffer_size];
             match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
@@ -390,6 +378,7 @@ macro_rules! big_unsigned_division_implementation {
 macro_rules! big_signed_division_implementation_for_unsigned_with_remainder {
     ($($division_name:ident: $divisor_type:ty, $remainder_type:ty,)*) => {
         $(
+            #[allow(dead_code)]
             pub fn $division_name(
                 &mut self,
                 divisor: $divisor_type,
@@ -414,6 +403,7 @@ macro_rules! big_signed_division_implementation_for_unsigned_with_remainder {
 macro_rules! big_signed_division_implementation_for_signed_with_remainder {
     ($(($division_name:ident, $unsigned_division_name:ident): $divisor_type:ty, $remainder_type:ty,)*) => {
         $(
+            #[allow(dead_code)]
             pub fn $division_name(&mut self, divisor: $divisor_type, remainder_buffer: $remainder_type) -> bool {
                 let mut unsigned_remainder = 0;
                 if self
@@ -1218,25 +1208,6 @@ impl BigSigned {
         ) {
             remainder_buffer.is_negative = self.is_negative && !remainder_buffer.is_zero();
             self.is_negative = self.is_negative != divisor.is_negative && !self.is_zero();
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn divide_be_bytes_with_remainder_signed(
-        &mut self,
-        divisor: &[u8],
-        divisor_is_negative: bool,
-        remainder_buffer: &mut [u8],
-        remainder_is_negative: &mut bool,
-    ) -> bool {
-        if self
-            .big_unsigned
-            .divide_be_bytes_with_remainder(&divisor, remainder_buffer)
-        {
-            *remainder_is_negative = self.is_negative && !remainder_buffer.iter().all(|d| *d == 0);
-            self.is_negative = self.is_negative != divisor_is_negative && !self.is_zero();
             true
         } else {
             false

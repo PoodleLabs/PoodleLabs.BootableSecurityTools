@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod checksums;
+mod clipboard_manager;
+mod value_comparer;
+
 use crate::{
     programs::{
         exit_result_handlers::ProgramExitResultHandler,
@@ -24,10 +28,6 @@ use crate::{
 };
 use alloc::sync::Arc;
 use macros::s16;
-
-mod checksums;
-mod clipboard_manager;
-mod value_comparer;
 
 pub fn get_utility_programs_list<
     'a,

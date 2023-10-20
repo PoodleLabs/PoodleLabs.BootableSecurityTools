@@ -35,10 +35,7 @@ const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip32KeyType {
-    #[allow(dead_code)]
     Private,
-
-    #[allow(dead_code)]
     Public,
 }
 

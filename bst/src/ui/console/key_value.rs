@@ -14,10 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use macros::s16;
-
 use super::ConsoleWriteable;
 use crate::{console_out::ConsoleOut, constants, String16};
+use macros::s16;
 
 pub struct ConsoleUiKeyValue<'a> {
     key: String16<'a>,
