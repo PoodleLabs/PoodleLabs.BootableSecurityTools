@@ -40,7 +40,7 @@ Other hashing algorithms and 'attachment' schemes could be considered.
 
 - BIP 39 - **DONE**
 - Electrum - **DONE**
-- Biceware - **NOT STARTED**
+- Diceware - **NOT STARTED**
 
 ### Asymmetric Encryption
 
@@ -48,7 +48,7 @@ Other hashing algorithms and 'attachment' schemes could be considered.
 - ECDSA on secp256k1 - **NOT STARTED**
 - ECIES on secp256k1 - **NOT STARTED**
 
-Additional curves are likely to be supported in the futre, maybe also non-EC asymmetric schemes.
+Additional curves are likely to be supported in the future, maybe also non-EC asymmetric schemes.
 
 ### Symmetric Encryption
 
@@ -85,7 +85,7 @@ The idea is to absolutely minimize external dependencies for two primary reasons
 
 These are _security oriented_ tools. It should be obvious why these two properties are highly desirable.
 
-During development of the initial set of tools, it can be expected that the used suraface area of the two external crates will grow. The goal is to bring this back down to the absolute minimum once all of the core planned features are in place. Yes, that means re-implementing basic structures like `Vec`, eventually. 
+During development of the initial set of tools, it can be expected that the used surface area of the two external crates will grow. The goal is to bring this back down to the absolute minimum once all of the core planned features are in place. Yes, that means re-implementing basic structures like `Vec`, eventually. 
 
 The goal is that, at some point, all of the code which is running when you use these tools is either firmware, or contained in this repository, written in the same language as everything else, in the same style as everything else, with no unused code to waste time for people who want to verify the code they are running.
 
