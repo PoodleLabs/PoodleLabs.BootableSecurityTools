@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use super::calculate_checksum_for;
 use crate::{
     cryptography::asymmetric::ecc::secp256k1,
     hashing::{Hasher, Sha512},
@@ -22,8 +23,6 @@ use crate::{
 };
 use alloc::vec::Vec;
 use macros::s16;
-
-use super::calculate_checksum_for;
 
 // Serialized keys are prefixed with version bytes.
 const MAIN_NET_PRIVATE_KEY_VERSION: u32 = 0x0488ADE4;
@@ -135,12 +134,41 @@ impl SerializedExtendedKey {
         })
     }
 
+    pub fn to_public_key(&self, key_material: [u8; 33]) -> Option<Self> {
+        let network = match self.try_get_key_type() {
+            Ok(t) => {
+                if t.key_type != Bip32KeyType::Private {
+                    return None;
+                }
+
+                t.key_network
+            }
+            Err(_) => return None,
+        };
+
+        Some(Self {
+            version: match network {
+                Bip32KeyNetwork::MainNet => MAIN_NET_PUBLIC_KEY_VERSION.to_be_bytes(),
+                Bip32KeyNetwork::TestNet => TEST_NET_PUBLIC_KEY_VERSION.to_be_bytes(),
+            },
+            parent_fingerprint: self.parent_fingerprint,
+            child_number: self.child_number,
+            chain_code: self.chain_code,
+            depth: self.depth,
+            key_material,
+        })
+    }
+
     pub const fn parent_fingerprint(&self) -> &[u8] {
         &self.parent_fingerprint
     }
 
     pub const fn child_number(&self) -> &[u8] {
         &self.child_number
+    }
+
+    pub const fn key_material(&self) -> &[u8] {
+        &self.key_material
     }
 
     pub const fn depth(&self) -> u8 {

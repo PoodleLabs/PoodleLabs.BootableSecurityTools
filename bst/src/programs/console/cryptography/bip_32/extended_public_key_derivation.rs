@@ -16,18 +16,20 @@
 
 use crate::{
     bitcoin::{
-        hd_wallets::{Bip32KeyType, SerializedExtendedKey},
+        hd_wallets::{base_58_encode_with_checksum, Bip32KeyType, SerializedExtendedKey},
         validate_checksum_in,
     },
+    clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
-    integers::{NumericBase, NumericBases},
-    programs::{Program, ProgramExitResult},
+    cryptography::asymmetric::ecc::secp256k1::{self, serialized_public_key_bytes},
+    integers::{BigUnsigned, NumericBase, NumericBases},
+    programs::{console::write_string_program_output, Program, ProgramExitResult},
     system_services::SystemServices,
     ui::{
         console::{
-            prompt_for_data_input, ConsoleUiConfirmationPrompt, ConsoleUiKeyValue, ConsoleUiLabel,
-            ConsoleUiTitle, ConsoleWriteable,
+            prompt_for_clipboard_write, prompt_for_data_input, ConsoleUiConfirmationPrompt,
+            ConsoleUiKeyValue, ConsoleUiLabel, ConsoleUiTitle, ConsoleWriteable,
         },
         ConfirmationPrompt, DataInput, DataInputType,
     },
@@ -64,7 +66,7 @@ impl<TSystemServices: SystemServices> Program
         const CANCEL_PROMPT: String16 = s16!("Cancel BIP 32 extended public key derivation?");
 
         // Get the serialized extended private key bytes to derive an extended public key from.
-        let key = loop {
+        let serialized_private_key = loop {
             match prompt_for_data_input(
                 Some(NumericBases::Base58.into()),
                 &[DataInputType::Bytes],
@@ -147,28 +149,37 @@ impl<TSystemServices: SystemServices> Program
             };
         };
 
+        // Get the network the private key is for.
+        let key_network = serialized_private_key
+            .try_get_key_type()
+            .unwrap()
+            .key_network();
+
         // Write out key information.
         ConsoleUiLabel::from(s16!("Extended Private Key Information")).write_to(&console);
-        ConsoleUiKeyValue::from(
-            s16!("Network"),
-            key.try_get_key_type().unwrap().key_network().into(),
-        )
-        .write_to(&console);
+        ConsoleUiKeyValue::from(s16!("Network"), key_network.into()).write_to(&console);
         ConsoleUiKeyValue::from(
             s16!("Depth"),
-            String16::from(&NumericBase::BASE_10.build_string_from_bytes(&[key.depth()], true)),
+            String16::from(
+                &NumericBase::BASE_10
+                    .build_string_from_bytes(&[serialized_private_key.depth()], true),
+            ),
         )
         .write_to(&console);
         ConsoleUiKeyValue::from(
             s16!("Parent Fingerprint"),
             String16::from(
-                &NumericBase::BASE_16.build_string_from_bytes(key.parent_fingerprint(), true),
+                &NumericBase::BASE_16
+                    .build_string_from_bytes(serialized_private_key.parent_fingerprint(), true),
             ),
         )
         .write_to(&console);
         ConsoleUiKeyValue::from(
             s16!("Child Number"),
-            String16::from(&NumericBase::BASE_10.build_string_from_bytes(key.child_number(), true)),
+            String16::from(
+                &NumericBase::BASE_10
+                    .build_string_from_bytes(serialized_private_key.child_number(), true),
+            ),
         )
         .write_to(&console);
 
@@ -176,7 +187,57 @@ impl<TSystemServices: SystemServices> Program
         if ConsoleUiConfirmationPrompt::from(&self.system_services)
             .prompt_for_confirmation(s16!("Derive extended public key?"))
         {
-            todo!()
+            // Build a secp256k1 multiplication context.
+            let mut multiplication_context = secp256k1::point_multiplication_context();
+
+            // Extract the private key material, minus its identifying byte.
+            let mut private_key =
+                BigUnsigned::from_be_bytes(&serialized_private_key.key_material()[1..]);
+
+            // Derive the public key for the private key.
+            let point = match multiplication_context.multiply_point(
+                secp256k1::g_x(),
+                secp256k1::g_y(),
+                &private_key,
+            ) {
+                Some(p) => p,
+                None => return s16!("Failed to derive public key.").to_program_error(),
+            };
+
+            // Zero the extracted private key; we're done with it.
+            private_key.zero();
+
+            // Serialize the public key.
+            let serialized_public_key = match serialized_private_key.to_public_key(
+                match serialized_public_key_bytes(point) {
+                    Some(k) => k,
+                    None => {
+                        return s16!("Failed to serialize secp256k1 public key.").to_program_error()
+                    }
+                },
+            ) {
+                Some(k) => k,
+                None => {
+                    return s16!("Failed to serialize BIP 32 extended public key.")
+                        .to_program_error()
+                }
+            };
+
+            // Base-58 encode the extended public key with a checksum.
+            let base58_key = base_58_encode_with_checksum(&serialized_public_key.as_bytes());
+
+            // Zero the serialized public key; we're done with it.
+            serialized_public_key.zero();
+
+            const LABEL: String16 = s16!("BIP 32 Extended Public Key");
+            write_string_program_output(&self.system_services, LABEL, String16::from(&base58_key));
+
+            prompt_for_clipboard_write(
+                &self.system_services,
+                ClipboardEntry::String16(LABEL, base58_key.into()),
+            );
+
+            ProgramExitResult::Success
         } else {
             ProgramExitResult::UserCancelled
         }
