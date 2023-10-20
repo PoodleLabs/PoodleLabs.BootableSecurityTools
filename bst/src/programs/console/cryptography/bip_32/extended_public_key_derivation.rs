@@ -194,6 +194,12 @@ impl<TSystemServices: SystemServices> Program
             let mut private_key =
                 BigUnsigned::from_be_bytes(&serialized_private_key.key_material()[1..]);
 
+            console.in_colours(constants::SUCCESS_COLOURS, |c| {
+                c.line_start()
+                    .new_line()
+                    .output_utf16(s16!("Deriving public key..."))
+            });
+
             // Derive the public key for the private key.
             let point = match multiplication_context.multiply_point(
                 secp256k1::g_x(),
