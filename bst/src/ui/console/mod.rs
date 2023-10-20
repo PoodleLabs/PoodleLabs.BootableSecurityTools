@@ -18,6 +18,7 @@ mod clipboard;
 mod confirmation_prompt;
 mod continue_prompt;
 mod data_input;
+mod key_value;
 mod label;
 mod list;
 mod mnemonic_input;
@@ -34,6 +35,7 @@ pub use data_input::{
     prompt_for_bytes_from_any_data_type, prompt_for_data_input, prompt_for_u128, prompt_for_u16,
     prompt_for_u32, prompt_for_u64, prompt_for_u8, text_input_paste_handler,
 };
+pub use key_value::ConsoleUiKeyValue;
 pub use label::ConsoleUiLabel;
 pub use list::{ConsoleUiList, ConsoleUiListEntryStyle, ConsoleUiListStyles};
 pub use mnemonic_input::get_mnemonic_input;

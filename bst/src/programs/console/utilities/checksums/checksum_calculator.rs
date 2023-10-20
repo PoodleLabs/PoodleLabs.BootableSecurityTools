@@ -15,10 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    bitcoin::{calculate_checksum_for, validate_checksum_in},
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
-    hashing::{Hasher, Sha256},
     programs::{console::write_bytes, Program, ProgramExitResult},
     system_services::SystemServices,
     ui::{
@@ -80,14 +80,12 @@ impl<TSystemServices: SystemServices> Program for ChecksumCalculator<TSystemServ
             return ProgramExitResult::UserCancelled;
         }
 
-        let mut hasher = Sha256::new();
         if input.len() > 4 {
             // Check whether the bytes already have a checksum. There's a 1/2^32 chance that some random data will have a checksum.
             // That's not really worth worrying about, but there's no harm in adding a checksum to a piece of data which already
             // has a checksum on it, as long as we let the user know that's probably what's happening.
-            let checksum = hasher.calculate_double_hash_checksum_for(&input[..input.len() - 4]);
-
-            if checksum == input[input.len() - 4..] {
+            let (already_has_valid_checksum, _) = validate_checksum_in(&input);
+            if already_has_valid_checksum {
                 console
                     .line_start()
                     .new_line()
@@ -108,7 +106,7 @@ impl<TSystemServices: SystemServices> Program for ChecksumCalculator<TSystemServ
         }
 
         // Calculate the checksum for the input data, and append it.
-        let checksum = hasher.calculate_double_hash_checksum_for(&input);
+        let checksum = calculate_checksum_for(&input);
         input.extend(checksum);
 
         write_bytes(&self.system_services, s16!("Checksummed Data"), &input);

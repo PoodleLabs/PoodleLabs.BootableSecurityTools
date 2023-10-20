@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::integers::{BigSigned, BigUnsigned};
-use rand::{random, thread_rng, Rng};
-
 mod big_signed_integers;
 mod big_unsigned_integers;
+
+use crate::integers::{BigSigned, BigUnsigned};
+use rand::{random, thread_rng, Rng};
 
 fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
     let bytes = big_unsigned.clone_be_bytes();

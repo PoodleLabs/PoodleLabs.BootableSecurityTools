@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::EllipticCurvePointAdditionContext;
-use crate::integers::{BigSigned, BigUnsigned};
-
 // An Elliptic Curve is an algebraic curve made up of points with the following equation:
 // y^2 = x^3 + ax + b
 // With the additional constraint that 4a^3 + 27b^2 != 0, to avoid a singularity where the behaviour becomes
@@ -281,6 +278,9 @@ use crate::integers::{BigSigned, BigUnsigned};
 // Note: (mod p) means that all arithmetic within the equation must be modular; we cannot just take
 // the mod of the result.
 
+use super::EllipticCurvePointAdditionContext;
+use crate::integers::{BigSigned, BigUnsigned};
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct EllipticCurvePoint {
     is_infinity: bool,
@@ -289,10 +289,6 @@ pub struct EllipticCurvePoint {
 }
 
 impl EllipticCurvePoint {
-    // A serialized, uncompressed point is identified with a leading byte of 4.
-    #[allow(dead_code)]
-    pub const UNCOMPRESSED_SERIALIZATION_IDENTIFIER_BYTE: u8 = 0x04;
-
     pub fn infinity(integer_capacity: usize) -> Self {
         Self {
             x: BigSigned::with_capacity(integer_capacity),

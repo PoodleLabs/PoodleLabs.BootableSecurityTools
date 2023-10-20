@@ -145,9 +145,18 @@ impl<'a, TSystemServices: SystemServices> ConsoleUiNumericInput<'a, TSystemServi
                             PasteResult::ContinueAsNormal
                         }
                         ClipboardEntry::String16(_, t) => {
-                            if ConsoleUiConfirmationPrompt::from(system_services)
-                                .prompt_for_confirmation(s16!("Attempt to paste text?"))
-                            {
+                            // Get the character predicate for the selected base.
+                            let character_predicate = base.whitespace_allowed_character_predicate();
+
+                            // Check whether all the characters in the string are allowable in the selected base.
+                            let is_in_base = t.iter().all(|c| (character_predicate)(*c));
+
+                            // If all the characters in the pasted string are allowable for the numeric base
+                            if is_in_base
+                                // Or the user confirms a paste discarding disallowed characters
+                                || ConsoleUiConfirmationPrompt::from(system_services)
+                                    .prompt_for_confirmation(s16!("Paste text, discarding disallowed characters?"))
+                            { // Write all the characters into the input; the scroll text will filter out disallowed characters.
                                 for character in t.iter() {
                                     scroll_text.insert_character(*character);
                                 }

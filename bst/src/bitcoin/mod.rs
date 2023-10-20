@@ -16,3 +16,28 @@
 
 pub mod hd_wallets;
 pub mod mnemonics;
+
+use crate::hashing::{Hasher, Sha256};
+
+pub fn calculate_checksum_for(bytes: &[u8]) -> [u8; 4] {
+    let mut hasher = Sha256::new();
+    let mut checksum_buffer = [0u8; 4];
+    checksum_buffer.copy_from_slice(&hasher.calculate_double_hash_checksum_for(bytes)[..4]);
+    checksum_buffer
+}
+
+pub fn validate_checksum_in(bytes: &[u8]) -> (bool, Option<[u8; 4]>) {
+    if bytes.len() < 5 {
+        // The checksum is 4 bytes in length; if there's not at least 5 bytes, there can't possibly be a valid checksum.
+        return (false, None);
+    }
+
+    // Calculate the expected checksum for the input bytes, excluding the last 4.
+    let checksum_bytes = calculate_checksum_for(&bytes[..bytes.len() - 4]);
+
+    // Check if the expected checksum matches the last 4 bytes of input.
+    (
+        checksum_bytes == &bytes[bytes.len() - 4..],
+        Some(checksum_bytes),
+    )
+}

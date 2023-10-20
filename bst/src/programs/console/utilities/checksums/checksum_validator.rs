@@ -15,9 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    bitcoin::validate_checksum_in,
     console_out::ConsoleOut,
     constants,
-    hashing::{Hasher, Sha256},
     programs::{Program, ProgramExitResult},
     system_services::SystemServices,
     ui::{
@@ -74,12 +74,8 @@ impl<TSystemServices: SystemServices> Program for ChecksumValidator<TSystemServi
             console.in_colours(constants::ERROR_COLOURS, |c| c.output_utf16_line(
                 s16!("Input less than 5 bytes; given the checksum is 4 bytes in length, this cannot be validated.")));
         } else {
-            // Calculate the checksum for input, sans its last 4 bytes.
-            let checksum =
-                Sha256::new().calculate_double_hash_checksum_for(&input[..input.len() - 4]);
-
-            // If the checksum matches the last 4 bytes of input, the checksum passed.
-            if checksum == input[input.len() - 4..] {
+            let (checksum_is_valid, checksum) = validate_checksum_in(&input);
+            if checksum_is_valid {
                 console.in_colours(constants::SUCCESS_COLOURS, |c| {
                     c.output_utf16_line(s16!("Checksum passed."))
                 });

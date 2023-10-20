@@ -87,8 +87,10 @@ pub fn serialized_private_key_bytes(key: &[u8]) -> [u8; 33] {
     bytes
 }
 
-pub fn serialized_public_key_bytes(key: EllipticCurvePoint) -> Option<[u8; 33]> {
-    key.try_serialize_compressed()
+pub fn serialized_public_key_bytes(mut key: EllipticCurvePoint) -> Option<[u8; 33]> {
+    let serialized = key.try_serialize_compressed();
+    key.set_infinity();
+    serialized
 }
 
 pub fn g_x() -> &'static BigUnsigned {

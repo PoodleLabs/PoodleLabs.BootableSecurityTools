@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod checksums;
-mod clipboard_manager;
-mod value_comparer;
+mod extended_public_key_derivation;
+mod master_key_derivation;
 
 use crate::{
     programs::{
@@ -27,9 +26,11 @@ use crate::{
     system_services::SystemServices,
 };
 use alloc::sync::Arc;
+use extended_public_key_derivation::ConsoleBip32ExtendedPublicKeyDerivationProgram;
 use macros::s16;
+use master_key_derivation::ConsoleBip32MasterKeyDerivationProgram;
 
-pub fn get_utility_programs_list<
+pub fn get_bip_32_program_list<
     'a,
     TSystemServices: SystemServices,
     TProgramSelector: ProgramSelector + 'static,
@@ -39,19 +40,15 @@ pub fn get_utility_programs_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 3] = [
-        Arc::from(clipboard_manager::ConsoleClipboardManagerProgram::from(
+    let programs: [Arc<dyn Program>; 2] = [
+        Arc::from(ConsoleBip32MasterKeyDerivationProgram::from(
             system_services.clone(),
         )),
-        Arc::from(value_comparer::ConsoleValueComparerProgram::from(
+        Arc::from(ConsoleBip32ExtendedPublicKeyDerivationProgram::from(
             system_services.clone(),
-        )),
-        Arc::from(checksums::get_checksum_programs(
-            system_services,
-            program_selector,
-            exit_result_handler,
         )),
     ];
-    ProgramList::from(Arc::from(programs), s16!("Utility Programs"))
+
+    ProgramList::from(Arc::from(programs), s16!("BIP 32 Programs"))
         .as_program(program_selector.clone(), exit_result_handler.clone())
 }
