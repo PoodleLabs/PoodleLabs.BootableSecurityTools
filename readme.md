@@ -8,15 +8,70 @@ For a list of currently implemented and planned additional functionalities, visi
 
 ## What kinds of tools?
 
-The _planned_ set of tools, in broad terms, are:
-- Hashing
-- Entropy Collection
-- Entropy Mnemonics
-- Encryption & Decryption
-- Signatures & Verification
-- Airgapped functionalities for Bitcoin wallets
+The [discussions section](https://github.com/PoodleLabs/PoodleLabs.BST/discussions/2) contains a detailed list of features which have been currently implemented, as well as planned features.
 
-To see what's actually implemented so far, again, visit the above linked discussion. The short of it is: not that much, yet.
+In broad terms, the most interesting functionalities are:
+
+### Hashing
+
+- RIPEMD160 - **DONE**
+- SHA256 - **DONE**
+- SHA5512 - **DONE**
+- HMAC - **DONE (All three hashing algos)**
+- PBKDF2 - **DONE (All three hashing algos)**
+
+Other hashing algorithms and 'attachment' schemes could be considered.
+
+### Manual Entropy Collection
+
+- Coinflips - **DONE (With Von Neumann bias correction)**
+- D4 - **DONE (With Von Neumann bias correction)**
+- D6 - **DONE**
+- D8 - **DONE (With Von Neumann bias correction)**
+- D10 - **DONE**
+- D12 - **DONE**
+- D16 - **DONE (With Von Neumann bias correction)**
+- D20 - **DONE**
+- D100 - **DONE**
+- Externally Sourced Bytes - **DONE (With Von Neumann bias correction)**
+- CSPRNG - **NOT STARTED**
+
+### Entropy Mnemonics
+
+- BIP 39 - **DONE**
+- Electrum - **DONE**
+- Biceware - **NOT STARTED**
+
+### Asymmetric Encryption
+
+- Private & Public Key Generation on secp256k1 - **DONE (Slow)**
+- ECDSA on secp256k1 - **NOT STARTED**
+- ECIES on secp256k1 - **NOT STARTED**
+
+Additional curves are likely to be supported in the futre, maybe also non-EC asymmetric schemes.
+
+### Symmetric Encryption
+
+- AES(128, 192, 256) Encryption - **NOT STARTED**
+- AES(128, 192, 256) Decryption - **NOT STARTED**
+
+Other schemes could be considered.
+
+### BIP 32 HD Wallets
+
+- BIP 39 Seed Derivation - **DONE**
+- Electrum SVS Seed Derivation - **DONE**
+- BIP 32 Master Key Derivation - **DONE**
+- BIP 32 Extended Public Key Derivation - **DONE**
+- BIP 32 CKD - **IN PROGRESS**
+
+### Bitcoin Airgapped-Side Wallet
+
+- Address Derivation - **NOT STARTED**
+- PSBT Parsing & Display - **NOT STARTED**
+- PSBT Signing - **NOT STARTED**
+
+There are additional implemented and planned features, but the above are the big ones. Again, it'd be a good idea to check out the [discussions section roadmap](https://github.com/PoodleLabs/PoodleLabs.BST/discussions/2).
 
 ## What's interesting about *this* implementation of these tools?
 
@@ -52,21 +107,21 @@ You should then be able to boot from that media.
 ### Some tips & tricks.
 
 - To navigate, use the arrow keys and `ENTER`, or press `0-9` to select the corresponding list entry.
-- In text/input boxes, you can use `PAGE UP` or `PAGE DOWN`, `HOME`, and `END`.
+- In text/input boxes, you can use `PAGE UP` or `PAGE DOWN`, `HOME`, and `END`. The latter two can be modified with `CTRL`.
 - Newlines from pressing `ENTER` in text boxes are `CR LF`, as that's the native newline for UEFI. `CTRL + ENTER` and `ALT + ENTER` can be used to insert a `LF` or `CR` by itself respectively, for hashing purposes.
 - Numeric/byte inputs allow whitespace. This is handy for formatting.
-- The difference between numbers and bytes is that numbers don't have leading zeroes.
+- The difference between numbers and bytes is that numbers have leading zeroes trimmed off.
 - Holding `ALT` when running a program, or opening a program list, will cause the list which contained it to be automatically closed if the program completes successfully.
-- `CTRL + V` will prompt you to select a clipboard entry to paste if you're inputting data; text and bytes can be pasted into text inputs, but only bytes can be pasted into byte or numeric inputs.
+- `CTRL + V` will prompt you to select a clipboard entry to paste if you're inputting data. You can paste text, bytes and numbers into any input, but when pasting text into a numeric/byte input, invalid characters will be dropped.
 - `CTRL + [DIGIT]` will paste the corresponding clipboard entry, skipping the list select.
-- `ESC` on the home screen will prompt you to confirm whether you want to exit BST. Yes will drop you back to the boot menu, or load your operating system, depending on what your firmware decides. 
+- `ESC` on the home screen will prompt you to confirm whether you want to exit BST. Yes will drop you back to the boot menu, or load your operating system, depending on what your firmware decides to do.
 - The power options menu lets you shutdown, reboot, and reset. The difference between `Reboot` and `Reset` is defined by `UEFI`. `Reboot` is 'cold', and `Reset` is 'warm'.
 - You can manage your clipboard entries in the `Clipboard Manager` in the `Utility Programs` menu.
 - Read the output you're given.
 
 ### VM?
 
-The included VM-related scripts are lazily written for my own use. I run Debian for development. You'll need QEMU w/ EFI and some other stuff set up. Check what the scripts do. I don't recommend the ARM one; I couldn't get it to work with a 'display', and outputting directly to the source terminal is janky.
+The included VM-related scripts are lazily written for my own use. I run Debian for development. You'll need QEMU w/ EFI and some other stuff set up. Check what the scripts do. I don't recommend the ARM one; I couldn't get it to work with a 'display', and outputting directly to the source terminal is janky; you'll probably need to play with the size of your terminal window to make the UI make any sense at all.
 
 ### I don't know how to do the steps above.
 
