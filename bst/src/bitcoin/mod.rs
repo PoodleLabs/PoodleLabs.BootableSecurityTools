@@ -18,7 +18,7 @@ pub mod hd_wallets;
 pub mod mnemonics;
 
 use crate::{
-    hashing::{Hasher, Sha256},
+    hashing::{Hasher, Sha256, RIPEMD160},
     integers::{NumericBase, NumericCollector, NumericCollectorRoundBase},
 };
 use alloc::vec::Vec;
@@ -69,4 +69,18 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
 
     // Build a base-58 string from the big integer.
     NumericBase::BASE_58.build_string_from_big_unsigned(integer, false, 0)
+}
+
+// Bitcoin uses a HASH160 in many places, which is RIPEMD160(Sha256(data)).
+pub fn hash_160_with(bytes: &[u8], sha256: &mut Sha256, ripemd160: &mut RIPEMD160) -> [u8; 20] {
+    ripemd160.get_hash_of(&sha256.get_hash_of(bytes))
+}
+
+pub fn hash_160(bytes: &[u8]) -> [u8; 20] {
+    let mut sha256 = Sha256::new();
+    let mut ripemd160 = RIPEMD160::new();
+    let hash = hash_160_with(bytes, &mut sha256, &mut ripemd160);
+    ripemd160.reset();
+    sha256.reset();
+    hash
 }
