@@ -16,7 +16,8 @@
 
 use crate::{
     bitcoin::{
-        hd_wallets::{base_58_encode_with_checksum, Bip32KeyType, SerializedExtendedKey},
+        base_58_encode_with_checksum,
+        hd_wallets::{Bip32KeyType, SerializedExtendedKey},
         validate_checksum_in,
     },
     clipboard::ClipboardEntry,

@@ -17,7 +17,11 @@
 pub mod hd_wallets;
 pub mod mnemonics;
 
-use crate::hashing::{Hasher, Sha256};
+use crate::{
+    hashing::{Hasher, Sha256},
+    integers::{NumericBase, NumericCollector, NumericCollectorRoundBase},
+};
+use alloc::vec::Vec;
 
 pub fn calculate_checksum_for(bytes: &[u8]) -> [u8; 4] {
     let mut hasher = Sha256::new();
@@ -40,4 +44,29 @@ pub fn validate_checksum_in(bytes: &[u8]) -> (bool, Option<[u8; 4]>) {
         checksum_bytes == &bytes[bytes.len() - 4..],
         Some(checksum_bytes),
     )
+}
+
+pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
+    // Calculate the double SHA256 hash checksum.
+    let checksum = calculate_checksum_for(bytes);
+
+    // Build a numeric collector for combining the bytes and their checksum.
+    let mut numeric_collector = NumericCollector::with_byte_capacity(bytes.len() + 4);
+    for byte in bytes {
+        // Copy the bytes to the numeric collector.
+        _ = numeric_collector.try_add_round(*byte, NumericCollectorRoundBase::WholeByte);
+    }
+
+    for byte in checksum {
+        // Copy the checksum bytes to the numeric collector.
+        _ = numeric_collector.try_add_round(byte, NumericCollectorRoundBase::WholeByte);
+    }
+
+    // Extract the underlying big unsigned integer.
+    let integer = numeric_collector
+        .extract_big_unsigned()
+        .take_data_ownership();
+
+    // Build a base-58 string from the big integer.
+    NumericBase::BASE_58.build_string_from_big_unsigned(integer, false, 0)
 }
