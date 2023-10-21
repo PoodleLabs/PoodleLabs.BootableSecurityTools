@@ -24,9 +24,11 @@ pub use serialized_extended_key::SerializedExtendedKey;
 
 use crate::{
     cryptography::asymmetric::ecc::secp256k1,
-    hashing::{Hasher, Sha512},
+    hashing::{Hasher, Sha256, Sha512, RIPEMD160},
     integers::BigUnsigned,
 };
+
+use super::hash_160_with;
 
 // The key used for HMAC-based BIP 32 master key derivation.
 const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
@@ -72,4 +74,25 @@ pub fn try_derive_master_key(
         chain_code,
         key_material,
     ))
+}
+
+pub fn fingerprint_key_with(
+    public_key: &[u8],
+    sha256: &mut Sha256,
+    ripemd160: &mut RIPEMD160,
+) -> [u8; 4] {
+    let mut fingerprint = [0u8; 4];
+    let mut hash_160 = hash_160_with(public_key, sha256, ripemd160);
+    fingerprint.copy_from_slice(&hash_160[..4]);
+    hash_160.fill(0);
+    fingerprint
+}
+
+pub fn fingerprint_key(public_key: &[u8]) -> [u8; 4] {
+    let mut sha256 = Sha256::new();
+    let mut ripemd160 = RIPEMD160::new();
+    let fingerprint = fingerprint_key_with(public_key, &mut sha256, &mut ripemd160);
+    ripemd160.reset();
+    sha256.reset();
+    fingerprint
 }
