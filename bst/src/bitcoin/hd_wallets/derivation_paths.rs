@@ -21,6 +21,7 @@ use crate::{
     integers::BigUnsigned,
     String16,
 };
+use core::cmp::Ordering;
 use macros::s16;
 
 // If a point in a derivation path is >= 2^31, we should derive a hardened key. If it's < 2^31, we should derive a normal key.
@@ -50,14 +51,15 @@ impl DerivationPathPoint {
         sha512: &mut Sha512,
         sha256: &mut Sha256,
         ripemd160: &mut RIPEMD160,
-        key: &SerializedExtendedKey,
+        parent_key: &SerializedExtendedKey,
+        private_key_buffer: &mut BigUnsigned,
         multiplication_context: &mut EllipticCurvePointMultiplicationContext,
     ) -> Result<SerializedExtendedKey, String16<'static>> {
-        if key.depth() == u8::MAX {
+        if parent_key.depth() == u8::MAX {
             return Err(s16!("Maximum key depth reached."));
         }
 
-        let key_version = match key.try_get_key_version() {
+        let key_version = match parent_key.try_get_key_version() {
             Ok(t) => t,
             Err(s) => return Err(s),
         };
@@ -73,89 +75,143 @@ impl DerivationPathPoint {
         let mut data = [0u8; 37];
 
         // The hash we calculate is the SHA512 HMAC of the data described above, using the parent chain code as the HMAC key.
-        let mut hmac = sha512.build_hmac(key.chain_code());
+        let mut hmac = sha512.build_hmac(parent_key.chain_code());
         let mut hmac_buffer = [0u8; Sha512::HASH_SIZE];
 
-        let (parent_public_key, key_material, chain_code): ([u8; 33], [u8; 33], [u8; 32]) =
-            match key_version.key_type() {
-                Bip32KeyType::Private => {
-                    if self.is_for_hardened_key() {
-                        // Deriving a hardened child uses the serialized private key for the hash data.
-                        data[..33].copy_from_slice(key.key_material());
-                    } else {
-                        // Deriving a non-hardened child uses the serialized public key for the hash data.
+        let (parent_public_key, key_material): ([u8; 33], [u8; 33]) = match key_version.key_type() {
+            Bip32KeyType::Private => {
+                // Write the private key to the private key buffer.
+                private_key_buffer.copy_digits_from(parent_key.key_material());
 
-                        // Parse the private key as a big unsigned integer.
-                        let mut key = BigUnsigned::from_be_bytes(&key.key_material());
+                // Derive the EC point for the public key.
+                let point = match multiplication_context.multiply_point(
+                    secp256k1::g_x(),
+                    secp256k1::g_y(),
+                    &private_key_buffer,
+                ) {
+                    Some(p) => p,
+                    None => return Err(s16!("Failed to derive parent public key.")),
+                };
 
-                        // Derive the EC point for the public key.
-                        let point = match multiplication_context.multiply_point(
-                            secp256k1::g_x(),
-                            secp256k1::g_y(),
-                            &key,
-                        ) {
-                            Some(p) => p,
-                            None => return Err(s16!("Failed to derive parent public key.")),
-                        };
+                // Serialize the derived public key.
+                let parent_public_key = match secp256k1::serialized_public_key_bytes(point) {
+                    Some(k) => k,
+                    None => return Err(s16!("Failed to serialize parent public key.")),
+                };
 
-                        // Zero out the private key integer; we don't need it anymore.
-                        key.zero();
+                if self.is_for_hardened_key() {
+                    // Deriving a hardened child uses the serialized private key for the hash data.
+                    data[..33].copy_from_slice(parent_key.key_material());
+                } else {
+                    // Deriving a non-hardened child uses the serialized public key for the hash data.
+                    data[..33].copy_from_slice(&parent_public_key);
+                };
 
-                        // Serialize the derived public key and copy to the data buffer.
-                        match secp256k1::serialized_public_key_bytes(point) {
-                            Some(k) => data[..33].copy_from_slice(&k),
-                            None => return Err(s16!("Failed to serialize parent public key.")),
-                        };
+                // We're done with the EC multiplication context, and can borrow a working buffer from it.
+                let working_buffer = multiplication_context
+                    .borrow_working_buffer()
+                    .borrow_unsigned_mut();
+
+                let key_material = loop {
+                    // The hash data's last 4 bytes are the index.
+                    data[33..].copy_from_slice(&index.to_be_bytes());
+                    hmac.write_hmac_to(&data, &mut hmac_buffer);
+
+                    working_buffer.copy_digits_from(&hmac_buffer[..32]);
+                    match Self::validate_key_material(&working_buffer, &mut index) {
+                        IlValidationResult::Ok => {}
+                        IlValidationResult::NextIteration => continue,
+                        IlValidationResult::ReturnError(e) => return Err(e),
+                    }
+
+                    // Add parent private key and child private key material.
+                    private_key_buffer.add_big_unsigned(&working_buffer);
+
+                    // Calculate the remainder of the sum of the key materials divided by N.
+                    private_key_buffer
+                        .divide_big_unsigned_with_remainder(secp256k1::n(), working_buffer);
+
+                    // Copy the resulting key into a new key material buffer.
+                    let mut key_material = [0u8; 33];
+                    key_material[33 - working_buffer.digit_count()..]
+                        .copy_from_slice(working_buffer.borrow_digits());
+
+                    // Zero our working buffers; we're done with them.
+                    private_key_buffer.zero();
+                    working_buffer.zero();
+
+                    // Return our key material from the loop.
+                    break key_material;
+                };
+
+                (parent_public_key, key_material)
+            }
+            Bip32KeyType::Public => {
+                if self.is_for_hardened_key() {
+                    return Err(s16!("Cannot derive hardened child key from a public key."));
+                }
+
+                // As we can only derive non-hardened children from a public key, and for non-hardened children, the
+                // hash data starts with the serialized public key, we just copy the key material into the data buffer.
+                data[..33].copy_from_slice(parent_key.key_material());
+
+                // The parent key is a public key; copy out the serialized value.
+                let mut parent_public_key = [0u8; 33];
+                parent_public_key.copy_from_slice(parent_key.key_material());
+
+                let key_material = loop {
+                    // The hash data's last 4 bytes are the index.
+                    data[33..].copy_from_slice(&index.to_be_bytes());
+                    hmac.write_hmac_to(&data, &mut hmac_buffer);
+
+                    // Write the child key material to the private key buffer.
+                    private_key_buffer.copy_digits_from(&hmac_buffer[..32]);
+                    match Self::validate_key_material(&private_key_buffer, &mut index) {
+                        IlValidationResult::Ok => {}
+                        IlValidationResult::NextIteration => continue,
+                        IlValidationResult::ReturnError(e) => return Err(e),
+                    }
+
+                    // Derive the EC point for the child.
+                    let mut point = match multiplication_context.multiply_point(
+                        secp256k1::g_x(),
+                        secp256k1::g_y(),
+                        &private_key_buffer,
+                    ) {
+                        Some(p) => p,
+                        None => return Err(s16!("Failed to derive parent public key.")),
                     };
 
-                    loop {
-                        // The hash data's last 4 bytes are the index.
-                        data[33..].copy_from_slice(&index.to_be_bytes());
-                        hmac.write_hmac_to(&data, &mut hmac_buffer);
+                    // Add the parent point to the child point.
+                    point.add(
+                        todo!(), /* TODO: Calculate the parent public key's full point. */
+                        multiplication_context.borrow_addition_context(),
+                    );
 
-                        let key_material = &hmac_buffer[..32];
-                        match Self::validate_key_material(key_material, &mut index) {
-                            IlValidationResult::Ok => {}
-                            IlValidationResult::NextIteration => continue,
-                            IlValidationResult::ReturnError(e) => return Err(e),
-                        }
+                    // Zero the working buffer; we're done with it.
+                    private_key_buffer.zero();
 
-                        // privKey = key_material + parent_key_material (mod n)
-                        let chain_code = &hmac_buffer[32..];
-                        break todo!();
+                    // Serialize the point and return it from the loop as our key material.
+                    match secp256k1::serialized_public_key_bytes(point) {
+                        Some(k) => break k,
+                        None => return Err(s16!("Failed to serialize child public key.")),
                     }
-                }
-                Bip32KeyType::Public => {
-                    if self.is_for_hardened_key() {
-                        return Err(s16!("Cannot derive hardened child key from a public key."));
-                    }
+                };
 
-                    // As we can only derive non-hardened children from a public key, and for non-hardened children, the
-                    // hash data starts with the serialized public key, we just copy the key material into the data buffer.
-                    data[..33].copy_from_slice(key.key_material());
+                (parent_public_key, key_material)
+            }
+        };
 
-                    loop {
-                        // The hash data's last 4 bytes are the index.
-                        data[33..].copy_from_slice(&index.to_be_bytes());
-                        hmac.write_hmac_to(&data, &mut hmac_buffer);
+        // The chain code is the last 32 bytes of the HMAC result.
+        let mut chain_code = [0u8; 32];
+        chain_code.copy_from_slice(&hmac_buffer[32..]);
 
-                        let key_material = &hmac_buffer[..32];
-                        match Self::validate_key_material(key_material, &mut index) {
-                            IlValidationResult::Ok => {}
-                            IlValidationResult::NextIteration => continue,
-                            IlValidationResult::ReturnError(e) => return Err(e),
-                        }
-
-                        // pubKey = parse_point(parent_key_material) + point(il)
-                        let chain_code = &hmac_buffer[32..];
-                        break todo!();
-                    }
-                }
-            };
+        // Zero out the HMAC buffer; we don't need it anymore.
+        hmac_buffer.fill(0);
 
         Ok(SerializedExtendedKey::from(
-            key.clone_version_bytes(),
-            key.depth() + 1,
+            parent_key.clone_version_bytes(),
+            parent_key.depth() + 1,
             fingerprint_key_with(&parent_public_key, sha256, ripemd160),
             index.to_be_bytes(),
             chain_code,
@@ -163,10 +219,9 @@ impl DerivationPathPoint {
         ))
     }
 
-    fn validate_key_material(key_material: &[u8], index: &mut u32) -> IlValidationResult {
-        if key_material.iter().all(|d| *d == 0) {
+    fn validate_key_material(key_material: &BigUnsigned, index: &mut u32) -> IlValidationResult {
+        if key_material.is_zero() || key_material.cmp(secp256k1::n()) != Ordering::Less {
             // If the key material == 0 or >= N, we need to move to the next index.
-            // TODO: Check if key_material >= N
             if (*index & MAX_DERIVATION_POINT) == MAX_DERIVATION_POINT {
                 // We've run out of indexes; we can't derive a child key.
                 return IlValidationResult::ReturnError(s16!("Ran out of key derivation space; this is extremely unlikely to happen, and should be investigated."));

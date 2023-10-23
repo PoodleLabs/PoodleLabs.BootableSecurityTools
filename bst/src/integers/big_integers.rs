@@ -254,6 +254,29 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\///
 
 impl BigUnsigned {
+    pub fn copy_digits_from(&mut self, digits: &[u8]) {
+        let digits = match Self::first_non_zero_digit_index(digits) {
+            Some(i) => &digits[i..],
+            None => {
+                self.zero();
+                return;
+            }
+        };
+
+        if self.digits.len() > digits.len() {
+            let original_length = self.digits.len();
+            self.digits[0..original_length - digits.len()].fill(0);
+            self.digits.truncate(digits.len());
+            self.digits.copy_from_slice(digits);
+        } else if self.digits.len() == digits.len() {
+            self.digits.copy_from_slice(digits);
+        } else {
+            let original_length = self.digits.len();
+            self.digits.copy_from_slice(&digits[..original_length]);
+            self.digits.extend_from_slice(&digits[original_length..]);
+        }
+    }
+
     pub fn set_equal_to(&mut self, value: &Self) {
         self.digits.truncate(0);
         self.digits.extend(&value.digits);
