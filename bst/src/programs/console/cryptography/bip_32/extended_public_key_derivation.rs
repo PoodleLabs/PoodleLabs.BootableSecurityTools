@@ -112,7 +112,7 @@ impl<TSystemServices: SystemServices> Program
                         b.fill(0);
 
                         // Try to parse the key type.
-                        match serialized_key.try_get_key_type() {
+                        match serialized_key.try_get_key_version() {
                             Ok(t) => match t.key_type() {
                                 Bip32KeyType::Private => {
                                     // The user input a valid private key; break out of the input loop with it.
@@ -152,7 +152,7 @@ impl<TSystemServices: SystemServices> Program
 
         // Get the network the private key is for.
         let key_network = serialized_private_key
-            .try_get_key_type()
+            .try_get_key_version()
             .unwrap()
             .key_network();
 

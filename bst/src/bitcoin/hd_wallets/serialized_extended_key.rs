@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{Bip32KeyType, Bip32KeyTypeAndNetwork};
+use super::{Bip32KeyType, Bip32KeyVersion};
 use crate::String16;
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
@@ -67,8 +67,32 @@ impl SerializedExtendedKey {
         })
     }
 
+    pub const fn clone_version_bytes(&self) -> [u8; 4] {
+        self.version
+    }
+
+    pub const fn parent_fingerprint(&self) -> &[u8] {
+        &self.parent_fingerprint
+    }
+
+    pub const fn child_number(&self) -> &[u8] {
+        &self.child_number
+    }
+
+    pub const fn key_material(&self) -> &[u8] {
+        &self.key_material
+    }
+
+    pub const fn chain_code(&self) -> &[u8] {
+        &self.chain_code
+    }
+
+    pub const fn depth(&self) -> u8 {
+        self.depth
+    }
+
     pub fn to_public_key(&self, key_material: [u8; 33]) -> Option<Self> {
-        let network = match self.try_get_key_type() {
+        let network = match self.try_get_key_version() {
             Ok(t) => {
                 if t.key_type() != Bip32KeyType::Private {
                     return None;
@@ -89,23 +113,7 @@ impl SerializedExtendedKey {
         })
     }
 
-    pub const fn parent_fingerprint(&self) -> &[u8] {
-        &self.parent_fingerprint
-    }
-
-    pub const fn child_number(&self) -> &[u8] {
-        &self.child_number
-    }
-
-    pub const fn key_material(&self) -> &[u8] {
-        &self.key_material
-    }
-
-    pub const fn depth(&self) -> u8 {
-        self.depth
-    }
-
-    pub fn try_get_key_type(&self) -> Result<Bip32KeyTypeAndNetwork, String16<'static>> {
+    pub fn try_get_key_version(&self) -> Result<Bip32KeyVersion, String16<'static>> {
         u32::from_be_bytes(self.version).try_into()
     }
 

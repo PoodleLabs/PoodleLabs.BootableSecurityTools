@@ -19,16 +19,15 @@ mod key_types;
 mod serialized_extended_key;
 
 pub use derivation_paths::DerivationPathPoint;
-pub use key_types::{Bip32KeyNetwork, Bip32KeyType, Bip32KeyTypeAndNetwork};
+pub use key_types::{Bip32KeyNetwork, Bip32KeyType, Bip32KeyVersion};
 pub use serialized_extended_key::SerializedExtendedKey;
 
+use super::hash_160_with;
 use crate::{
     cryptography::asymmetric::ecc::secp256k1,
     hashing::{Hasher, Sha256, Sha512, RIPEMD160},
     integers::BigUnsigned,
 };
-
-use super::hash_160_with;
 
 // The key used for HMAC-based BIP 32 master key derivation.
 const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();

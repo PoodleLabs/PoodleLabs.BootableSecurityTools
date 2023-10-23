@@ -61,12 +61,12 @@ impl Into<String16<'static>> for Bip32KeyNetwork {
 }
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Bip32KeyTypeAndNetwork {
+pub struct Bip32KeyVersion {
     key_network: Bip32KeyNetwork,
     key_type: Bip32KeyType,
 }
 
-impl Bip32KeyTypeAndNetwork {
+impl Bip32KeyVersion {
     const fn from(key_network: Bip32KeyNetwork, key_type: Bip32KeyType) -> Self {
         Self {
             key_network,
@@ -83,7 +83,7 @@ impl Bip32KeyTypeAndNetwork {
     }
 }
 
-impl TryFrom<u32> for Bip32KeyTypeAndNetwork {
+impl TryFrom<u32> for Bip32KeyVersion {
     type Error = String16<'static>;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
