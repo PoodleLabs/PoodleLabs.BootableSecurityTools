@@ -18,7 +18,7 @@ pub mod secp256k1;
 
 mod point;
 
-pub use point::EllipticCurvePoint;
+pub use point::{EllipticCurvePoint, COMPRESSED_Y_IS_EVEN_IDENTIFIER};
 
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
@@ -78,6 +78,7 @@ pub struct EllipticCurvePointMultiplicationContext {
     side_channel_mitigation_point: EllipticCurvePoint,
     comparison_box: Box<Option<Ordering>>,
     working_point: EllipticCurvePoint,
+    b: &'static BigUnsigned,
     n: &'static BigUnsigned,
     bit_buffer: Vec<u8>,
 }
@@ -87,6 +88,7 @@ impl EllipticCurvePointMultiplicationContext {
         n: &'static BigUnsigned,
         p: &'static BigUnsigned,
         a: &'static BigUnsigned,
+        b: &'static BigUnsigned,
         integer_capacity: usize,
     ) -> Self {
         if n.digit_count() == 0 {
@@ -99,6 +101,7 @@ impl EllipticCurvePointMultiplicationContext {
             working_point: EllipticCurvePoint::infinity(integer_capacity),
             bit_buffer: vec![0u8; n.digit_count()],
             comparison_box: Box::from(None),
+            b,
             n,
         }
     }
@@ -283,6 +286,67 @@ impl EllipticCurvePointMultiplicationContext {
 
         // Return our product, which is guaranteed to be non-infinity.
         Some(product)
+    }
+
+    pub fn calculate_y_from_x(
+        &mut self,
+        y_is_even: bool,
+        x: &BigUnsigned,
+        y_out: &mut BigUnsigned,
+    ) {
+        // Assumes X is normalized.
+
+        // Get working buffers.
+        let (v, w) = self.working_point.borrow_coordinates_mut();
+        let (v, w) = (v.borrow_unsigned_mut(), w.borrow_unsigned_mut());
+
+        // v = x
+        v.set_equal_to(x);
+
+        // v = x * x = x^2
+        v.multiply_big_unsigned(x);
+
+        // w = x * x (mod p)
+        v.divide_big_unsigned_with_remainder(self.addition_context.p, w);
+
+        // w = (x * x (mod p)) * x
+        w.multiply_big_unsigned(x);
+
+        // v = x^3 (mod p)
+        w.divide_big_unsigned_with_remainder(self.addition_context.p, v);
+
+        // w = x
+        w.set_equal_to(x);
+
+        // w = x * a
+        w.multiply_big_unsigned(self.addition_context.a);
+
+        // y_out = x * a (mod p)
+        w.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
+
+        // v = (x^3 (mod p)) + (x * a (mod p))
+        v.add_big_unsigned(&y_out);
+
+        // w = x^3 + ax (mod p)
+        v.divide_big_unsigned_with_remainder(self.addition_context.p, w);
+
+        // w = (x^3 + ax (mod p)) + b
+        w.add_big_unsigned(self.b);
+
+        // y_out = (x^3 + ax + b (mod p) = y^2
+        w.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
+
+        // y_out = sqrt(y_out) = y
+        self.addition_context
+            .unsigned_calculator
+            .calculate_square_root(y_out);
+
+        if y_is_even != y_out.is_even() {
+            // Y has two possible values given an X coordinate; if the calculated Y's evenness does not match
+            // the desired evenness from the compressed coordinate flag, we just subtract it from P.
+            // This is equivalent to calculating the difference, as P will always be larger.
+            y_out.difference_big_unsigned(self.addition_context.p);
+        }
     }
 
     pub fn borrow_addition_context(&mut self) -> &mut EllipticCurvePointAdditionContext {

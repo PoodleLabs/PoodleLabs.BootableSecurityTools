@@ -40,7 +40,6 @@ static mut A: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
 // Curve coefficient:
 // b = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000007
 //   = 7
-#[allow(dead_code)]
 static mut B: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     GlobalRuntimeImmutable::from(|| BigUnsigned::from_be_bytes(&[0x07]));
 
@@ -77,7 +76,7 @@ static mut N: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     });
 
 pub fn point_multiplication_context() -> EllipticCurvePointMultiplicationContext {
-    EllipticCurvePointMultiplicationContext::new(n(), p(), a(), 32)
+    EllipticCurvePointMultiplicationContext::new(n(), p(), a(), b(), 32)
 }
 
 pub fn serialized_private_key_bytes(key: &[u8]) -> [u8; 33] {
@@ -111,4 +110,8 @@ fn p() -> &'static BigUnsigned {
 
 fn a() -> &'static BigUnsigned {
     unsafe { A.value() }
+}
+
+fn b() -> &'static BigUnsigned {
+    unsafe { B.value() }
 }

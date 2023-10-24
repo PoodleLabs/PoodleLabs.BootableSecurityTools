@@ -16,7 +16,9 @@
 
 use super::{fingerprint_key_with, Bip32KeyType, SerializedExtendedKey};
 use crate::{
-    cryptography::asymmetric::ecc::{secp256k1, EllipticCurvePointMultiplicationContext},
+    cryptography::asymmetric::ecc::{
+        self, secp256k1, EllipticCurvePoint, EllipticCurvePointMultiplicationContext,
+    },
     hashing::{Hasher, Sha256, Sha512, RIPEMD160},
     integers::BigUnsigned,
     String16,
@@ -46,6 +48,7 @@ impl DerivationPathPoint {
         self.0 >= HARDENED_CHILD_DERIVATION_THRESHOLD
     }
 
+    #[allow(dead_code)]
     pub fn try_derive_key_material_and_chain_code_from(
         &self,
         sha512: &mut Sha512,
@@ -53,6 +56,7 @@ impl DerivationPathPoint {
         ripemd160: &mut RIPEMD160,
         parent_key: &SerializedExtendedKey,
         private_key_buffer: &mut BigUnsigned,
+        point_buffer: &mut EllipticCurvePoint,
         multiplication_context: &mut EllipticCurvePointMultiplicationContext,
     ) -> Result<SerializedExtendedKey, String16<'static>> {
         if parent_key.depth() == u8::MAX {
@@ -159,6 +163,22 @@ impl DerivationPathPoint {
                 let mut parent_public_key = [0u8; 33];
                 parent_public_key.copy_from_slice(parent_key.key_material());
 
+                {
+                    let (x, y) = point_buffer.borrow_coordinates_mut();
+                    // Write the X coordinate of the parent public key into the working point.
+                    x.copy_digits_from(&parent_public_key[1..], false);
+
+                    // Ensure the working point's Y value is positive.
+                    y.set_sign(false);
+
+                    // Calculate the Y coordinate of the parent public key's point and write into the working point Y coordinate.
+                    multiplication_context.calculate_y_from_x(
+                        parent_public_key[0] == ecc::COMPRESSED_Y_IS_EVEN_IDENTIFIER,
+                        x.borrow_unsigned(),
+                        y.borrow_unsigned_mut(),
+                    );
+                }
+
                 let key_material = loop {
                     // The hash data's last 4 bytes are the index.
                     data[33..].copy_from_slice(&index.to_be_bytes());
@@ -184,7 +204,7 @@ impl DerivationPathPoint {
 
                     // Add the parent point to the child point.
                     point.add(
-                        todo!(), /* TODO: Calculate the parent public key's full point. */
+                        point_buffer,
                         multiplication_context.borrow_addition_context(),
                     );
 

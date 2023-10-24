@@ -75,12 +75,3 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
 pub fn hash_160_with(bytes: &[u8], sha256: &mut Sha256, ripemd160: &mut RIPEMD160) -> [u8; 20] {
     ripemd160.get_hash_of(&sha256.get_hash_of(bytes))
 }
-
-pub fn hash_160(bytes: &[u8]) -> [u8; 20] {
-    let mut sha256 = Sha256::new();
-    let mut ripemd160 = RIPEMD160::new();
-    let hash = hash_160_with(bytes, &mut sha256, &mut ripemd160);
-    ripemd160.reset();
-    sha256.reset();
-    hash
-}

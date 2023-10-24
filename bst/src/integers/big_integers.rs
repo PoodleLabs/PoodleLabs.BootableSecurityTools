@@ -294,8 +294,17 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
+    pub fn copy_digits_from(&mut self, digits: &[u8], is_negative: bool) {
+        self.big_unsigned.copy_digits_from(digits);
+        self.is_negative = is_negative;
+    }
+
     pub fn set_equal_to_unsigned(&mut self, value: &BigUnsigned, is_negative: bool) {
         self.big_unsigned.set_equal_to(&value);
+        self.is_negative = is_negative;
+    }
+
+    pub fn set_sign(&mut self, is_negative: bool) {
         self.is_negative = is_negative;
     }
 

@@ -86,12 +86,3 @@ pub fn fingerprint_key_with(
     hash_160.fill(0);
     fingerprint
 }
-
-pub fn fingerprint_key(public_key: &[u8]) -> [u8; 4] {
-    let mut sha256 = Sha256::new();
-    let mut ripemd160 = RIPEMD160::new();
-    let fingerprint = fingerprint_key_with(public_key, &mut sha256, &mut ripemd160);
-    ripemd160.reset();
-    sha256.reset();
-    fingerprint
-}
