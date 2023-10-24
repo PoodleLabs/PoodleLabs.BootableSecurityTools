@@ -22,7 +22,7 @@ pub use point::EllipticCurvePoint;
 
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
-    integers::{BigSigned, BigUnsigned, BigUnsignedModInverseCalculator},
+    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::cmp::Ordering;
@@ -30,7 +30,7 @@ use core::cmp::Ordering;
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
 pub struct EllipticCurvePointAdditionContext {
-    mod_inverse_calculator: BigUnsignedModInverseCalculator,
+    unsigned_calculator: BigUnsignedCalculator,
     augend: EllipticCurvePoint,
     p: &'static BigUnsigned,
     a: &'static BigUnsigned,
@@ -40,7 +40,7 @@ pub struct EllipticCurvePointAdditionContext {
 impl EllipticCurvePointAdditionContext {
     pub fn from(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
         Self {
-            mod_inverse_calculator: BigUnsignedModInverseCalculator::new(integer_capacity),
+            unsigned_calculator: BigUnsignedCalculator::new(integer_capacity),
             slope: BigSigned::with_capacity(integer_capacity),
             augend: EllipticCurvePoint::infinity(integer_capacity),
             p,
@@ -59,7 +59,7 @@ impl EllipticCurvePointAdditionContext {
 
     pub fn mod_inverse(&mut self, value: &mut BigSigned) -> bool {
         let is_negative = value.is_negative();
-        let success = self.mod_inverse_calculator.calculate_mod_inverse(
+        let success = self.unsigned_calculator.calculate_mod_inverse(
             &mut value.borrow_unsigned_mut(),
             is_negative,
             self.p,

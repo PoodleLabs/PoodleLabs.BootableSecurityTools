@@ -16,7 +16,7 @@
 
 use super::BigUnsigned;
 
-pub struct BigUnsignedModInverseCalculator {
+pub struct BigUnsignedCalculator {
     a: BigUnsigned,
     m: BigUnsigned,
     x: BigUnsigned,
@@ -25,7 +25,7 @@ pub struct BigUnsignedModInverseCalculator {
     r: BigUnsigned,
 }
 
-impl BigUnsignedModInverseCalculator {
+impl BigUnsignedCalculator {
     pub fn new(internal_integer_initial_capacities: usize) -> Self {
         Self {
             a: BigUnsigned::with_capacity(internal_integer_initial_capacities),
@@ -35,6 +35,35 @@ impl BigUnsignedModInverseCalculator {
             q: BigUnsigned::with_capacity(internal_integer_initial_capacities),
             r: BigUnsigned::with_capacity(internal_integer_initial_capacities),
         }
+    }
+
+    pub fn calculate_square_root(&mut self, value: &mut BigUnsigned) -> bool {
+        if value.is_zero() {
+            return false;
+        }
+
+        if value.is_one() {
+            return true;
+        }
+
+        // x = 0.set_bit_hight((value.bit_length() / 2) - 1)
+        // y = x
+        // loop {
+        // q = x
+        // r = value
+        // r /= div
+        // q += r
+        // q >>= 1
+        // if q == y || q == x {
+        // value.set_equal_to(if q < y { q } else { y })
+        // break
+        // }
+        //
+        // y.set_equal_to(x)
+        // x.set_equal_to(q)
+        // }
+
+        todo!()
     }
 
     pub fn calculate_mod_inverse(
