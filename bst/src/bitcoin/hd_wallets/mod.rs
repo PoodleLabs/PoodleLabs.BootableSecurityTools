@@ -19,7 +19,7 @@ mod key_types;
 mod serialized_extended_key;
 
 pub use derivation_paths::{
-    DerivationPathPoint, HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
+    Bip32DerivationPathPoint, HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
 };
 pub use key_types::{Bip32KeyNetwork, Bip32KeyType, Bip32KeyVersion};
 pub use serialized_extended_key::SerializedExtendedKey;
@@ -85,6 +85,8 @@ pub fn fingerprint_key_with(
     let mut fingerprint = [0u8; 4];
     let mut hash_160 = hash_160_with(public_key, sha256, ripemd160);
     fingerprint.copy_from_slice(&hash_160[..4]);
+    ripemd160.reset();
     hash_160.fill(0);
+    sha256.reset();
     fingerprint
 }

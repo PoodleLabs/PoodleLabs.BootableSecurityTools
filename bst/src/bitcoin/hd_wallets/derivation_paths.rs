@@ -40,9 +40,9 @@ enum IlValidationResult {
 }
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct DerivationPathPoint(u32);
+pub struct Bip32DerivationPathPoint(u32);
 
-impl DerivationPathPoint {
+impl Bip32DerivationPathPoint {
     pub const fn is_for_hardened_key(&self) -> bool {
         self.0 >= HARDENED_CHILD_DERIVATION_THRESHOLD
     }
@@ -260,13 +260,13 @@ impl DerivationPathPoint {
     }
 }
 
-impl From<u32> for DerivationPathPoint {
+impl From<u32> for Bip32DerivationPathPoint {
     fn from(value: u32) -> Self {
         Self(value)
     }
 }
 
-impl Into<u32> for DerivationPathPoint {
+impl Into<u32> for Bip32DerivationPathPoint {
     fn into(self) -> u32 {
         self.0
     }

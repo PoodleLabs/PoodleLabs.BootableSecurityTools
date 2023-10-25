@@ -232,16 +232,21 @@ impl<TSystemServices: SystemServices> Program
 
             // Base-58 encode the extended public key with a checksum.
             let base58_key = base_58_encode_with_checksum(&serialized_public_key.as_bytes());
+            let is_master_key = serialized_public_key.depth() == 0;
 
             // Zero the serialized public key; we're done with it.
             serialized_public_key.zero();
 
-            const LABEL: String16 = s16!("BIP 32 Extended Public Key");
-            write_string_program_output(&self.system_services, LABEL, String16::from(&base58_key));
+            let label = if is_master_key {
+                s16!("BIP 32 Master Public Key")
+            } else {
+                s16!("BIP 32 Child Public Key")
+            };
 
+            write_string_program_output(&self.system_services, label, String16::from(&base58_key));
             prompt_for_clipboard_write(
                 &self.system_services,
-                ClipboardEntry::String16(LABEL, base58_key.into()),
+                ClipboardEntry::String16(label, base58_key.into()),
             );
 
             ProgramExitResult::Success

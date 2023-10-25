@@ -16,22 +16,26 @@
 
 use crate::{
     bitcoin::{
+        base_58_encode_with_checksum,
         hd_wallets::{
-            DerivationPathPoint, SerializedExtendedKey, HARDENED_CHILD_DERIVATION_THRESHOLD,
-            MAX_DERIVATION_POINT,
+            Bip32DerivationPathPoint, Bip32KeyType, SerializedExtendedKey,
+            HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
         },
         validate_checksum_in,
     },
+    clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
-    integers::{BigUnsigned, NumericBase, NumericBases},
-    programs::{Program, ProgramExitResult},
+    cryptography::asymmetric::ecc::{secp256k1, EllipticCurvePoint},
+    hashing::{Hasher, Sha256, Sha512, RIPEMD160},
+    integers::{BigSigned, BigUnsigned, NumericBase, NumericBases},
+    programs::{console::write_string_program_output, Program, ProgramExitResult},
     system_services::SystemServices,
     ui::{
         console::{
-            prompt_for_data_input, prompt_for_u32, ConsoleUiConfirmationPrompt,
-            ConsoleUiContinuePrompt, ConsoleUiKeyValue, ConsoleUiLabel, ConsoleUiTitle,
-            ConsoleWriteable,
+            prompt_for_clipboard_write, prompt_for_data_input, prompt_for_u32,
+            ConsoleUiConfirmationPrompt, ConsoleUiContinuePrompt, ConsoleUiKeyValue,
+            ConsoleUiLabel, ConsoleUiTitle, ConsoleWriteable,
         },
         ConfirmationPrompt, ContinuePrompt, DataInput, DataInputType,
     },
@@ -172,8 +176,6 @@ impl<TSystemServices: SystemServices> Program
         // Create a vector for building up the derivation path.
         let mut derivation_path_points = Vec::new();
 
-        // Create a big unsigned to work with.
-        let mut working_big_unsigned = BigUnsigned::with_capacity(32);
         loop {
             loop {
                 // Prompt the user to enter a derivation path point.
@@ -200,7 +202,7 @@ impl<TSystemServices: SystemServices> Program
                     .prompt_for_confirmation(s16!("Harden this derivation path point?"));
 
                 // Add the point to the derivation path.
-                derivation_path_points.push(DerivationPathPoint::from(if is_hardened {
+                derivation_path_points.push(Bip32DerivationPathPoint::from(if is_hardened {
                     point_integer | HARDENED_CHILD_DERIVATION_THRESHOLD
                 } else {
                     point_integer
@@ -226,22 +228,7 @@ impl<TSystemServices: SystemServices> Program
             ConsoleUiLabel::from(s16!("Derivation Path")).write_to(&console);
             console.output_utf16(s16!("m/"));
             for point in &derivation_path_points {
-                // We write hardened derivation path points as "[x - 2^31]'/", and unhardened derivation path points as "[x]/".
-                let (point_numeric, point_terminator) = if point.is_for_hardened_key() {
-                    (point.numeric_value() & MAX_DERIVATION_POINT, s16!("'/"))
-                } else {
-                    (point.numeric_value(), s16!("/"))
-                };
-
-                working_big_unsigned.copy_digits_from(&point_numeric.to_be_bytes());
-                console.output_utf16(String16::from(
-                    &NumericBase::BASE_10.build_string_from_big_unsigned(
-                        &mut working_big_unsigned,
-                        true,
-                        1,
-                    ),
-                ));
-                console.output_utf16(point_terminator);
+                point.write_to(&console);
             }
 
             if ConsoleUiConfirmationPrompt::from(&self.system_services)
@@ -256,7 +243,99 @@ impl<TSystemServices: SystemServices> Program
             continue;
         }
 
-        // Derive child key.
-        todo!()
+        // Set up working types.
+        let mut sha512 = Sha512::new();
+        let mut sha256 = Sha256::new();
+        let mut ripemd160 = RIPEMD160::new();
+        let mut current_key = parent_key;
+        let mut private_key_buffer = BigUnsigned::with_capacity(32);
+        let mut working_point =
+            EllipticCurvePoint::from(BigSigned::with_capacity(32), BigSigned::with_capacity(32));
+        let mut multiplication_context = secp256k1::point_multiplication_context();
+
+        // Derive child key point by point.
+        for point in derivation_path_points {
+            console
+                .line_start()
+                .new_line()
+                .in_colours(constants::SUCCESS_COLOURS, |c| {
+                    c.output_utf16(s16!("Deriving "));
+                    point.write_to(c);
+                    c.output_utf16(s16!("..."))
+                });
+
+            let new_key = match point.try_derive_key_material_and_chain_code_from(
+                &mut sha512,
+                &mut sha256,
+                &mut ripemd160,
+                &parent_key,
+                &mut private_key_buffer,
+                &mut working_point,
+                &mut multiplication_context,
+            ) {
+                Ok(k) => k,
+                Err(e) => {
+                    // Something went wrong; we shouldn't expect this to actually happen.
+                    // Clear all our working values and return the error.
+                    sha512.reset();
+                    sha256.reset();
+                    ripemd160.reset();
+                    current_key.zero();
+                    private_key_buffer.zero();
+                    working_point.set_infinity();
+                    return e.to_program_error();
+                }
+            };
+
+            // Zero out the previous key.
+            current_key.zero();
+
+            // Continue with the newly derived key.
+            current_key = new_key;
+        }
+
+        // Serialize the resulting key.
+        let base58_key = base_58_encode_with_checksum(&current_key.as_bytes());
+
+        // Clear all the working values; we're done with them now.
+        sha512.reset();
+        sha256.reset();
+        ripemd160.reset();
+        current_key.zero();
+        private_key_buffer.zero();
+        working_point.set_infinity();
+
+        let label = match key_type {
+            Bip32KeyType::Private => s16!("BIP 32 Child Private Key"),
+            Bip32KeyType::Public => todo!("BIP 32 Child Public Key"),
+        };
+
+        write_string_program_output(&self.system_services, label, String16::from(&base58_key));
+        prompt_for_clipboard_write(
+            &self.system_services,
+            ClipboardEntry::String16(label, base58_key.into()),
+        );
+
+        ProgramExitResult::Success
+    }
+}
+
+impl ConsoleWriteable for Bip32DerivationPathPoint {
+    fn write_to<T: ConsoleOut>(&self, console: &T) {
+        // We write hardened derivation path points as "[x - 2^31]'/", and unhardened derivation path points as "[x]/".
+        let (point_numeric, point_terminator) = if self.is_for_hardened_key() {
+            (self.numeric_value() & MAX_DERIVATION_POINT, s16!("'/"))
+        } else {
+            (self.numeric_value(), s16!("/"))
+        };
+
+        console.output_utf16(String16::from(
+            &NumericBase::BASE_10.build_string_from_big_unsigned(
+                &mut BigUnsigned::from_be_bytes(&point_numeric.to_be_bytes()),
+                true,
+                1,
+            ),
+        ));
+        console.output_utf16(point_terminator);
     }
 }
