@@ -46,24 +46,34 @@ impl BigUnsignedCalculator {
             return true;
         }
 
-        // x = 0.set_bit_hight((value.bit_length() / 2) - 1)
-        // y = x
-        // loop {
-        // q = x
-        // r = value
-        // r /= div
-        // q += r
-        // q >>= 1
-        // if q == y || q == x {
-        // value.set_equal_to(if q < y { q } else { y })
-        // break
-        // }
-        //
-        // y.set_equal_to(x)
-        // x.set_equal_to(q)
-        // }
+        self.x.one();
+        self.x.left_shift(value.bit_length() / 2);
+        self.y.set_equal_to(&self.x);
 
-        todo!()
+        loop {
+            self.a.set_equal_to(&value);
+            self.a
+                .divide_big_unsigned_with_remainder(&self.x, &mut self.m);
+            self.a.add_big_unsigned(&self.x);
+            self.a.right_shift(1);
+
+            if self.a == self.x || self.a == self.y {
+                if self.x > self.y {
+                    value.set_equal_to(&self.y)
+                } else {
+                    value.set_equal_to(&self.x);
+                }
+
+                self.a.zero();
+                self.m.zero();
+                self.x.zero();
+                self.y.zero();
+                return true;
+            }
+
+            self.y.set_equal_to(&self.x);
+            self.x.set_equal_to(&self.a);
+        }
     }
 
     pub fn calculate_mod_inverse(
