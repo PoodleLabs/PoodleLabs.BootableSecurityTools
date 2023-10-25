@@ -73,7 +73,7 @@ impl<TSystemServices: SystemServices> Program
                 &[DataInputType::Bytes],
                 &self.system_services,
                 CANCEL_PROMPT,
-                s16!("Wallet Seed Bytes"),
+                s16!("Extended Private Key"),
             ) {
                 DataInput::Bytes(mut b) => {
                     // We should expect a 4 byte checksum at the end of the key, but it shouldn't break things if it's not present.
@@ -141,7 +141,7 @@ impl<TSystemServices: SystemServices> Program
                         b.fill(0);
                         console.in_colours(constants::ERROR_COLOURS, |c| {
                             c.line_start().new_line().output_utf16(s16!(
-                                "BIP 32 Master Keys must be exactly 78 bytes long."
+                                "BIP 32 extended keys are exactly 78 bytes in length (plus an optional 4 byte checksum)."
                             ))
                         });
                     }

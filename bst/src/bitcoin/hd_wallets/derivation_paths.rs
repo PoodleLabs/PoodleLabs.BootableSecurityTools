@@ -29,9 +29,8 @@ use macros::s16;
 // If a point in a derivation path is >= 2^31, we should derive a hardened key. If it's < 2^31, we should derive a normal key.
 // Hardened children can only be derived from the parent private key; this is desirable as the compromise of both an extended public key parent and
 // and non-hardened child private key descending from it is equivalent to knowing the parent extended private key, compromising the entire branch.
-const HARDENED_CHILD_DERIVATION_THRESHOLD: u32 = 0b10000000000000000000000000000000;
-
-const MAX_DERIVATION_POINT: u32 = !HARDENED_CHILD_DERIVATION_THRESHOLD;
+pub const HARDENED_CHILD_DERIVATION_THRESHOLD: u32 = 0b10000000000000000000000000000000;
+pub const MAX_DERIVATION_POINT: u32 = 0b01111111111111111111111111111111;
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 enum IlValidationResult {
@@ -46,6 +45,10 @@ pub struct DerivationPathPoint(u32);
 impl DerivationPathPoint {
     pub const fn is_for_hardened_key(&self) -> bool {
         self.0 >= HARDENED_CHILD_DERIVATION_THRESHOLD
+    }
+
+    pub const fn numeric_value(&self) -> u32 {
+        self.0
     }
 
     #[allow(dead_code)]

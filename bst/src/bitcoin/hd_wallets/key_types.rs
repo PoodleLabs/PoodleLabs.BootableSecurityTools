@@ -29,6 +29,15 @@ pub enum Bip32KeyType {
     Public,
 }
 
+impl Into<String16<'static>> for Bip32KeyType {
+    fn into(self) -> String16<'static> {
+        match self {
+            Bip32KeyType::Private => s16!("Private"),
+            Bip32KeyType::Public => s16!("Public"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Bip32KeyNetwork {
     MainNet,

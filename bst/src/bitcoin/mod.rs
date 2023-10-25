@@ -63,12 +63,18 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
     }
 
     // Extract the underlying big unsigned integer.
-    let integer = numeric_collector
+    let mut integer = numeric_collector
         .extract_big_unsigned()
         .take_data_ownership();
 
     // Build a base-58 string from the big integer.
-    NumericBase::BASE_58.build_string_from_big_unsigned(integer, false, 0)
+    let base_58_string =
+        NumericBase::BASE_58.build_string_from_big_unsigned(&mut integer, false, 0);
+
+    // Zero the integer; we're done with it.
+    integer.zero();
+
+    base_58_string
 }
 
 // Bitcoin uses a HASH160 in many places, which is RIPEMD160(Sha256(data)).
