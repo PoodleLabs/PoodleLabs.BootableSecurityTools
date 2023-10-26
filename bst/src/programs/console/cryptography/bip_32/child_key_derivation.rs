@@ -216,7 +216,7 @@ impl<TSystemServices: SystemServices> Program
                     .new_line()
                     .in_colours(constants::SUCCESS_COLOURS, |c| {
                         c.output_utf16_line(s16!(
-                            "A derivation path of 'm/' just returns m; there's no child to derive."
+                            "A derivation path of 'p/' just returns p; there's no child to derive."
                         ))
                     });
 
@@ -226,7 +226,12 @@ impl<TSystemServices: SystemServices> Program
 
             // Write out the derivation path for the user to confirm.
             ConsoleUiLabel::from(s16!("Derivation Path")).write_to(&console);
-            console.output_utf16(s16!("m/"));
+            console.output_utf16(if parent_key.depth() == 0 {
+                s16!("m/")
+            } else {
+                s16!("p/")
+            });
+
             for point in &derivation_path_points {
                 point.write_to(&console);
             }
@@ -268,7 +273,7 @@ impl<TSystemServices: SystemServices> Program
                 &mut sha512,
                 &mut sha256,
                 &mut ripemd160,
-                &parent_key,
+                &current_key,
                 &mut private_key_buffer,
                 &mut working_point,
                 &mut multiplication_context,
