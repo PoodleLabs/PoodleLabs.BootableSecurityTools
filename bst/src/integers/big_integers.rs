@@ -161,10 +161,6 @@ impl BigUnsigned {
         self.digits.len()
     }
 
-    pub fn bit_length(&self) -> usize {
-        self.digits.len() * 8
-    }
-
     pub fn is_non_zero(&self) -> bool {
         // The internal digits are always trimmed of leading zeroes, and we guarantee at least one digit.
         self.digits.len() > 1 || self.digits[0] != 0
@@ -535,72 +531,6 @@ impl BigUnsigned {
             // Perform the OR on each overlapping digit.
             operand_digits[i] |= operator_digits[i];
         } // OR can't zero out any digits, so there's no need to trim.
-    }
-
-    pub fn left_shift(&mut self, bits: usize) {
-        if bits == 0 || self.is_zero() {
-            return;
-        }
-
-        // How many whole digits are we shifting by.
-        let digit_shift = bits / 8;
-
-        // Internal bit shift count..
-        let bit_shift = bits - (digit_shift * 8);
-
-        if bit_shift == 0 {
-            // We only need to shift by whole digits; just right-pad the value and return.
-            self.digits.extend((0..digit_shift).map(|_| 0));
-            return;
-        }
-
-        // We are shifting by some number of digits (possibly 0), and some non-zero number of bits.
-        // We can achieve this by right-padding with the number of digits + 1, then right-shfiting.
-        self.digits.extend((0..digit_shift + 1).map(|_| 0));
-        self.right_shift_sub_digit(bit_shift);
-    }
-
-    pub fn right_shift(&mut self, bits: usize) {
-        if bits == 0 || self.is_zero() {
-            return;
-        }
-
-        // How many whole digits are we shifting by.
-        let digit_shift = bits / 8;
-
-        // If we're shifting by as many digits as we have, or more, we can just zero and return.
-        if digit_shift >= self.digit_count() {
-            self.zero();
-            return;
-        }
-
-        // Internal bit shift count.
-        let bit_shift = bits - (digit_shift * 8);
-
-        // First we just drop any whole digits we're shifting by.
-        let new_length = self.digit_count() - digit_shift;
-        self.digits[new_length..].fill(0);
-        self.digits.truncate(new_length);
-
-        // Then we shift the remaining value by the remaining number of bits.
-        self.right_shift_sub_digit(bit_shift)
-    }
-
-    fn right_shift_sub_digit(&mut self, bits: usize) {
-        // Iterate over the digits from least to most significant, except the most significant digit.
-        for i in (1..self.digit_count()).rev() {
-            // Shift the current digit.
-            self.digits[i] >>= bits;
-
-            // Shift in the bits from the next more significant digit.
-            self.digits[i] |= self.digits[i - 1] << (8 - bits);
-        }
-
-        // Shift the most significant digit.
-        self.digits[0] >>= bits;
-
-        // It's possible our first digit is now a leading zero.
-        self.trim_leading_zeroes();
     }
 }
 

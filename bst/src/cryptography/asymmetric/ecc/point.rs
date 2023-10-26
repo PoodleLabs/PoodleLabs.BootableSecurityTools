@@ -333,6 +333,10 @@ impl EllipticCurvePoint {
         Some(buffer)
     }
 
+    pub fn y(&self) -> &BigSigned {
+        &self.y
+    }
+
     pub fn add(
         &mut self,
         addend: &EllipticCurvePoint,

@@ -22,12 +22,16 @@ pub use point::{EllipticCurvePoint, COMPRESSED_Y_IS_EVEN_IDENTIFIER};
 
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
+    global_runtime_immutable::GlobalRuntimeImmutable,
     integers::{BigSigned, BigUnsigned, BigUnsignedCalculator},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::cmp::Ordering;
 
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
+
+static mut CUBE: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
+    GlobalRuntimeImmutable::from(|| BigUnsigned::from_be_bytes(&[0x03]));
 
 pub struct EllipticCurvePointAdditionContext {
     unsigned_calculator: BigUnsignedCalculator,
@@ -78,6 +82,7 @@ pub struct EllipticCurvePointMultiplicationContext {
     side_channel_mitigation_point: EllipticCurvePoint,
     comparison_box: Box<Option<Ordering>>,
     working_point: EllipticCurvePoint,
+    i: &'static BigUnsigned,
     b: &'static BigUnsigned,
     n: &'static BigUnsigned,
     bit_buffer: Vec<u8>,
@@ -87,6 +92,7 @@ impl EllipticCurvePointMultiplicationContext {
     pub fn new(
         n: &'static BigUnsigned,
         p: &'static BigUnsigned,
+        i: &'static BigUnsigned,
         a: &'static BigUnsigned,
         b: &'static BigUnsigned,
         integer_capacity: usize,
@@ -101,6 +107,7 @@ impl EllipticCurvePointMultiplicationContext {
             working_point: EllipticCurvePoint::infinity(integer_capacity),
             bit_buffer: vec![0u8; n.digit_count()],
             comparison_box: Box::from(None),
+            i,
             b,
             n,
         }
@@ -294,52 +301,50 @@ impl EllipticCurvePointMultiplicationContext {
         x: &BigUnsigned,
         y_out: &mut BigUnsigned,
     ) {
-        // Assumes X is normalized.
+        // y_out = x
+        y_out.set_equal_to(x);
 
-        // Get working buffers.
-        let (v, w) = self.working_point.borrow_coordinates_mut();
-        let (v, w) = (v.borrow_unsigned_mut(), w.borrow_unsigned_mut());
-
-        // v = x
-        v.set_equal_to(x);
-
-        // v = x * x = x^2
-        v.multiply_big_unsigned(x);
-
-        // w = x * x (mod p)
-        v.divide_big_unsigned_with_remainder(self.addition_context.p, w);
-
-        // w = (x * x (mod p)) * x
-        w.multiply_big_unsigned(x);
-
-        // v = x^3 (mod p)
-        w.divide_big_unsigned_with_remainder(self.addition_context.p, v);
-
-        // w = x
-        w.set_equal_to(x);
-
-        // w = x * a
-        w.multiply_big_unsigned(self.addition_context.a);
-
-        // y_out = x * a (mod p)
-        w.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
-
-        // v = (x^3 (mod p)) + (x * a (mod p))
-        v.add_big_unsigned(&y_out);
-
-        // w = x^3 + ax (mod p)
-        v.divide_big_unsigned_with_remainder(self.addition_context.p, w);
-
-        // w = (x^3 + ax (mod p)) + b
-        w.add_big_unsigned(self.b);
-
-        // y_out = (x^3 + ax + b (mod p) = y^2
-        w.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
-
-        // y_out = sqrt(y_out) = y
+        // y_out = x^3 mod p
         self.addition_context
             .unsigned_calculator
-            .calculate_square_root(y_out);
+            .modpow(y_out, cube(), self.addition_context.p);
+
+        // Grab two BigUnsigned working buffers from the multiplication context.
+        let (wb1, wb2) = self.working_point.borrow_coordinates_mut();
+        let (wb1, wb2) = (wb1.borrow_unsigned_mut(), wb2.borrow_unsigned_mut());
+
+        if self.addition_context.a.is_non_zero() {
+            // wb1 = a
+            wb1.set_equal_to(self.addition_context.a);
+
+            // wb1 = a * x
+            wb1.multiply_big_unsigned(x);
+
+            // wb1 = (a * x) mod p
+            wb2.divide_big_unsigned_with_remainder(self.addition_context.p, wb1);
+
+            // wb1 = (x^3 mod p) + ((a * x) mod p)
+            wb1.add_big_unsigned(&y_out);
+
+            // y_out = x^3 + ax (mod p)
+            wb1.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
+        }
+
+        if self.b.is_non_zero() {
+            // wb1 = b
+            wb1.set_equal_to(self.b);
+
+            // wb1 = (x^3 + ax (mod p)) + b
+            wb1.add_big_unsigned(&y_out);
+
+            // y_out = x^3 + ax + b (mod p)
+            wb1.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
+        }
+
+        // sqrt shortcut for curve where p mod 3 = 1
+        self.addition_context
+            .unsigned_calculator
+            .modpow(y_out, self.i, self.addition_context.p);
 
         if y_is_even != y_out.is_even() {
             // Y has two possible values given an X coordinate; if the calculated Y's evenness does not match
@@ -347,6 +352,8 @@ impl EllipticCurvePointMultiplicationContext {
             // This is equivalent to calculating the difference, as P will always be larger.
             y_out.difference_big_unsigned(self.addition_context.p);
         }
+
+        self.working_point.set_infinity();
     }
 
     pub fn borrow_addition_context(&mut self) -> &mut EllipticCurvePointAdditionContext {
@@ -364,4 +371,8 @@ impl EllipticCurvePointMultiplicationContext {
         self.working_point.set_infinity();
         self.side_channel_mitigation_point.set_infinity();
     }
+}
+
+fn cube() -> &'static BigUnsigned {
+    unsafe { CUBE.value() }
 }
