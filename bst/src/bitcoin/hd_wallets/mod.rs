@@ -22,7 +22,7 @@ pub use derivation_paths::{
     Bip32DerivationPathPoint, HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
 };
 pub use key_types::{Bip32KeyNetwork, Bip32KeyType, Bip32KeyVersion};
-pub use serialized_extended_key::SerializedExtendedKey;
+pub use serialized_extended_key::Bip32SerializedExtendedKey;
 
 use super::hash_160_with;
 use crate::{
@@ -37,7 +37,7 @@ const KEY_DERIVATION_KEY_BYTES: &[u8] = "Bitcoin seed".as_bytes();
 pub fn try_derive_master_key(
     key_network: Bip32KeyNetwork,
     bytes: &[u8],
-) -> Option<SerializedExtendedKey> {
+) -> Option<Bip32SerializedExtendedKey> {
     if bytes.len() < 16 || bytes.len() > 64 {
         // BIP 32 defines a valid seed byte sequence S of length 128 to 512 bits.
         return None;
@@ -67,7 +67,7 @@ pub fn try_derive_master_key(
     // Fill HMAC copy of key & chain code.
     hmac_result.fill(0);
 
-    Some(SerializedExtendedKey::from(
+    Some(Bip32SerializedExtendedKey::from(
         key_network.private_key_version_bytes(),
         0,
         [0, 0, 0, 0],

@@ -18,7 +18,7 @@ use super::{Bip32KeyType, Bip32KeyVersion};
 use crate::String16;
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct SerializedExtendedKey {
+pub struct Bip32SerializedExtendedKey {
     version: [u8; 4],
     depth: u8,
     parent_fingerprint: [u8; 4],
@@ -27,7 +27,7 @@ pub struct SerializedExtendedKey {
     key_material: [u8; 33],
 }
 
-impl SerializedExtendedKey {
+impl Bip32SerializedExtendedKey {
     pub const fn from(
         version: [u8; 4],
         depth: u8,

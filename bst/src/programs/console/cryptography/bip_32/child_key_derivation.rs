@@ -18,7 +18,7 @@ use crate::{
     bitcoin::{
         base_58_encode_with_checksum,
         hd_wallets::{
-            Bip32DerivationPathPoint, Bip32KeyType, SerializedExtendedKey,
+            Bip32DerivationPathPoint, Bip32KeyType, Bip32SerializedExtendedKey,
             HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
         },
         validate_checksum_in,
@@ -104,7 +104,7 @@ impl<TSystemServices: SystemServices> Program
                     // Extended keys are exactly 78 bytes in length.
                     if b.len() == 78 {
                         // Deserialize the extended key.
-                        let serialized_key = match SerializedExtendedKey::from_bytes(&b) {
+                        let serialized_key = match Bip32SerializedExtendedKey::from_bytes(&b) {
                             Some(k) => k,
                             None => {
                                 return s16!("Failed to deserialize extended key.")

@@ -548,4 +548,9 @@ impl EllipticCurvePoint {
             .slope
             .divide_big_unsigned_with_signed_modulus(addition_context.p, &mut self.y);
     }
+
+    pub unsafe fn set_not_infinity(&mut self) {
+        // Only to be used when the coordinates have been manually written to.
+        self.is_infinity = false;
+    }
 }

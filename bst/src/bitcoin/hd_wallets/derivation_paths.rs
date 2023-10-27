@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{fingerprint_key_with, Bip32KeyType, SerializedExtendedKey};
+use super::{fingerprint_key_with, Bip32KeyType, Bip32SerializedExtendedKey};
 use crate::{
     cryptography::asymmetric::ecc::{
         self, secp256k1, EllipticCurvePoint, EllipticCurvePointMultiplicationContext,
@@ -57,11 +57,11 @@ impl Bip32DerivationPathPoint {
         sha512: &mut Sha512,
         sha256: &mut Sha256,
         ripemd160: &mut RIPEMD160,
-        parent_key: &SerializedExtendedKey,
+        parent_key: &Bip32SerializedExtendedKey,
         private_key_buffer: &mut BigUnsigned,
         point_buffer: &mut EllipticCurvePoint,
         multiplication_context: &mut EllipticCurvePointMultiplicationContext,
-    ) -> Result<SerializedExtendedKey, String16<'static>> {
+    ) -> Result<Bip32SerializedExtendedKey, String16<'static>> {
         if parent_key.depth() == u8::MAX {
             return Err(s16!("Maximum key depth reached."));
         }
@@ -166,21 +166,24 @@ impl Bip32DerivationPathPoint {
                 let mut parent_public_key = [0u8; 33];
                 parent_public_key.copy_from_slice(parent_key.key_material());
 
-                {
-                    let (x, y) = point_buffer.borrow_coordinates_mut();
-                    // Write the X coordinate of the parent public key into the working point.
-                    x.copy_digits_from(&parent_public_key[1..], false);
-
-                    // Ensure the working point's Y value is positive.
-                    y.set_sign(false);
-
-                    // Calculate the Y coordinate of the parent public key's point and write into the working point Y coordinate.
-                    multiplication_context.calculate_y_from_x(
-                        parent_public_key[0] == ecc::COMPRESSED_Y_IS_EVEN_IDENTIFIER,
-                        x.borrow_unsigned(),
-                        y.borrow_unsigned_mut(),
-                    );
+                // We're going to manually write coordinates to the point buffer; first we need to manually ensure it's not set to infinity.
+                unsafe {
+                    point_buffer.set_not_infinity();
                 }
+
+                let (x, y) = point_buffer.borrow_coordinates_mut();
+                // Write the X coordinate of the parent public key into the working point.
+                x.copy_digits_from(&parent_public_key[1..], false);
+
+                // Ensure the working point's Y value is positive.
+                y.set_sign(false);
+
+                // Calculate the Y coordinate of the parent public key's point and write into the working point Y coordinate.
+                multiplication_context.calculate_y_from_x(
+                    parent_public_key[0] == ecc::COMPRESSED_Y_IS_EVEN_IDENTIFIER,
+                    x.borrow_unsigned(),
+                    y.borrow_unsigned_mut(),
+                );
 
                 let key_material = loop {
                     // The hash data's last 4 bytes are the index.
@@ -232,7 +235,7 @@ impl Bip32DerivationPathPoint {
         // Zero out the HMAC buffer; we don't need it anymore.
         hmac_buffer.fill(0);
 
-        Ok(SerializedExtendedKey::from(
+        Ok(Bip32SerializedExtendedKey::from(
             parent_key.clone_version_bytes(),
             parent_key.depth() + 1,
             fingerprint_key_with(&parent_public_key, sha256, ripemd160),
