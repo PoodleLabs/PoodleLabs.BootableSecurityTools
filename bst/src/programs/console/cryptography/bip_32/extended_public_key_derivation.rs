@@ -215,7 +215,7 @@ impl<TSystemServices: SystemServices> Program
             private_key.zero();
 
             // Serialize the public key.
-            let serialized_public_key = match serialized_private_key.to_public_key(
+            let serialized_public_key = match serialized_private_key.build_public_key_variant_from(
                 match serialized_public_key_bytes(point) {
                     Some(k) => k,
                     None => {

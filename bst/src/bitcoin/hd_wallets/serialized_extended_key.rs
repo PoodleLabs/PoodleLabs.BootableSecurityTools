@@ -91,7 +91,7 @@ impl Bip32SerializedExtendedKey {
         self.depth
     }
 
-    pub fn to_public_key(&self, key_material: [u8; 33]) -> Option<Self> {
+    pub fn build_public_key_variant_from(&self, key_material: [u8; 33]) -> Option<Self> {
         let network = match self.try_get_key_version() {
             Ok(t) => {
                 if t.key_type() != Bip32KeyType::Private {
