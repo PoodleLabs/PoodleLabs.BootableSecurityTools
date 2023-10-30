@@ -19,7 +19,8 @@ mod key_types;
 mod serialized_extended_key;
 
 pub use derivation_paths::{
-    Bip32DerivationPathPoint, HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
+    Bip32CkdDerivationContext, Bip32DerivationPathPoint, HARDENED_CHILD_DERIVATION_THRESHOLD,
+    MAX_DERIVATION_POINT,
 };
 pub use key_types::{Bip32KeyNetwork, Bip32KeyType, Bip32KeyVersion};
 pub use serialized_extended_key::Bip32SerializedExtendedKey;

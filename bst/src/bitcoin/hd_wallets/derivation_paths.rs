@@ -262,6 +262,69 @@ impl Bip32DerivationPathPoint {
     }
 }
 
+pub struct Bip32CkdDerivationContext {
+    sha512: Sha512,
+    hash160: Hash160,
+    private_key_buffer: BigUnsigned,
+    point_buffer: EllipticCurvePoint,
+    multiplication_context: EllipticCurvePointMultiplicationContext,
+}
+
+impl Bip32CkdDerivationContext {
+    pub fn new() -> Self {
+        Self {
+            multiplication_context: secp256k1::point_multiplication_context(),
+            point_buffer: EllipticCurvePoint::infinity(32),
+            private_key_buffer: BigUnsigned::with_capacity(32),
+            hash160: Hash160::new(),
+            sha512: Sha512::new(),
+        }
+    }
+
+    pub fn derive<F: Fn(&Bip32DerivationPathPoint)>(
+        &mut self,
+        progress_reporter: F,
+        parent_key: Bip32SerializedExtendedKey,
+        derivation_path: &[Bip32DerivationPathPoint],
+    ) -> Result<Bip32SerializedExtendedKey, String16<'static>> {
+        let mut current_key = parent_key;
+        for point in derivation_path {
+            progress_reporter(point);
+
+            let new_key = match point.try_derive_key_material_and_chain_code_from(
+                &mut self.sha512,
+                &mut self.hash160,
+                &current_key,
+                &mut self.private_key_buffer,
+                &mut self.point_buffer,
+                &mut self.multiplication_context,
+            ) {
+                Ok(k) => k,
+                Err(e) => {
+                    // Something went wrong; we shouldn't expect this to actually happen.
+                    // Clear all our working values and return the error.
+                    return Err(e);
+                }
+            };
+
+            // Zero out the previous key.
+            current_key.zero();
+
+            // Continue with the newly derived key.
+            current_key = new_key;
+        }
+
+        Ok(current_key)
+    }
+
+    pub fn reset(&mut self) {
+        self.point_buffer.set_infinity();
+        self.private_key_buffer.zero();
+        self.hash160.reset();
+        self.sha512.reset();
+    }
+}
+
 impl From<u32> for Bip32DerivationPathPoint {
     fn from(value: u32) -> Self {
         Self(value)

@@ -18,17 +18,15 @@ use crate::{
     bitcoin::{
         base_58_encode_with_checksum,
         hd_wallets::{
-            Bip32DerivationPathPoint, Bip32KeyType, Bip32SerializedExtendedKey,
-            HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
+            Bip32CkdDerivationContext, Bip32DerivationPathPoint, Bip32KeyType,
+            Bip32SerializedExtendedKey, HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
         },
-        validate_checksum_in, Hash160,
+        validate_checksum_in,
     },
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
-    cryptography::asymmetric::ecc::{secp256k1, EllipticCurvePoint},
-    hashing::{Hasher, Sha512},
-    integers::{BigSigned, BigUnsigned, NumericBase, NumericBases},
+    integers::{BigUnsigned, NumericBase, NumericBases},
     programs::{console::write_string_program_output, Program, ProgramExitResult},
     system_services::SystemServices,
     ui::{
@@ -248,61 +246,30 @@ impl<TSystemServices: SystemServices> Program
             continue;
         }
 
-        // Set up working types.
-        let mut sha512 = Sha512::new();
-        let mut hash160 = Hash160::new();
-        let mut current_key = parent_key;
-        let mut private_key_buffer = BigUnsigned::with_capacity(32);
-        let mut working_point =
-            EllipticCurvePoint::from(BigSigned::with_capacity(32), BigSigned::with_capacity(32));
-        let mut multiplication_context = secp256k1::point_multiplication_context();
+        let mut context = Bip32CkdDerivationContext::new();
+        let child_key = match context.derive(
+            |p| {
+                console
+                    .line_start()
+                    .new_line()
+                    .in_colours(constants::SUCCESS_COLOURS, |c| {
+                        c.output_utf16(s16!("Deriving "));
+                        p.write_to(c);
+                        c.output_utf16(s16!("..."))
+                    });
+            },
+            parent_key,
+            &derivation_path_points,
+        ) {
+            Err(e) => return e.to_program_error(),
+            Ok(k) => k,
+        };
 
-        // Derive child key point by point.
-        for point in derivation_path_points {
-            console
-                .line_start()
-                .new_line()
-                .in_colours(constants::SUCCESS_COLOURS, |c| {
-                    c.output_utf16(s16!("Deriving "));
-                    point.write_to(c);
-                    c.output_utf16(s16!("..."))
-                });
-
-            let new_key = match point.try_derive_key_material_and_chain_code_from(
-                &mut sha512,
-                &mut hash160,
-                &current_key,
-                &mut private_key_buffer,
-                &mut working_point,
-                &mut multiplication_context,
-            ) {
-                Ok(k) => k,
-                Err(e) => {
-                    // Something went wrong; we shouldn't expect this to actually happen.
-                    // Clear all our working values and return the error.
-                    sha512.reset();
-                    current_key.zero();
-                    private_key_buffer.zero();
-                    working_point.set_infinity();
-                    return e.to_program_error();
-                }
-            };
-
-            // Zero out the previous key.
-            current_key.zero();
-
-            // Continue with the newly derived key.
-            current_key = new_key;
-        }
+        // Clear working data in the context.
+        context.reset();
 
         // Serialize the resulting key.
-        let base58_key = base_58_encode_with_checksum(&current_key.as_bytes());
-
-        // Clear all the working values; we're done with them now.
-        sha512.reset();
-        current_key.zero();
-        private_key_buffer.zero();
-        working_point.set_infinity();
+        let base58_key = base_58_encode_with_checksum(&child_key.as_bytes());
 
         let label = match key_type {
             Bip32KeyType::Private => s16!("BIP 32 Child Private Key"),
