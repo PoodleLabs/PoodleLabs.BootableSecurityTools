@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{fingerprint_key_with, Bip32KeyType, Bip32SerializedExtendedKey};
+use super::{Bip32KeyType, Bip32SerializedExtendedKey};
 use crate::{
+    bitcoin::Hash160,
     cryptography::asymmetric::ecc::{
         self, secp256k1, EllipticCurvePoint, EllipticCurvePointMultiplicationContext,
     },
-    hashing::{Hasher, Sha256, Sha512, RIPEMD160},
+    hashing::{Hasher, Sha512},
     integers::BigUnsigned,
     String16,
 };
@@ -54,8 +55,7 @@ impl Bip32DerivationPathPoint {
     pub fn try_derive_key_material_and_chain_code_from(
         &self,
         sha512: &mut Sha512,
-        sha256: &mut Sha256,
-        ripemd160: &mut RIPEMD160,
+        hash160: &mut Hash160,
         parent_key: &Bip32SerializedExtendedKey,
         private_key_buffer: &mut BigUnsigned,
         point_buffer: &mut EllipticCurvePoint,
@@ -237,7 +237,7 @@ impl Bip32DerivationPathPoint {
         Ok(Bip32SerializedExtendedKey::from(
             parent_key.clone_version_bytes(),
             parent_key.depth() + 1,
-            fingerprint_key_with(&parent_public_key, sha256, ripemd160),
+            hash160.fingerprint(&parent_public_key),
             index.to_be_bytes(),
             chain_code,
             key_material,

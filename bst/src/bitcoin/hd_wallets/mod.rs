@@ -24,10 +24,9 @@ pub use derivation_paths::{
 pub use key_types::{Bip32KeyNetwork, Bip32KeyType, Bip32KeyVersion};
 pub use serialized_extended_key::Bip32SerializedExtendedKey;
 
-use super::hash_160_with;
 use crate::{
     cryptography::asymmetric::ecc::secp256k1,
-    hashing::{Hasher, Sha256, Sha512, RIPEMD160},
+    hashing::{Hasher, Sha512},
     integers::BigUnsigned,
 };
 
@@ -75,18 +74,4 @@ pub fn try_derive_master_key(
         chain_code,
         key_material,
     ))
-}
-
-pub fn fingerprint_key_with(
-    public_key: &[u8],
-    sha256: &mut Sha256,
-    ripemd160: &mut RIPEMD160,
-) -> [u8; 4] {
-    let mut fingerprint = [0u8; 4];
-    let mut hash_160 = hash_160_with(public_key, sha256, ripemd160);
-    fingerprint.copy_from_slice(&hash_160[..4]);
-    ripemd160.reset();
-    hash_160.fill(0);
-    sha256.reset();
-    fingerprint
 }

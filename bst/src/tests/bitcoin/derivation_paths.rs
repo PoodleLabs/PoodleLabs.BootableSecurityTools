@@ -15,11 +15,15 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::hd_wallets::{
-        Bip32DerivationPathPoint, Bip32SerializedExtendedKey, HARDENED_CHILD_DERIVATION_THRESHOLD,
+    bitcoin::{
+        hd_wallets::{
+            Bip32DerivationPathPoint, Bip32SerializedExtendedKey,
+            HARDENED_CHILD_DERIVATION_THRESHOLD,
+        },
+        Hash160,
     },
     cryptography::asymmetric::ecc::{secp256k1, EllipticCurvePoint},
-    hashing::{Hasher, Sha256, Sha512, RIPEMD160},
+    hashing::{Hasher, Sha512},
     integers::{BigSigned, BigUnsigned},
 };
 use hex_literal::hex;
@@ -31,8 +35,7 @@ pub fn private_child_key_derivation_yields_expected_results() {
     let private_parent_key = Bip32SerializedExtendedKey::from_bytes(&hex!("0488ADE40000000000000000007923408DADD3C7B56EED15567707AE5E5DCA089DE972E07F3B860450E2A3B70E001837C1BE8E2995EC11CDA2B066151BE2CFB48ADF9E47B151D46ADAB3A21CDF67")).unwrap();
 
     let mut sha512 = Sha512::new();
-    let mut sha256 = Sha256::new();
-    let mut ripemd160 = RIPEMD160::new();
+    let mut hash160 = Hash160::new();
     let mut current_key = private_parent_key;
     let mut private_key_buffer = BigUnsigned::with_capacity(32);
     let mut working_point =
@@ -51,8 +54,7 @@ pub fn private_child_key_derivation_yields_expected_results() {
         current_key = point
             .try_derive_key_material_and_chain_code_from(
                 &mut sha512,
-                &mut sha256,
-                &mut ripemd160,
+                &mut hash160,
                 &current_key,
                 &mut private_key_buffer,
                 &mut working_point,
@@ -73,8 +75,7 @@ pub fn public_child_key_derivation_yields_expected_results() {
     let public_parent_key = Bip32SerializedExtendedKey::from_bytes(&hex!("0488B21E0000000000000000007923408DADD3C7B56EED15567707AE5E5DCA089DE972E07F3B860450E2A3B70E03D902F35F560E0470C63313C7369168D9D7DF2D49BF295FD9FB7CB109CCEE0494")).unwrap();
 
     let mut sha512 = Sha512::new();
-    let mut sha256 = Sha256::new();
-    let mut ripemd160 = RIPEMD160::new();
+    let mut hash160 = Hash160::new();
     let mut current_key = public_parent_key;
     let mut private_key_buffer = BigUnsigned::with_capacity(32);
     let mut working_point =
@@ -91,8 +92,7 @@ pub fn public_child_key_derivation_yields_expected_results() {
         current_key = point
             .try_derive_key_material_and_chain_code_from(
                 &mut sha512,
-                &mut sha256,
-                &mut ripemd160,
+                &mut hash160,
                 &current_key,
                 &mut private_key_buffer,
                 &mut working_point,
@@ -113,8 +113,7 @@ pub fn public_child_key_derivation_doesnt_do_hardened_derivation() {
     let public_parent_key = Bip32SerializedExtendedKey::from_bytes(&hex!("0488B21E0000000000000000007923408DADD3C7B56EED15567707AE5E5DCA089DE972E07F3B860450E2A3B70E03D902F35F560E0470C63313C7369168D9D7DF2D49BF295FD9FB7CB109CCEE0494")).unwrap();
 
     let mut sha512 = Sha512::new();
-    let mut sha256 = Sha256::new();
-    let mut ripemd160 = RIPEMD160::new();
+    let mut hash160 = Hash160::new();
     let mut private_key_buffer = BigUnsigned::with_capacity(32);
     let mut working_point =
         EllipticCurvePoint::from(BigSigned::with_capacity(32), BigSigned::with_capacity(32));
@@ -125,8 +124,7 @@ pub fn public_child_key_derivation_doesnt_do_hardened_derivation() {
         Bip32DerivationPathPoint::from(0 | HARDENED_CHILD_DERIVATION_THRESHOLD)
             .try_derive_key_material_and_chain_code_from(
                 &mut sha512,
-                &mut sha256,
-                &mut ripemd160,
+                &mut hash160,
                 &public_parent_key,
                 &mut private_key_buffer,
                 &mut working_point,

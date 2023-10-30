@@ -21,13 +21,13 @@ use crate::{
             Bip32DerivationPathPoint, Bip32KeyType, Bip32SerializedExtendedKey,
             HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
         },
-        validate_checksum_in,
+        validate_checksum_in, Hash160,
     },
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,
     cryptography::asymmetric::ecc::{secp256k1, EllipticCurvePoint},
-    hashing::{Hasher, Sha256, Sha512, RIPEMD160},
+    hashing::{Hasher, Sha512},
     integers::{BigSigned, BigUnsigned, NumericBase, NumericBases},
     programs::{console::write_string_program_output, Program, ProgramExitResult},
     system_services::SystemServices,
@@ -250,8 +250,7 @@ impl<TSystemServices: SystemServices> Program
 
         // Set up working types.
         let mut sha512 = Sha512::new();
-        let mut sha256 = Sha256::new();
-        let mut ripemd160 = RIPEMD160::new();
+        let mut hash160 = Hash160::new();
         let mut current_key = parent_key;
         let mut private_key_buffer = BigUnsigned::with_capacity(32);
         let mut working_point =
@@ -271,8 +270,7 @@ impl<TSystemServices: SystemServices> Program
 
             let new_key = match point.try_derive_key_material_and_chain_code_from(
                 &mut sha512,
-                &mut sha256,
-                &mut ripemd160,
+                &mut hash160,
                 &current_key,
                 &mut private_key_buffer,
                 &mut working_point,
@@ -283,8 +281,6 @@ impl<TSystemServices: SystemServices> Program
                     // Something went wrong; we shouldn't expect this to actually happen.
                     // Clear all our working values and return the error.
                     sha512.reset();
-                    sha256.reset();
-                    ripemd160.reset();
                     current_key.zero();
                     private_key_buffer.zero();
                     working_point.set_infinity();
@@ -304,8 +300,6 @@ impl<TSystemServices: SystemServices> Program
 
         // Clear all the working values; we're done with them now.
         sha512.reset();
-        sha256.reset();
-        ripemd160.reset();
         current_key.zero();
         private_key_buffer.zero();
         working_point.set_infinity();

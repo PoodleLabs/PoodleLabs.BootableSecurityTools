@@ -28,9 +28,10 @@ pub struct RIPEMD160 {
 }
 
 impl RIPEMD160 {
+    pub const HASH_SIZE: usize = 20;
+
     const ALGORITHM_NAME: String16<'static> = s16!("RIPEMD160");
     const BLOCK_SIZE: usize = 64;
-    const HASH_SIZE: usize = 20;
 
     const SEED: [u32; 5] = [0x67452301, 0xEfCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
 
