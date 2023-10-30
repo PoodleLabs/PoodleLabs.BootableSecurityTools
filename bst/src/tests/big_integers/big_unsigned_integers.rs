@@ -318,6 +318,35 @@ fn big_unsigned_random_divide() {
 }
 
 #[test]
+fn big_unsigned_random_modulo() {
+    (0..PARALLELIZED_TEST_THREAD_COUNT)
+        .into_par_iter()
+        .for_each(|i| {
+            let iterations = if i == PARALLELIZED_TEST_THREAD_COUNT - 1 {
+                RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
+                    + RANDOM_ITERATIONS % PARALLELIZED_TEST_THREAD_COUNT
+            } else {
+                RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
+            };
+
+            for _ in 0..iterations {
+                let (mut b1, r1) = random_big_unsigned(16);
+                let (b2, r2) = random_big_unsigned(16);
+                println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
+                println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
+
+                let success = b1.modulo_big_unsigned(&b2);
+                if r2 == 0 {
+                    assert!(!success);
+                } else {
+                    assert!(success);
+                    assert_eq!(big_unsigned_to_u128(&b1), r1 % r2);
+                }
+            }
+        });
+}
+
+#[test]
 fn big_unsigned_random_difference() {
     for _ in 0..RANDOM_ITERATIONS {
         let (mut b1, r1) = random_big_unsigned(16);

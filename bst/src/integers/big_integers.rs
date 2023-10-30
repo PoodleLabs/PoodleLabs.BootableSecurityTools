@@ -338,6 +338,17 @@ macro_rules! simple_operation_implement_unsigned_type {
     };
 }
 
+macro_rules! fallible_operation_implement_unsigned_type {
+    ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
+        $(
+            #[allow(dead_code)]
+            pub fn $operation_name(&mut self, operator: $operator_type) -> bool {
+                self.$digits_name(&operator.to_be_bytes())
+            }
+        )*
+    };
+}
+
 macro_rules! simple_operation_implement_unsigned_types {
     ($($digits_name:ident: $u8_name:ident, $u16_name:ident, $u32_name:ident, $usize_name:ident, $u64_name:ident, $u128_name:ident, $big_unsigned_name:ident,)*) => {
     $(
@@ -358,11 +369,42 @@ macro_rules! simple_operation_implement_unsigned_types {
     }
 }
 
+macro_rules! fallible_operation_implement_unsigned_types {
+    ($($digits_name:ident: $u8_name:ident, $u16_name:ident, $u32_name:ident, $usize_name:ident, $u64_name:ident, $u128_name:ident, $big_unsigned_name:ident,)*) => {
+    $(
+        fallible_operation_implement_unsigned_type!(
+            ($digits_name, $u8_name): u8,
+            ($digits_name, $u16_name): u16,
+            ($digits_name, $u32_name): u32,
+            ($digits_name, $usize_name): usize,
+            ($digits_name, $u64_name): u64,
+            ($digits_name, $u128_name): u128,
+        );
+
+        #[allow(dead_code)]
+        pub fn $big_unsigned_name(&mut self, value: &BigUnsigned) -> bool {
+            self.$digits_name(&value.digits)
+        }
+    )*
+    }
+}
+
 macro_rules! simple_operation_implement_signed_type {
     ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
         $(
             #[allow(dead_code)]
             pub fn $operation_name(&mut self, operator: $operator_type) {
+                self.$digits_name(&operator.unsigned_abs().to_be_bytes(), operator < 0)
+            }
+        )*
+    };
+}
+
+macro_rules! fallible_operation_implement_signed_type {
+    ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
+        $(
+            #[allow(dead_code)]
+            pub fn $operation_name(&mut self, operator: $operator_type) -> bool {
                 self.$digits_name(&operator.unsigned_abs().to_be_bytes(), operator < 0)
             }
         )*
@@ -383,6 +425,26 @@ macro_rules! simple_operation_implement_signed_types {
 
         #[allow(dead_code)]
         pub fn $big_unsigned_name(&mut self, value: &BigSigned) {
+            self.$digits_name(&value.big_unsigned.digits, value.is_negative)
+        }
+    )*
+    }
+}
+
+macro_rules! fallible_operation_implement_signed_types {
+    ($($digits_name:ident: $i8_name:ident, $i16_name:ident, $i32_name:ident, $isize_name:ident, $i64_name:ident, $i128_name:ident, $big_unsigned_name:ident,)*) => {
+    $(
+        fallible_operation_implement_signed_type!(
+            ($digits_name, $i8_name): i8,
+            ($digits_name, $i16_name): i16,
+            ($digits_name, $i32_name): i32,
+            ($digits_name, $isize_name): isize,
+            ($digits_name, $i64_name): i64,
+            ($digits_name, $i128_name): i128,
+        );
+
+        #[allow(dead_code)]
+        pub fn $big_unsigned_name(&mut self, value: &BigSigned) -> bool {
             self.$digits_name(&value.big_unsigned.digits, value.is_negative)
         }
     )*
@@ -924,6 +986,11 @@ impl BigUnsigned {
         // We can definitely perform the division at this point, so ensure the remainder buffer is zeroed out.
         remainder_buffer.fill(0);
 
+        if self.is_zero() {
+            // The dividend is zero; 0 / X = 0 r0, and we already zeroed out the remainder buffer, so we can just return.
+            return true;
+        }
+
         // Get a window into the remainder buffer which can be written to without worrying about leading zero digits.
         let remainder_buffer_length = remainder_buffer.len();
         let remainder_digits =
@@ -941,11 +1008,6 @@ impl BigUnsigned {
             return true;
         }
 
-        if self.is_zero() {
-            // The dividend is zero; 0 / X = 0 r0, and we already zeroed out the remainder buffer, so we can just return.
-            return true;
-        }
-
         match cmp(&self.digits, divisor_digits) {
             Ordering::Less => {
                 // The dividend is less than the divisor. Where X < Y, X / Y = 0, and X % Y = X.
@@ -957,156 +1019,83 @@ impl BigUnsigned {
             Ordering::Equal => {
                 // The dividend is equal to the divisor. Where X == Y, X / Y = 1, and X % Y = 0.
                 // We can just mutate the dividend to equal one, and return.
-                self.digits.truncate(1);
-                self.digits[0] = 1;
+                self.one();
             }
             Ordering::Greater => {
-                // Add a leading zero to the dividend to ensure we have space to fit both the quotient and the remainder.
-                self.digits.insert(0, 0);
+                // The internal divide method returns two values; the number of digits in the quotient, and the start
+                // offset for the remainder's digits. This resutls in two values:
+                // q = digits[..quotient_length]
+                // r = digits[remainder_start..]
 
-                // Track the length of the working quotient and remainder; we will overwrite the dividend
-                // using subtraction over a shifting window of digits.
-                let mut quotient_len = 0;
+                let (quotient_length, remainder_start) = self.internal_divide(divisor_digits);
 
-                // We added a leading zero; we can skip that for iterative division.
-                let mut remainder_off = 1;
-
-                // Start with a window with a length equal to the divisor length; we can't do anything while the working remainder
-                // is less than the divisor, and with fewer digits, it is guaranteed to be less.
-                let mut remainder_len = divisor_digits.len();
-                loop {
-                    let mut remainder = if remainder_off + remainder_len > self.digits.len() {
-                        // We've reached the end of the dividend.
-                        match Self::first_non_zero_digit_index(&self.digits[remainder_off..]) {
-                            Some(i) => {
-                                // There are non-zero digits remaining in the working remainder. Extract them.
-                                let remainder = &mut self.digits[remainder_off + i..];
-                                match cmp(remainder, divisor_digits) {
-                                    Ordering::Less => {
-                                        // The remaining digits are the remainder.
-                                        remainder_digits[remainder_digit_count - remainder.len()..]
-                                            .copy_from_slice(&remainder);
-
-                                        // Break to extract the quotient.
-                                        break;
-                                    }
-                                    Ordering::Equal => {
-                                        // The remainder's digits are equal to the divisor.
-                                        self.append_quotient_digit(1, &mut quotient_len);
-                                        // The remainder should be zero, and can just be truncated away. Break to extract the quotient.
-                                        break;
-                                    }
-                                    // There is more division to perform; pass the working remainder digits out.
-                                    Ordering::Greater => remainder,
-                                }
-                            }
-                            None => {
-                                // There are no non-zero digits remaining in the working remainder. The remainder is zero.
-                                // Break to extract the quotient.
-                                break;
-                            }
-                        }
-                    } else {
-                        // We're still within the bounds of the dividend. Extract the working remainder digits.
-                        let remainder =
-                            &mut self.digits[remainder_off..remainder_off + remainder_len];
-                        match Self::first_non_zero_digit_index(&remainder) {
-                            Some(i) => {
-                                // The working remainder has non-zero digits.
-                                // Truncate any zero digits from the working remainder window.
-                                remainder_off += i;
-                                remainder_len -= i;
-
-                                // Pass out the working remainder digits.
-                                &mut remainder[i..]
-                            }
-                            None => {
-                                // The working remainder contains no non-zero digits.
-                                self.append_quotient_digit(0, &mut quotient_len);
-
-                                // Expand the working remainder to include the next digit, and go back to the start of the loop.
-                                remainder_len += 1;
-                                continue;
-                            }
-                        }
-                    };
-
-                    // Compare the working remainder with the divisor.
-                    match cmp(&remainder, divisor_digits) {
-                        Ordering::Greater => {
-                            // The working remainder is larger than the divisor.
-                            // We will perform division-by-subtraction on it.
-                            let mut subtraction_counter = 0u8;
-                            loop {
-                                // Subtract the divisor from the working remainder.
-                                Self::subtract_internal(remainder, divisor_digits);
-                                subtraction_counter += 1;
-
-                                // Trim any new leading zero digits.
-                                let offset = Self::first_non_zero_digit_index(&remainder).unwrap();
-                                remainder_off += offset;
-                                remainder_len -= offset;
-                                remainder =
-                                    &mut self.digits[remainder_off..remainder_off + remainder_len];
-
-                                // Compare the new working remainder to the divisor post-subtraction.
-                                match cmp(&remainder, divisor_digits) {
-                                    Ordering::Less => {
-                                        // The working remainder is smaller than the divisor. Carry the remainder over into the next
-                                        // iteration of the main loop, expanding to include the next digit.
-                                        remainder_len += 1;
-
-                                        self.append_quotient_digit(
-                                            subtraction_counter,
-                                            &mut quotient_len,
-                                        );
-
-                                        // Go back to the main loop.
-                                        break;
-                                    }
-                                    Ordering::Equal => {
-                                        // The working remainder's digits are equal to the divisor.
-                                        self.handle_remainder_equals_divisor(
-                                            subtraction_counter + 1,
-                                            remainder_off,
-                                            remainder_len,
-                                            &mut quotient_len,
-                                        );
-
-                                        // Start over with a new working remainder window for the next iteration.
-                                        remainder_off += remainder_len;
-                                        remainder_len = 1;
-
-                                        // Go back to the main loop.
-                                        break;
-                                    }
-                                    Ordering::Greater => {}
-                                }
-                            }
-                        }
-                        Ordering::Equal => {
-                            // The working remainder's digits are equal to the divisor.
-                            self.handle_remainder_equals_divisor(
-                                1,
-                                remainder_off,
-                                remainder_len,
-                                &mut quotient_len,
-                            );
-
-                            // Start over with a new working remainder window for the next iteration.
-                            remainder_off += remainder_len;
-                            remainder_len = 1;
-                        }
-                        Ordering::Less => {
-                            // The working remainder is smaller than the divisor. Expand the working remainder to include the next digit.
-                            remainder_len += 1;
-                            self.append_quotient_digit(0, &mut quotient_len);
-                        }
-                    }
-                }
+                // Copy out the remainder digits.
+                let remainder = &self.digits[remainder_start..];
+                remainder_digits[remainder_digit_count - remainder.len()..]
+                    .copy_from_slice(&remainder);
 
                 // Truncate the dividend to yield the quotient.
-                self.digits.truncate(quotient_len);
+                self.digits.truncate(quotient_length);
+
+                // Trim any leading zeroes (and ensure there's at least one digit).
+                self.trim_leading_zeroes();
+            }
+        }
+
+        true
+    }
+
+    fallible_operation_implement_unsigned_types!(
+        modulo_be_bytes: modulo_u8, modulo_u16, modulo_u32, modulo_usize, modulo_u64, modulo_u128, modulo_big_unsigned,
+    );
+
+    pub fn modulo_be_bytes(&mut self, modulus_digits: &[u8]) -> bool {
+        let divisor_digits = match Self::first_non_zero_digit_index(modulus_digits) {
+            // Skip any leading zero digits in the divisor.
+            Some(i) => &modulus_digits[i..],
+            // The divisor is zero; we can't divide by zero, so return false.
+            None => return false,
+        };
+
+        if self.is_zero() {
+            // The dividend is zero; 0 % X = 0, so we can just return.
+            return true;
+        }
+
+        if modulus_digits.len() == 1 {
+            // The divisor has a single digit; we can use the simple division algorithm.
+            let mut remainder = 0u8;
+            assert!(self.divide_u8_with_remainder(divisor_digits[0], &mut remainder));
+
+            // Overwrite the quotient with the remainder.
+            self.copy_digits_from(&[remainder]);
+            return true;
+        }
+
+        match cmp(&self.digits, divisor_digits) {
+            Ordering::Less => {
+                // The dividend is less than the divisor. Where X < Y, X / Y = 0, and X % Y = X.
+                // We don't need to do anything.
+            }
+            Ordering::Equal => {
+                // The dividend is equal to the divisor. Where X == Y, X / Y = 1, and X % Y = 0.
+                // We can just zero out the divisor.
+                self.zero()
+            }
+            Ordering::Greater => {
+                // The internal divide method returns two values; the number of digits in the quotient, and the start
+                // offset for the remainder's digits. This resutls in two values:
+                // q = digits[..quotient_length]
+                // r = digits[remainder_start..]
+                // We only want the remainder.
+
+                let (_, remainder_start) = self.internal_divide(divisor_digits);
+
+                // Truncate the quotient from the divisor.
+                self.digits.drain(0..remainder_start);
+
+                // Trim any leading zeroes (and ensure there's at least one digit).
+                self.trim_leading_zeroes();
             }
         }
 
@@ -1317,6 +1306,40 @@ impl BigSigned {
             false
         }
     }
+
+    fallible_operation_implement_unsigned_types!(
+        modulo_be_bytes_unsigned: modulo_u8, modulo_u16, modulo_u32, modulo_usize, modulo_u64, modulo_u128, modulo_big_unsigned,
+    );
+
+    pub fn modulo_be_bytes_unsigned(&mut self, modulus_digits: &[u8]) -> bool {
+        self.modulo_be_bytes_signed(modulus_digits, false)
+    }
+
+    fallible_operation_implement_signed_types!(
+        modulo_be_bytes_signed: modulo_i8, modulo_i16, modulo_i32, modulo_isize, modulo_i64, modulo_i128, modulo_big_signed,
+    );
+
+    pub fn modulo_be_bytes_signed(
+        &mut self,
+        modulus_digits: &[u8],
+        modulus_is_negative: bool,
+    ) -> bool {
+        if self.big_unsigned.modulo_be_bytes(modulus_digits) {
+            if self.is_non_zero() {
+                if self.is_negative != modulus_is_negative {
+                    self.big_unsigned.difference_be_bytes(modulus_digits);
+                }
+
+                self.is_negative = modulus_is_negative;
+            } else {
+                self.is_negative = false;
+            }
+
+            true
+        } else {
+            false
+        }
+    }
 }
 
 //\/\/\/\/\/\/\/\/\///
@@ -1432,9 +1455,155 @@ impl BigUnsigned {
             }
             // There are no non-zero digits.
             None => {
-                if self.digits.len() != 1 {
-                    // All of the digits are zero; if there's more than one digit, truncate.
-                    self.digits.truncate(1);
+                match self.digits.len().cmp(&1) {
+                    Ordering::Less => {
+                        // There are no digits; we should add a zero.
+                        self.digits.push(0);
+                    }
+                    Ordering::Equal => {
+                        // There is only a single digit; we don't need to do anything.
+                    }
+                    Ordering::Greater => {
+                        // Tere are no non-zero digits; we should have exactly one digit.
+                        self.digits.truncate(1);
+                    }
+                }
+            }
+        }
+    }
+
+    fn internal_divide(&mut self, divisor_digits: &[u8]) -> (usize, usize) {
+        // Add a leading zero to the dividend to ensure we have space to fit both the quotient and the remainder.
+        self.digits.insert(0, 0);
+
+        // Track the length of the working quotient and remainder; we will overwrite the dividend
+        // using subtraction over a shifting window of digits.
+        let mut quotient_len = 0;
+
+        // We added a leading zero; we can skip that for iterative division.
+        let mut remainder_off = 1;
+
+        // Start with a window with a length equal to the divisor length; we can't do anything while the working remainder
+        // is less than the divisor, and with fewer digits, it is guaranteed to be less.
+        let mut remainder_len = divisor_digits.len();
+        loop {
+            let mut remainder = if remainder_off + remainder_len > self.digits.len() {
+                // We've reached the end of the dividend.
+                match Self::first_non_zero_digit_index(&self.digits[remainder_off..]) {
+                    Some(i) => {
+                        // There are non-zero digits remaining in the working remainder. Extract them.
+                        let remainder = &mut self.digits[remainder_off + i..];
+                        match cmp(remainder, divisor_digits) {
+                            Ordering::Less => {
+                                // The remaining digits are the remainder.
+                                return (quotient_len, remainder_off + i);
+                            }
+                            Ordering::Equal => {
+                                // The remainder's digits are equal to the divisor.
+                                self.append_quotient_digit(1, &mut quotient_len);
+                                // The remainder should be zero, and can just be truncated away. Break to extract the quotient.
+                                return (quotient_len, self.digits.len());
+                            }
+                            // There is more division to perform; pass the working remainder digits out.
+                            Ordering::Greater => remainder,
+                        }
+                    }
+                    None => {
+                        // There are no non-zero digits remaining in the working remainder. The remainder is zero.
+                        // Return the quotient length.
+                        return (quotient_len, self.digits.len());
+                    }
+                }
+            } else {
+                // We're still within the bounds of the dividend. Extract the working remainder digits.
+                let remainder = &mut self.digits[remainder_off..remainder_off + remainder_len];
+                match Self::first_non_zero_digit_index(&remainder) {
+                    Some(i) => {
+                        // The working remainder has non-zero digits.
+                        // Truncate any zero digits from the working remainder window.
+                        remainder_off += i;
+                        remainder_len -= i;
+
+                        // Pass out the working remainder digits.
+                        &mut remainder[i..]
+                    }
+                    None => {
+                        // The working remainder contains no non-zero digits.
+                        self.append_quotient_digit(0, &mut quotient_len);
+
+                        // Expand the working remainder to include the next digit, and go back to the start of the loop.
+                        remainder_len += 1;
+                        continue;
+                    }
+                }
+            };
+
+            // Compare the working remainder with the divisor.
+            match cmp(&remainder, divisor_digits) {
+                Ordering::Greater => {
+                    // The working remainder is larger than the divisor.
+                    // We will perform division-by-subtraction on it.
+                    let mut subtraction_counter = 0u8;
+                    loop {
+                        // Subtract the divisor from the working remainder.
+                        Self::subtract_internal(remainder, divisor_digits);
+                        subtraction_counter += 1;
+
+                        // Trim any new leading zero digits.
+                        let offset = Self::first_non_zero_digit_index(&remainder).unwrap();
+                        remainder_off += offset;
+                        remainder_len -= offset;
+                        remainder = &mut self.digits[remainder_off..remainder_off + remainder_len];
+
+                        // Compare the new working remainder to the divisor post-subtraction.
+                        match cmp(&remainder, divisor_digits) {
+                            Ordering::Less => {
+                                // The working remainder is smaller than the divisor. Carry the remainder over into the next
+                                // iteration of the main loop, expanding to include the next digit.
+                                remainder_len += 1;
+
+                                self.append_quotient_digit(subtraction_counter, &mut quotient_len);
+
+                                // Go back to the main loop.
+                                break;
+                            }
+                            Ordering::Equal => {
+                                // The working remainder's digits are equal to the divisor.
+                                self.handle_remainder_equals_divisor(
+                                    subtraction_counter + 1,
+                                    remainder_off,
+                                    remainder_len,
+                                    &mut quotient_len,
+                                );
+
+                                // Start over with a new working remainder window for the next iteration.
+                                remainder_off += remainder_len;
+                                remainder_len = 1;
+
+                                // Go back to the main loop.
+                                break;
+                            }
+                            Ordering::Greater => {}
+                        }
+                    }
+                }
+                Ordering::Equal => {
+                    // The working remainder's digits are equal to the divisor.
+                    self.handle_remainder_equals_divisor(
+                        1,
+                        remainder_off,
+                        remainder_len,
+                        &mut quotient_len,
+                    );
+
+                    // Start over with a new working remainder window for the next iteration.
+                    remainder_off += remainder_len;
+                    remainder_len = 1;
+                }
+                Ordering::Less => {
+                    // The working remainder is smaller than the divisor. Expand the working remainder to include the next digit.
+                    remainder_len += 1;
+                    self.append_quotient_digit(0, &mut quotient_len);
                 }
             }
         }
