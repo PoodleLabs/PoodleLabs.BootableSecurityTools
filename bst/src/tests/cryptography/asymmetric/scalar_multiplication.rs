@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{integers::BigUnsigned, tests::PARALLELIZED_TEST_THREAD_COUNT};
+use crate::{
+    cryptography::asymmetric::ecc::COMPRESSED_Y_IS_EVEN_IDENTIFIER, integers::BigUnsigned,
+    tests::PARALLELIZED_TEST_THREAD_COUNT,
+};
 use core::cmp::Ordering;
 use rand::{random, thread_rng, Rng};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -92,6 +95,9 @@ fn secp256k1_derive_pubkey_random_privkey() {
             RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
         };
 
+        let mut decompression_buffer_x = BigUnsigned::with_capacity(32);
+        let mut decompression_buffer_y = BigUnsigned::with_capacity(32);
+        let mut expected_decompressed_y_buffer = BigUnsigned::with_capacity(32);
         let mut context =
             crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
         let secp_context = secp256k1::Secp256k1::new();
@@ -121,14 +127,31 @@ fn secp256k1_derive_pubkey_random_privkey() {
                             .public_key(&secp_context)
                             .serialize();
 
+                    println!("{},{}P: {:?}", i, j, p);
+
+                    expected_decompressed_y_buffer.set_equal_to(&p.y().borrow_unsigned());
                     let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
 
                     println!("{},{}E: {:?}", i, j, expected_serialized_key_bytes);
                     println!("{},{}A: {:?}", i, j, actual_serialized_key_bytes);
+
+                    // Assert public key is as expected.
                     assert_eq!(
                         actual_serialized_key_bytes,
                         expected_serialized_key_bytes
                     );
+
+                    // Decompress the point and assert the decompressed Y coordinate is the same as the original point.
+                    decompression_buffer_x.copy_digits_from(&expected_serialized_key_bytes[1..]);
+                    context.calculate_y_from_x(
+                        expected_serialized_key_bytes[0] == COMPRESSED_Y_IS_EVEN_IDENTIFIER,
+                        &decompression_buffer_x,
+                        &mut decompression_buffer_y);
+
+                        assert_eq!(
+                            decompression_buffer_y,
+                            expected_decompressed_y_buffer
+                        )
                 }
                 None => {
                     println!("{},{}: None", i, j);

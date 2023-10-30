@@ -28,10 +28,11 @@ pub struct Sha256 {
 }
 
 impl Sha256 {
+    pub const HASH_SIZE: usize = 32;
+
     const PADDING_BUFFER_LENGTH: usize = Self::BLOCK_SIZE + 8;
     const ALGORITHM_NAME: String16<'static> = s16!("SHA256");
     const BLOCK_SIZE: usize = 64;
-    const HASH_SIZE: usize = 32;
 
     const SEED: [u32; 8] = [
         0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,

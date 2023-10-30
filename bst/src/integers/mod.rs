@@ -15,12 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 mod big_integers;
-mod big_unsigned_mod_inverse_calculator;
+mod big_unsigned_calculator;
 mod numeric_base;
 mod numeric_collector;
 
 pub use big_integers::{BigSigned, BigUnsigned};
-pub use big_unsigned_mod_inverse_calculator::BigUnsignedModInverseCalculator;
+pub use big_unsigned_calculator::BigUnsignedCalculator;
 pub use numeric_base::{NumericBase, NumericBaseWithCharacterPredicate, NumericBases};
 pub use numeric_collector::{
     NumericCollector, NumericCollectorRoundBase, NumericCollectorRoundError,

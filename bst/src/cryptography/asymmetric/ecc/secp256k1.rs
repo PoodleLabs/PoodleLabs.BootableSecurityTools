@@ -31,6 +31,16 @@ static mut P: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
         ])
     });
 
+// Prime identity, used for point decompression.
+static mut P_I: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
+    GlobalRuntimeImmutable::from(|| {
+        let mut i = p().clone();
+        i.add_u8(1);
+        let mut r = 0u8;
+        i.divide_u8_with_remainder(4, &mut r);
+        i
+    });
+
 // Point doubling coefficient:
 // a = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
 //   = 0
@@ -40,7 +50,6 @@ static mut A: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
 // Curve coefficient:
 // b = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000007
 //   = 7
-#[allow(dead_code)]
 static mut B: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     GlobalRuntimeImmutable::from(|| BigUnsigned::from_be_bytes(&[0x07]));
 
@@ -77,7 +86,7 @@ static mut N: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     });
 
 pub fn point_multiplication_context() -> EllipticCurvePointMultiplicationContext {
-    EllipticCurvePointMultiplicationContext::new(n(), p(), a(), 32)
+    EllipticCurvePointMultiplicationContext::new(n(), p(), p_i(), a(), b(), 32)
 }
 
 pub fn serialized_private_key_bytes(key: &[u8]) -> [u8; 33] {
@@ -105,10 +114,18 @@ pub fn n() -> &'static BigUnsigned {
     unsafe { N.value() }
 }
 
+fn p_i() -> &'static BigUnsigned {
+    unsafe { P_I.value() }
+}
+
 fn p() -> &'static BigUnsigned {
     unsafe { P.value() }
 }
 
 fn a() -> &'static BigUnsigned {
     unsafe { A.value() }
+}
+
+fn b() -> &'static BigUnsigned {
+    unsafe { B.value() }
 }

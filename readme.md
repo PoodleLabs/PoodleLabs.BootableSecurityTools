@@ -10,15 +10,15 @@ For a list of currently implemented and planned additional functionalities, visi
 
 The [discussions section](https://github.com/PoodleLabs/PoodleLabs.BST/discussions/2) contains a detailed list of features which have been currently implemented, as well as planned features.
 
-In broad terms, the most interesting functionalities are:
+In broad terms, the most interesting functionalities, and their states (bear in mind 'done' means functional, not final) are:
 
 ### Hashing
 
 - RIPEMD160 - **DONE**
 - SHA256 - **DONE**
 - SHA5512 - **DONE**
-- HMAC - **DONE (All three hashing algos)**
-- PBKDF2 - **DONE (All three hashing algos)**
+- HMAC - **DONE (All three above hashing algos)**
+- PBKDF2 - **DONE (All three above hashing algos)**
 
 Other hashing algorithms and 'attachment' schemes could be considered.
 
@@ -44,7 +44,7 @@ Other hashing algorithms and 'attachment' schemes could be considered.
 
 ### Asymmetric Encryption
 
-- Private & Public Key Generation on secp256k1 - **DONE (Slow)**
+- Private & Public Key Derivation on secp256k1 - **DONE (Slow)**
 - ECDSA on secp256k1 - **NOT STARTED**
 - ECIES on secp256k1 - **NOT STARTED**
 
@@ -63,7 +63,7 @@ Other schemes could be considered.
 - Electrum SVS Seed Derivation - **DONE**
 - BIP 32 Master Key Derivation - **DONE**
 - BIP 32 Extended Public Key Derivation - **DONE**
-- BIP 32 CKD - **IN PROGRESS**
+- BIP 32 CKD - **DONE**
 
 ### Bitcoin Airgapped-Side Wallet
 

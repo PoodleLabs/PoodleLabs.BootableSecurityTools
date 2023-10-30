@@ -45,7 +45,7 @@ impl<'a, TSystemServices: SystemServices> ConfirmationPrompt
 
         // Write the 'confirm' message.
         console.in_colours(constants::PROMPT_COLOURS, |c| {
-            c.output_utf16_line(s16!("Press Y to confirm, N to cancel."))
+            c.output_utf16_line(s16!("Press Y to confirm, otherwise N."))
         });
 
         let keyboard_in = self.system_services.get_keyboard_in();

@@ -16,7 +16,8 @@
 
 use crate::{
     bitcoin::{
-        hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, Bip32KeyNetwork},
+        base_58_encode_with_checksum,
+        hd_wallets::{try_derive_master_key, Bip32KeyNetwork},
         mnemonics::bip_39,
     },
     String16,

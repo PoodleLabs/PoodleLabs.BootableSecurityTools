@@ -16,7 +16,8 @@
 
 use crate::{
     bitcoin::{
-        hd_wallets::{base_58_encode_with_checksum, Bip32KeyType, SerializedExtendedKey},
+        base_58_encode_with_checksum,
+        hd_wallets::{Bip32KeyType, Bip32SerializedExtendedKey},
         validate_checksum_in,
     },
     clipboard::ClipboardEntry,
@@ -72,7 +73,7 @@ impl<TSystemServices: SystemServices> Program
                 &[DataInputType::Bytes],
                 &self.system_services,
                 CANCEL_PROMPT,
-                s16!("Wallet Seed Bytes"),
+                s16!("Extended Private Key"),
             ) {
                 DataInput::Bytes(mut b) => {
                     // We should expect a 4 byte checksum at the end of the key, but it shouldn't break things if it's not present.
@@ -99,7 +100,7 @@ impl<TSystemServices: SystemServices> Program
                     // Extended keys are exactly 78 bytes in length.
                     if b.len() == 78 {
                         // Deserialize the extended key.
-                        let serialized_key = match SerializedExtendedKey::from_bytes(&b) {
+                        let serialized_key = match Bip32SerializedExtendedKey::from_bytes(&b) {
                             Some(k) => k,
                             None => {
                                 return s16!("Failed to deserialize extended key.")
@@ -111,7 +112,7 @@ impl<TSystemServices: SystemServices> Program
                         b.fill(0);
 
                         // Try to parse the key type.
-                        match serialized_key.try_get_key_type() {
+                        match serialized_key.try_get_key_version() {
                             Ok(t) => match t.key_type() {
                                 Bip32KeyType::Private => {
                                     // The user input a valid private key; break out of the input loop with it.
@@ -140,7 +141,7 @@ impl<TSystemServices: SystemServices> Program
                         b.fill(0);
                         console.in_colours(constants::ERROR_COLOURS, |c| {
                             c.line_start().new_line().output_utf16(s16!(
-                                "BIP 32 Master Keys must be exactly 78 bytes long."
+                                "BIP 32 extended keys are exactly 78 bytes in length (plus an optional 4 byte checksum)."
                             ))
                         });
                     }
@@ -151,7 +152,7 @@ impl<TSystemServices: SystemServices> Program
 
         // Get the network the private key is for.
         let key_network = serialized_private_key
-            .try_get_key_type()
+            .try_get_key_version()
             .unwrap()
             .key_network();
 
@@ -214,7 +215,7 @@ impl<TSystemServices: SystemServices> Program
             private_key.zero();
 
             // Serialize the public key.
-            let serialized_public_key = match serialized_private_key.to_public_key(
+            let serialized_public_key = match serialized_private_key.build_public_key_variant_from(
                 match serialized_public_key_bytes(point) {
                     Some(k) => k,
                     None => {
@@ -231,16 +232,21 @@ impl<TSystemServices: SystemServices> Program
 
             // Base-58 encode the extended public key with a checksum.
             let base58_key = base_58_encode_with_checksum(&serialized_public_key.as_bytes());
+            let is_master_key = serialized_public_key.depth() == 0;
 
             // Zero the serialized public key; we're done with it.
             serialized_public_key.zero();
 
-            const LABEL: String16 = s16!("BIP 32 Extended Public Key");
-            write_string_program_output(&self.system_services, LABEL, String16::from(&base58_key));
+            let label = if is_master_key {
+                s16!("BIP 32 Master Public Key")
+            } else {
+                s16!("BIP 32 Child Public Key")
+            };
 
+            write_string_program_output(&self.system_services, label, String16::from(&base58_key));
             prompt_for_clipboard_write(
                 &self.system_services,
-                ClipboardEntry::String16(LABEL, base58_key.into()),
+                ClipboardEntry::String16(label, base58_key.into()),
             );
 
             ProgramExitResult::Success

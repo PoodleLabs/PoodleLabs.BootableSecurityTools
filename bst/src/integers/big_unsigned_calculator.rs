@@ -15,8 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::BigUnsigned;
+use crate::bits::try_get_bit_at_index;
 
-pub struct BigUnsignedModInverseCalculator {
+pub struct BigUnsignedCalculator {
     a: BigUnsigned,
     m: BigUnsigned,
     x: BigUnsigned,
@@ -25,7 +26,7 @@ pub struct BigUnsignedModInverseCalculator {
     r: BigUnsigned,
 }
 
-impl BigUnsignedModInverseCalculator {
+impl BigUnsignedCalculator {
     pub fn new(internal_integer_initial_capacities: usize) -> Self {
         Self {
             a: BigUnsigned::with_capacity(internal_integer_initial_capacities),
@@ -144,5 +145,38 @@ impl BigUnsignedModInverseCalculator {
             // The value and the modulus were not coprime, and do not have a mod inverse value.
             false
         }
+    }
+
+    pub fn modpow(
+        &mut self,
+        value: &mut BigUnsigned,
+        exponent: &BigUnsigned,
+        modulus: &BigUnsigned,
+    ) {
+        // Modular exponentiation via the square-and-multiply binary algorithm. This is conceptually identical to the double
+        // and add algorithm used in ecc::EllipticCurvePointMultiplicationContext::multiply_point; see comments there.
+        value.divide_big_unsigned_with_remainder(modulus, &mut self.y);
+        self.x.one();
+
+        let e = exponent.borrow_digits();
+        let bit_count = e.len() * 8;
+        for i in (0..bit_count).rev() {
+            if try_get_bit_at_index(i, e).unwrap() {
+                self.x.multiply_big_unsigned(&self.y);
+                self.x
+                    .divide_big_unsigned_with_remainder(modulus, &mut self.q);
+                self.x.set_equal_to(&self.q);
+            }
+
+            self.q.set_equal_to(&self.y);
+            self.q.multiply_big_unsigned(&self.y);
+            self.q
+                .divide_big_unsigned_with_remainder(modulus, &mut self.y);
+        }
+
+        value.set_equal_to(&self.x);
+        self.x.zero();
+        self.y.zero();
+        self.q.zero();
     }
 }

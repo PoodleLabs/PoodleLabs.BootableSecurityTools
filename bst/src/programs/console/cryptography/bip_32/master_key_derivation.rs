@@ -15,7 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    bitcoin::hd_wallets::{base_58_encode_with_checksum, try_derive_master_key, Bip32KeyNetwork},
+    bitcoin::{
+        base_58_encode_with_checksum,
+        hd_wallets::{try_derive_master_key, Bip32KeyNetwork},
+    },
     clipboard::ClipboardEntry,
     console_out::ConsoleOut,
     constants,

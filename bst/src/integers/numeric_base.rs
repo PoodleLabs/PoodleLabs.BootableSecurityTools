@@ -271,7 +271,7 @@ impl NumericBase {
 
     pub fn build_string_from_big_unsigned(
         &self,
-        mut unsigned_integer: BigUnsigned,
+        unsigned_integer: &mut BigUnsigned,
         null_terminate: bool,
         pad_to_length: usize,
     ) -> Vec<u16> {
@@ -300,7 +300,7 @@ impl NumericBase {
     pub fn build_string_from_bytes(&self, bytes: &[u8], null_terminate: bool) -> Vec<u16> {
         // For bytes, we want our leading zeroes.
         self.build_string_from_big_unsigned(
-            BigUnsigned::from_be_bytes(bytes),
+            &mut BigUnsigned::from_be_bytes(bytes),
             null_terminate,
             (bytes.len() as f64 * self.digits_per_byte) as usize,
         )

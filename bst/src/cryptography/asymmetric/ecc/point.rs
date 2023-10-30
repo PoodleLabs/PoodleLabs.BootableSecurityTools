@@ -281,6 +281,8 @@
 use super::EllipticCurvePointAdditionContext;
 use crate::integers::{BigSigned, BigUnsigned};
 
+pub const COMPRESSED_Y_IS_EVEN_IDENTIFIER: u8 = 0x02;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct EllipticCurvePoint {
     is_infinity: bool,
@@ -318,13 +320,21 @@ impl EllipticCurvePoint {
         let mut buffer = [0u8; N];
 
         // The first byte in the buffer is 2 if the Y coordinate is even, and 3 if the Y coordinate is odd.
-        buffer[0] = if self.y.is_even() { 0x02 } else { 0x03 };
+        buffer[0] = if self.y.is_even() {
+            COMPRESSED_Y_IS_EVEN_IDENTIFIER
+        } else {
+            0x03
+        };
 
         // Copy the bytes from the X coordinate to the end of the buffer.
         self.x
             .copy_digits_to(&mut buffer[N - self.x.digit_count()..]);
 
         Some(buffer)
+    }
+
+    pub fn y(&self) -> &BigSigned {
+        &self.y
     }
 
     pub fn add(
@@ -454,6 +464,10 @@ impl EllipticCurvePoint {
         self.calculate_new_point_from_slope(None, addition_context)
     }
 
+    pub fn borrow_coordinates_mut(&mut self) -> (&mut BigSigned, &mut BigSigned) {
+        (&mut self.x, &mut self.y)
+    }
+
     pub fn set_equal_to_unsigned(&mut self, x: &BigUnsigned, y: &BigUnsigned) {
         self.x.set_equal_to_unsigned(x, false);
         self.y.set_equal_to_unsigned(y, false);
@@ -533,5 +547,10 @@ impl EllipticCurvePoint {
         addition_context
             .slope
             .divide_big_unsigned_with_signed_modulus(addition_context.p, &mut self.y);
+    }
+
+    pub unsafe fn set_not_infinity(&mut self) {
+        // Only to be used when the coordinates have been manually written to.
+        self.is_infinity = false;
     }
 }
