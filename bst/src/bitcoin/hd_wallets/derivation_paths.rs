@@ -262,7 +262,7 @@ impl Bip32DerivationPathPoint {
     }
 }
 
-pub struct Bip32CkdDerivationContext {
+pub struct Bip32CkdContext {
     sha512: Sha512,
     hash160: Hash160,
     private_key_buffer: BigUnsigned,
@@ -270,7 +270,7 @@ pub struct Bip32CkdDerivationContext {
     multiplication_context: EllipticCurvePointMultiplicationContext,
 }
 
-impl Bip32CkdDerivationContext {
+impl Bip32CkdContext {
     pub fn new() -> Self {
         Self {
             multiplication_context: secp256k1::point_multiplication_context(),

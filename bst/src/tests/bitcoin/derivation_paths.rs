@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::bitcoin::hd_wallets::{
-    Bip32CkdDerivationContext, Bip32DerivationPathPoint, Bip32SerializedExtendedKey,
+    Bip32CkdContext, Bip32DerivationPathPoint, Bip32SerializedExtendedKey,
     HARDENED_CHILD_DERIVATION_THRESHOLD,
 };
 use hex_literal::hex;
@@ -24,7 +24,7 @@ use macros::s16;
 #[test]
 pub fn private_child_key_derivation_yields_expected_results() {
     assert_eq!(
-        Bip32CkdDerivationContext::new()
+        Bip32CkdContext::new()
         .derive(
             |_| {},
             // abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about master private key.
@@ -45,7 +45,7 @@ pub fn private_child_key_derivation_yields_expected_results() {
 #[test]
 pub fn public_child_key_derivation_yields_expected_results() {
     assert_eq!(
-        Bip32CkdDerivationContext::new()
+        Bip32CkdContext::new()
         .derive(
             |_| {},
             // abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about master public key.
@@ -64,7 +64,7 @@ pub fn public_child_key_derivation_yields_expected_results() {
 #[test]
 pub fn public_child_key_derivation_doesnt_do_hardened_derivation() {
     assert_eq!(
-        Bip32CkdDerivationContext::new().derive(
+        Bip32CkdContext::new().derive(
             |_| {},
             // abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about master public key.
             Bip32SerializedExtendedKey::from_bytes(&hex!("0488B21E0000000000000000007923408DADD3C7B56EED15567707AE5E5DCA089DE972E07F3B860450E2A3B70E03D902F35F560E0470C63313C7369168D9D7DF2D49BF295FD9FB7CB109CCEE0494")).unwrap(),

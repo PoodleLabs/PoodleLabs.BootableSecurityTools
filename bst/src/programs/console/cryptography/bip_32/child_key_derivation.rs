@@ -18,8 +18,8 @@ use crate::{
     bitcoin::{
         base_58_encode_with_checksum,
         hd_wallets::{
-            Bip32CkdDerivationContext, Bip32DerivationPathPoint, Bip32KeyType,
-            Bip32SerializedExtendedKey, HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
+            Bip32CkdContext, Bip32DerivationPathPoint, Bip32KeyType, Bip32SerializedExtendedKey,
+            HARDENED_CHILD_DERIVATION_THRESHOLD, MAX_DERIVATION_POINT,
         },
         validate_checksum_in,
     },
@@ -246,7 +246,7 @@ impl<TSystemServices: SystemServices> Program
             continue;
         }
 
-        let mut context = Bip32CkdDerivationContext::new();
+        let mut context = Bip32CkdContext::new();
         let child_key = match context.derive(
             |p| {
                 console
