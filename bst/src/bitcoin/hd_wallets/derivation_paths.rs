@@ -51,7 +51,6 @@ impl Bip32DerivationPathPoint {
         self.0
     }
 
-    #[allow(dead_code)]
     pub fn try_derive_key_material_and_chain_code_from(
         &self,
         sha512: &mut Sha512,
