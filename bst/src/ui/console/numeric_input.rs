@@ -162,7 +162,11 @@ impl<'a, TSystemServices: SystemServices> ConsoleUiNumericInput<'a, TSystemServi
                                 }
                             }
 
-                            PasteResult::Rewrite
+                            if is_in_base {
+                                PasteResult::ContinueAsNormal
+                            } else {
+                                PasteResult::Rewrite
+                            }
                         }
                         // We can't write text to a numeric input, so any other paste types just get ignored.
                         _ => PasteResult::ContinueAsNormal,
