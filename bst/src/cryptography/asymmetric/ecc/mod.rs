@@ -360,10 +360,6 @@ impl EllipticCurvePointMultiplicationContext {
         &mut self.addition_context
     }
 
-    pub fn borrow_working_buffer(&mut self) -> &mut BigSigned {
-        &mut self.addition_context.slope
-    }
-
     fn zero(&mut self) {
         self.bit_buffer.fill(0);
         *self.comparison_box = None;

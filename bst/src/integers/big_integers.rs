@@ -41,6 +41,18 @@ impl Ord for BigUnsigned {
     }
 }
 
+impl PartialEq<[u8]> for BigUnsigned {
+    fn eq(&self, other: &[u8]) -> bool {
+        cmp(&self.digits, other) == Ordering::Equal
+    }
+}
+
+impl PartialOrd<[u8]> for BigUnsigned {
+    fn partial_cmp(&self, other: &[u8]) -> Option<Ordering> {
+        Some(cmp(&self.digits, other))
+    }
+}
+
 #[derive(Debug, Clone, Eq)]
 pub struct BigSigned {
     big_unsigned: BigUnsigned,
