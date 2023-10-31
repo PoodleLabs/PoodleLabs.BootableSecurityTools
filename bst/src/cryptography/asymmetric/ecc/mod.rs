@@ -309,36 +309,35 @@ impl EllipticCurvePointMultiplicationContext {
             .unsigned_calculator
             .modpow(y_out, cube(), self.addition_context.p);
 
-        // Grab two BigUnsigned working buffers from the multiplication context.
-        let (wb1, wb2) = self.working_point.borrow_coordinates_mut();
-        let (wb1, wb2) = (wb1.borrow_unsigned_mut(), wb2.borrow_unsigned_mut());
-
         if self.addition_context.a.is_non_zero() {
-            // wb1 = a
-            wb1.set_equal_to(self.addition_context.a);
+            // Borrow the addition context's slope buffer for a working value.
+            let temp = self.addition_context.slope.borrow_unsigned_mut();
 
-            // wb1 = a * x
-            wb1.multiply_big_unsigned(x);
+            // t = a
+            temp.set_equal_to(self.addition_context.a);
 
-            // wb1 = (a * x) mod p
-            wb2.divide_big_unsigned_with_remainder(self.addition_context.p, wb1);
+            // t = a * x
+            temp.multiply_big_unsigned(x);
 
-            // wb1 = (x^3 mod p) + ((a * x) mod p)
-            wb1.add_big_unsigned(&y_out);
+            // t = a * x (mod p)
+            temp.modulo_big_unsigned(self.addition_context.p);
+
+            // y_out = (x^3 mod p) + ((a * x) mod p)
+            y_out.add_big_unsigned(temp);
+
+            // Zero out temp; we're done with it.
+            temp.zero();
 
             // y_out = x^3 + ax (mod p)
-            wb1.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
+            y_out.modulo_big_unsigned(self.addition_context.p);
         }
 
         if self.b.is_non_zero() {
-            // wb1 = b
-            wb1.set_equal_to(self.b);
-
-            // wb1 = (x^3 + ax (mod p)) + b
-            wb1.add_big_unsigned(&y_out);
+            // y_out = (x^3 + ax (mod p)) + b
+            y_out.add_big_unsigned(self.b);
 
             // y_out = x^3 + ax + b (mod p)
-            wb1.divide_big_unsigned_with_remainder(self.addition_context.p, y_out);
+            y_out.modulo_big_unsigned(self.addition_context.p);
         }
 
         // sqrt shortcut for curve where p mod 3 = 1
@@ -358,10 +357,6 @@ impl EllipticCurvePointMultiplicationContext {
 
     pub fn borrow_addition_context(&mut self) -> &mut EllipticCurvePointAdditionContext {
         &mut self.addition_context
-    }
-
-    pub fn borrow_working_buffer(&mut self) -> &mut BigSigned {
-        &mut self.addition_context.slope
     }
 
     fn zero(&mut self) {

@@ -479,3 +479,34 @@ fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
             }
         });
 }
+
+#[test]
+fn big_signed_random_modulo() {
+    (0..PARALLELIZED_TEST_THREAD_COUNT)
+        .into_par_iter()
+        .for_each(|i| {
+            let iterations = if i == PARALLELIZED_TEST_THREAD_COUNT - 1 {
+                RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
+                    + RANDOM_ITERATIONS % PARALLELIZED_TEST_THREAD_COUNT
+            } else {
+                RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
+            };
+
+            for _ in 0..iterations {
+                let (mut b1, r1) = random_big_signed(16);
+                let (b2, r2) = random_big_signed(16);
+                println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
+                println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
+
+                let success = b1.modulo_big_signed(&b2);
+                if r2 == 0 {
+                    assert!(!success);
+                } else {
+                    assert!(success);
+                    let expected_modulus = ((r1 % r2) + r2) % r2;
+                    assert_eq!(big_signed_to_i128(&b1), expected_modulus);
+                    assert_eq!(b1.is_negative(), expected_modulus < 0);
+                }
+            }
+        });
+}

@@ -113,38 +113,29 @@ impl Bip32DerivationPathPoint {
                     data[..33].copy_from_slice(&parent_public_key);
                 };
 
-                // We're done with the EC multiplication context, and can borrow a working buffer from it.
-                let working_buffer = multiplication_context
-                    .borrow_working_buffer()
-                    .borrow_unsigned_mut();
-
                 let key_material = loop {
                     // The hash data's last 4 bytes are the index.
                     data[33..].copy_from_slice(&index.to_be_bytes());
                     hmac.write_hmac_to(&data, &mut hmac_buffer);
 
-                    working_buffer.copy_digits_from(&hmac_buffer[..32]);
-                    match Self::validate_key_material(&working_buffer, &mut index) {
+                    let km = &hmac_buffer[..32];
+                    match Self::validate_key_material(km, &mut index) {
                         IlValidationResult::Ok => {}
                         IlValidationResult::NextIteration => continue,
                         IlValidationResult::ReturnError(e) => return Err(e),
                     }
 
-                    // Add parent private key and child private key material.
-                    private_key_buffer.add_big_unsigned(&working_buffer);
-
-                    // Calculate the remainder of the sum of the key materials divided by N.
-                    private_key_buffer
-                        .divide_big_unsigned_with_remainder(secp256k1::n(), working_buffer);
+                    // Add parent private key and child private key material; ppk + cpk (mod n).
+                    private_key_buffer.add_be_bytes(&km);
+                    private_key_buffer.modulo_big_unsigned(secp256k1::n());
 
                     // Copy the resulting key into a new key material buffer.
                     let mut key_material = [0u8; 33];
-                    key_material[33 - working_buffer.digit_count()..]
-                        .copy_from_slice(working_buffer.borrow_digits());
+                    key_material[33 - private_key_buffer.digit_count()..]
+                        .copy_from_slice(private_key_buffer.borrow_digits());
 
-                    // Zero our working buffers; we're done with them.
+                    // Zero our private key buffer; we're done with it.
                     private_key_buffer.zero();
-                    working_buffer.zero();
 
                     // Return our key material from the loop.
                     break key_material;
@@ -191,7 +182,10 @@ impl Bip32DerivationPathPoint {
 
                     // Write the child key material to the private key buffer.
                     private_key_buffer.copy_digits_from(&hmac_buffer[..32]);
-                    match Self::validate_key_material(&private_key_buffer, &mut index) {
+                    match Self::validate_key_material(
+                        private_key_buffer.borrow_digits(),
+                        &mut index,
+                    ) {
                         IlValidationResult::Ok => {}
                         IlValidationResult::NextIteration => continue,
                         IlValidationResult::ReturnError(e) => return Err(e),
@@ -244,8 +238,10 @@ impl Bip32DerivationPathPoint {
         ))
     }
 
-    fn validate_key_material(key_material: &BigUnsigned, index: &mut u32) -> IlValidationResult {
-        if key_material.is_zero() || key_material.cmp(secp256k1::n()) != Ordering::Less {
+    fn validate_key_material(key_material: &[u8], index: &mut u32) -> IlValidationResult {
+        if key_material.iter().all(|c| *c == 0)
+            || secp256k1::n().partial_cmp(key_material).unwrap() != Ordering::Greater
+        {
             // If the key material == 0 or >= N, we need to move to the next index.
             if (*index & MAX_DERIVATION_POINT) == MAX_DERIVATION_POINT {
                 // We've run out of indexes; we can't derive a child key.
