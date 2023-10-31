@@ -309,10 +309,10 @@ impl EllipticCurvePointMultiplicationContext {
             .unsigned_calculator
             .modpow(y_out, cube(), self.addition_context.p);
 
-        // Borrow the addition context's slope buffer for a working value.
-        let temp = self.addition_context.slope.borrow_unsigned_mut();
-
         if self.addition_context.a.is_non_zero() {
+            // Borrow the addition context's slope buffer for a working value.
+            let temp = self.addition_context.slope.borrow_unsigned_mut();
+
             // t = a
             temp.set_equal_to(self.addition_context.a);
 
@@ -324,6 +324,9 @@ impl EllipticCurvePointMultiplicationContext {
 
             // y_out = (x^3 mod p) + ((a * x) mod p)
             y_out.add_big_unsigned(temp);
+
+            // Zero out temp; we're done with it.
+            temp.zero();
 
             // y_out = x^3 + ax (mod p)
             y_out.modulo_big_unsigned(self.addition_context.p);
