@@ -174,7 +174,11 @@ impl BigUnsigned {
     }
 
     pub fn byte_count(&self) -> usize {
-        todo!()
+        (self.digits.len() * size_of::<Digit>())
+            - (match Self::first_non_zero_byte_index(&self.digits[0].to_be_bytes()) {
+                Some(i) => i,
+                None => size_of::<Digit>(),
+            })
     }
 
     pub fn is_non_zero(&self) -> bool {
@@ -909,30 +913,25 @@ impl BigUnsigned {
     // STATIC HELPER METHODS //
     //\/\/\/\/\/\/\/\/\/\/\/\//
 
-    fn calculate_required_digits_for_bytes(bytes: &[u8]) -> (usize, &[u8]) {
-        if bytes.len() == 0 {
-            return (0, bytes);
+    fn calculate_required_digits_for_bytes(be_bytes: &[u8]) -> (usize, &[u8]) {
+        if be_bytes.len() == 0 {
+            return (1, be_bytes);
         }
 
-        // We always want at least one digit, so we will consider the final digit to be the default
-        // 'first non zero' byte index.
-        let mut first_non_zero_index = bytes.len() - 1;
-        for i in 0..bytes.len() {
-            if bytes[i] != 0 {
-                // Set the first non-zero index and break at the first non-zero byte encountered.
-                first_non_zero_index = i;
-                break;
-            }
-        }
+        // Trim any leading zeroes.
+        let first_non_zero_byte_index = match Self::first_non_zero_byte_index(be_bytes) {
+            Some(i) => i,
+            None => return (1, be_bytes),
+        };
 
         // Calculate the number of digits we need.
-        let byte_count = bytes.len() - first_non_zero_index;
+        let byte_count = be_bytes.len() - first_non_zero_byte_index;
         let mut digit_count = byte_count / size_of::<Digit>();
         if digit_count * size_of::<Digit>() < byte_count {
             digit_count += 1;
         }
 
-        return (digit_count, &bytes[first_non_zero_index..]);
+        return (digit_count, &be_bytes[first_non_zero_byte_index..]);
     }
 
     fn copy_bytes_to_digit_buffer(digits: &mut [Digit], be_bytes: &[u8]) {
@@ -992,6 +991,13 @@ impl BigUnsigned {
 
     fn first_non_zero_digit_index(digits: &[Digit]) -> Option<usize> {
         match digits.iter().enumerate().find(|(_, x)| **x != 0) {
+            Some((i, _)) => Some(i),
+            None => None,
+        }
+    }
+
+    fn first_non_zero_byte_index(be_bytes: &[u8]) -> Option<usize> {
+        match be_bytes.iter().enumerate().find(|(_, x)| **x != 0) {
             Some((i, _)) => Some(i),
             None => None,
         }
