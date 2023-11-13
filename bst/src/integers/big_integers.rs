@@ -20,6 +20,7 @@ use core::{cmp::Ordering, mem::size_of};
 pub const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
 pub type Digit = u8;
 
+// Must be larger than Digit.
 type Carry = u16;
 
 #[derive(Debug, Clone, Eq)]

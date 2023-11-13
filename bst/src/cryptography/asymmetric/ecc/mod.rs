@@ -26,7 +26,7 @@ use crate::{
     integers::{BigSigned, BigUnsigned, BigUnsignedCalculator, Digit},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
@@ -254,15 +254,18 @@ impl EllipticCurvePointMultiplicationContext {
                 .len()
                 .wrapping_sub(self.bit_buffer.len() - i);
 
-            let byte = if j >= multiplier_digits.len() {
+            let digit = if j >= multiplier_digits.len() {
                 self.bit_buffer[i]
             } else {
                 multiplier_digits[j]
             };
 
-            for j in 0..8 {
-                let bit = ((1 << 7 - j) & byte) != 0;
-                assert!(try_set_bit_at_index(i * 8 + j, bit, &mut self.bit_buffer));
+            for j in 0..8 * size_of::<Digit>() {
+                assert!(try_set_bit_at_index(
+                    i * 8 * size_of::<Digit>() + j,
+                    try_get_bit_at_index(j, &[digit]).unwrap(),
+                    &mut self.bit_buffer
+                ));
             }
         }
 
@@ -273,7 +276,7 @@ impl EllipticCurvePointMultiplicationContext {
         self.working_point.set_equal_to_unsigned(x, y);
 
         // Iterate over the bits in the multiplier from least to most significant.
-        for i in (0..self.bit_buffer.len() * 8).rev() {
+        for i in (0..self.bit_buffer.len() * size_of::<Digit>() * 8).rev() {
             if try_get_bit_at_index(i, &self.bit_buffer).unwrap() {
                 // The bit at the current index is high; we should add to our product.
                 product.add(&self.working_point, &mut self.addition_context);
