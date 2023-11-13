@@ -42,7 +42,6 @@ fn equal_big_unsigneds_are_equal() {
 
     for i in 0..integers.len() {
         for j in 0..integers.len() {
-            // println!("{}, {}", i, j);
             assert_eq!(integers[i], integers[j]);
             assert_eq!(integers[i].cmp(&integers[j]), Ordering::Equal);
         }
@@ -64,7 +63,6 @@ fn unequal_big_unsigneds_are_unequal() {
                 continue;
             }
 
-            // println!("{}, {}", i, j);
             assert_ne!(integers[i], integers[j]);
             assert_ne!(integers[i].cmp(&integers[j]), Ordering::Equal);
         }

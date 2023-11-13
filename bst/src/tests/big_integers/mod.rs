@@ -29,14 +29,9 @@ fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
         panic!("Tried to read a BigUnsigned with more than 128 bits into a u128");
     }
 
-    let mut aggregate = 0u128;
-    let digits = big_unsigned.borrow_digits();
-    for i in (0..digits.len()).rev() {
-        aggregate <<= DIGIT_SHIFT;
-        aggregate |= digits[i] as u128;
-    }
-
-    aggregate
+    let mut bytes = [0u8; 16];
+    big_unsigned.copy_be_bytes_to(&mut bytes);
+    u128::from_be_bytes(bytes)
 }
 
 fn big_signed_to_i128(big_signed: &BigSigned) -> i128 {

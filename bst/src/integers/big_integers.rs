@@ -182,7 +182,7 @@ impl BigUnsigned {
         if partial_digit_bytes != 0 {
             // The first digit has leading zero bytes; write that first.
             let first_digit_bytes = self.digits[0].to_be_bytes();
-            for i in size_of::<Digit>() - partial_digit_bytes.. {
+            for i in size_of::<Digit>() - partial_digit_bytes..size_of::<Digit>() {
                 buffer[buffer_index] = first_digit_bytes[i];
                 buffer_index += 1;
             }
@@ -982,7 +982,7 @@ impl BigUnsigned {
 
             // Increment the current byte index.
             current_byte_index += 1;
-            if current_byte_index == size_of::<Digit>() {
+            if current_byte_index == size_of::<Digit>() && i != 0 {
                 // If we've written a whole digit, move to the next digit and reset the byte index.
                 current_digit_index -= 1;
                 current_byte_index = 0;
