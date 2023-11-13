@@ -959,7 +959,7 @@ impl BigUnsigned {
         // Trim any leading zeroes.
         let first_non_zero_byte_index = match Self::first_non_zero_byte_index(be_bytes) {
             Some(i) => i,
-            None => return (1, be_bytes),
+            None => return (1, &be_bytes[be_bytes.len()..]),
         };
 
         // Calculate the number of digits we need.
