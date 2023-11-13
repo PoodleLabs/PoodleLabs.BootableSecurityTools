@@ -161,7 +161,15 @@ impl BigUnsignedCalculator {
 
         let e = exponent.borrow_digits();
         let bit_count = e.len() * size_of::<Digit>() * 8;
-        for i in (0..bit_count).rev() {
+        let mut first_high_bit = bit_count;
+        for i in 0..bit_count {
+            if try_get_bit_at_index(i, e).unwrap() {
+                first_high_bit = i;
+                break;
+            }
+        }
+
+        for i in (first_high_bit..bit_count).rev() {
             if try_get_bit_at_index(i, e).unwrap() {
                 self.x.multiply_big_unsigned(&value);
                 self.x.modulo_big_unsigned(modulus);

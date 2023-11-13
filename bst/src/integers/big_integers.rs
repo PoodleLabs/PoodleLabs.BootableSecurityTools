@@ -286,12 +286,14 @@ impl BigUnsigned {
         // Calculate the number of required digits, and trim leading zeroes from the input bytes.
         let (digit_count, be_bytes) = Self::calculate_required_digits_for_bytes(be_bytes);
 
+        // Zero existing digits.
+        self.digits.fill(0);
+
         // Match the internal digit buffer to the required digit length.
         if self.digits.len() < digit_count {
             self.digits
                 .extend((0..digit_count - self.digits.len()).into_iter().map(|_| 0));
         } else {
-            self.digits[digit_count..].fill(0);
             self.digits.truncate(digit_count);
         }
 
@@ -341,11 +343,6 @@ impl BigUnsigned {
 impl BigSigned {
     pub fn copy_be_bytes_from(&mut self, be_bytes: &[u8], is_negative: bool) {
         self.big_unsigned.copy_be_bytes_from(be_bytes);
-        self.is_negative = is_negative;
-    }
-
-    pub fn copy_digits_from(&mut self, digits: &[Digit], is_negative: bool) {
-        self.big_unsigned.copy_digits_from(digits);
         self.is_negative = is_negative;
     }
 
