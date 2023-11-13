@@ -297,10 +297,6 @@ impl BigSigned {
 //\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn add_u8(&mut self, addend: u8) {
-        self.add_be_bytes(&[addend])
-    }
-
     pub fn add_big_unsigned(&mut self, addend: &BigUnsigned) {
         self.add_be_bytes(&addend.digits)
     }
@@ -467,14 +463,6 @@ impl BigUnsigned {
                 self.trim_leading_zeroes();
             }
         }
-    }
-
-    pub fn multiply_u8(&mut self, multiplier: u8) {
-        self.multiply_be_bytes(&[multiplier])
-    }
-
-    pub fn multiply_u16(&mut self, multiplier: u16) {
-        self.multiply_be_bytes(&multiplier.to_be_bytes())
     }
 
     pub fn multiply_big_unsigned(&mut self, multiplier: &BigUnsigned) {
@@ -806,10 +794,6 @@ impl BigSigned {
 
         // Differences are an absolute value.
         self.is_negative = false;
-    }
-
-    pub fn multiply_u8(&mut self, multiplier: u8) {
-        self.multiply_be_bytes_unsigned(&[multiplier])
     }
 
     pub fn multiply_be_bytes_unsigned(&mut self, multiplier_digits: &[u8]) {

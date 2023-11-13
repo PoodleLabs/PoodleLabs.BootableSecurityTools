@@ -81,16 +81,16 @@ impl NumericCollector {
                     // Push a digit to the end of the unsigned integer.
                     let bits = BASE_BITS_PER_ROUND[(round_base - 2) as usize];
                     self.bit_counter += bits;
-                    self.big_unsigned.multiply_u8(round_base);
-                    self.big_unsigned.add_u8(round_value);
+                    self.big_unsigned.multiply_be_bytes(&[round_base]);
+                    self.big_unsigned.add_be_bytes(&[round_value]);
                     Ok((bits, self.bit_counter))
                 }
             }
             NumericCollectorRoundBase::WholeByte => {
                 // Push a digit to the end of the unsigned integer.
                 self.bit_counter += 8f64;
-                self.big_unsigned.multiply_u16(256);
-                self.big_unsigned.add_u8(round_value);
+                self.big_unsigned.multiply_be_bytes(&[1, 0]);
+                self.big_unsigned.add_be_bytes(&[round_value]);
                 Ok((8f64, self.bit_counter))
             }
         }

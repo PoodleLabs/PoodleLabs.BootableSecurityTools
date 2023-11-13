@@ -431,7 +431,7 @@ impl EllipticCurvePoint {
 
         // Y = Yp
         // Y *= 2
-        self.y.multiply_u8(2);
+        self.y.multiply_be_bytes_unsigned(&[2]);
 
         // Y mod inverse
         addition_context.mod_inverse(&mut self.y);
@@ -441,7 +441,7 @@ impl EllipticCurvePoint {
         self.x.multiply_big_signed(&addition_context.augend.x);
 
         // X *= 3
-        self.x.multiply_u8(3);
+        self.x.multiply_be_bytes_unsigned(&[3]);
 
         // X += a
         self.x.add_big_unsigned(addition_context.a);

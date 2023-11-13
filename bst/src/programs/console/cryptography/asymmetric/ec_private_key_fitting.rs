@@ -117,7 +117,7 @@ impl<TSystemServices: SystemServices> Program
                             }
 
                             // Increment the oversized private key.
-                            b.add_u8(1);
+                            b.add_be_bytes(&[1]);
 
                             // Take back ownership of the hash buffer.
                             hash_buffer = integer.extract_be_bytes();

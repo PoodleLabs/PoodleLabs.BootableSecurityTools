@@ -57,7 +57,7 @@ fn secp256k1_derive_pubkey_n_plus_one_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
     let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.add_u8(1);
+    n_plus_one.add_be_bytes(&[1]);
 
     assert_eq!(
         context.multiply_point(
@@ -74,7 +74,7 @@ fn secp256k1_derive_pubkey_more_bytes_than_n_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
     let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.add_u8(1); //TODO
+    n_plus_one.add_be_bytes(&[1]);
 
     assert_eq!(
         context.multiply_point(
