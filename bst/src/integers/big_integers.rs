@@ -17,10 +17,10 @@
 use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, mem::size_of};
 
-pub type Digit = u64;
 pub const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
+pub type Digit = u8;
 
-type Carry = u128;
+type Carry = u16;
 
 #[derive(Debug, Clone, Eq)]
 pub struct BigUnsigned {

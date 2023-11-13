@@ -34,57 +34,57 @@ pub trait BitTarget: Sized + Eq + Copy {
     fn zero() -> Self;
 }
 
-impl BitTarget for u8 {
-    fn right_shift(self, by: usize) -> Self {
-        self >> by
-    }
+macro_rules! bit_target_integer {
+    ($($integer:ident $shift_start_offset:ident,)*) => {
+        $(
+            #[allow(dead_code)]
+            impl BitTarget for $integer {
+                fn right_shift(self, by: usize) -> Self {
+                    self >> by
+                }
 
-    fn and(self, value: Self) -> Self {
-        self & value
-    }
+                fn and(self, value: Self) -> Self {
+                    self & value
+                }
 
-    fn or(self, value: Self) -> Self {
-        self | value
-    }
+                fn or(self, value: Self) -> Self {
+                    self | value
+                }
 
-    fn complement(self) -> Self {
-        !self
-    }
+                fn complement(self) -> Self {
+                    !self
+                }
 
-    fn shift_start() -> Self {
-        1u8 << 7
-    }
+                fn shift_start() -> Self {
+                    1 << $shift_start_offset
+                }
 
-    fn zero() -> Self {
-        0
-    }
+                fn zero() -> Self {
+                    0
+                }
+            }
+
+        )*
+    };
 }
 
-impl BitTarget for u64 {
-    fn right_shift(self, by: usize) -> Self {
-        self >> by
-    }
-
-    fn and(self, value: Self) -> Self {
-        self & value
-    }
-
-    fn or(self, value: Self) -> Self {
-        self | value
-    }
-
-    fn complement(self) -> Self {
-        !self
-    }
-
-    fn shift_start() -> Self {
-        1u64 << 63
-    }
-
-    fn zero() -> Self {
-        0
-    }
+const fn shift_offset<T: Sized>() -> usize {
+    (size_of::<T>() * 8) - 1
 }
+
+const U8_SHIFT_OFFSET: usize = shift_offset::<u8>();
+const U16_SHIFT_OFFSET: usize = shift_offset::<u16>();
+const U32_SHIFT_OFFSET: usize = shift_offset::<u32>();
+const USIZE_SHIFT_OFFSET: usize = shift_offset::<usize>();
+const U64_SHIFT_OFFSET: usize = shift_offset::<u64>();
+
+bit_target_integer!(
+    u8 U8_SHIFT_OFFSET,
+    u16 U16_SHIFT_OFFSET,
+    u32 U32_SHIFT_OFFSET,
+    usize USIZE_SHIFT_OFFSET,
+    u64 U64_SHIFT_OFFSET,
+);
 
 pub const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Option<usize> {
     let available_bits = byte_count * 8;

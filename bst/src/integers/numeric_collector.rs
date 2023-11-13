@@ -19,6 +19,12 @@ use crate::integers::BigUnsigned;
 use core::mem::size_of;
 use macros::log2_range;
 
+const WHOLE_BYTE_MULTIPLIER: &[Digit] = if size_of::<Digit>() == 1 {
+    &[1, 0]
+} else {
+    &[255 + 1]
+};
+
 const BASE_BITS_PER_ROUND: [f64; 254] = log2_range!(256);
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
@@ -90,7 +96,7 @@ impl NumericCollector {
             NumericCollectorRoundBase::WholeByte => {
                 // Push a digit to the end of the unsigned integer.
                 self.bit_counter += 8f64;
-                self.big_unsigned.multiply(&[256]);
+                self.big_unsigned.multiply(WHOLE_BYTE_MULTIPLIER);
                 self.big_unsigned.add(&[round_value as Digit]);
                 Ok((8f64, self.bit_counter))
             }

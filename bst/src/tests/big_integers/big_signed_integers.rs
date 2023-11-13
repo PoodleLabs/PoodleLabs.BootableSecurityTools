@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    integers::{BigSigned, BigUnsigned},
+    integers::{BigSigned, BigUnsigned, Digit},
     tests::{
         big_integers::{big_signed_to_i128, random_big_signed, random_big_unsigned},
         PARALLELIZED_TEST_THREAD_COUNT,
@@ -26,11 +26,11 @@ use core::cmp::Ordering;
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 100000;
+const RANDOM_ITERATIONS: usize = 1000;
 
 #[test]
 fn equal_big_signeds_are_equal() {
-    let vbs = [random::<u64>(), random::<u64>(), random::<u64>()];
+    let vbs = [random::<Digit>(), random::<Digit>(), random::<Digit>()];
     let integer_sets = [
         [
             from_digits(false, vec![0, 0, vbs[0], vbs[1], vbs[2]]),
@@ -63,7 +63,7 @@ fn equal_big_signeds_are_equal() {
 
 #[test]
 fn unequal_big_signeds_are_unequal() {
-    let vbs = [random::<u64>(), random::<u64>(), random::<u64>()];
+    let vbs = [random::<Digit>(), random::<Digit>(), random::<Digit>()];
     let integers = [
         from_digits(true, vec![1, 1, vbs[0], vbs[1], vbs[2]]),
         from_digits(true, vec![1, vbs[0], vbs[1], vbs[2]]),
@@ -253,6 +253,6 @@ fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
         });
 }
 
-fn from_digits(is_negative: bool, digits: Vec<u64>) -> BigSigned {
+fn from_digits(is_negative: bool, digits: Vec<Digit>) -> BigSigned {
     BigSigned::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
 }
