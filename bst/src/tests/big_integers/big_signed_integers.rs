@@ -229,7 +229,7 @@ fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
                 RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
             };
 
-            let mut modulus_buffer = BigSigned::with_capacity(16);
+            let mut modulus_buffer = BigSigned::with_capacity(2);
             for _ in 0..iterations {
                 let (mut b1, r1) = random_big_signed(16);
                 let (b2, r2) = random_big_unsigned(15);

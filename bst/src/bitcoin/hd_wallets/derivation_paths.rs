@@ -274,8 +274,8 @@ impl Bip32CkdContext {
     pub fn new() -> Self {
         Self {
             multiplication_context: secp256k1::point_multiplication_context(),
-            point_buffer: EllipticCurvePoint::infinity(32),
-            private_key_buffer: BigUnsigned::with_capacity(32),
+            point_buffer: EllipticCurvePoint::infinity(4),
+            private_key_buffer: BigUnsigned::with_capacity(4),
             hash160: Hash160::new(),
             sha512: Sha512::new(),
         }

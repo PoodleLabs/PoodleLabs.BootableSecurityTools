@@ -182,7 +182,7 @@ fn big_unsigned_random_multiply() {
 
 #[test]
 fn big_unsigned_edge_case_divide() {
-    let mut remainder_buffer = BigUnsigned::with_capacity(16);
+    let mut remainder_buffer = BigUnsigned::with_capacity(2);
 
     let mut b1 = BigUnsigned::from_be_bytes(&[53, 224, 51, 154, 252]);
     let b2 = BigUnsigned::from_be_bytes(&[53, 224]);
@@ -251,7 +251,7 @@ fn big_unsigned_random_divide() {
                 RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
             };
 
-            let mut remainder_buffer = BigUnsigned::with_capacity(16);
+            let mut remainder_buffer = BigUnsigned::with_capacity(2);
             for _ in 0..iterations {
                 let (mut b1, r1) = random_big_unsigned(16);
                 let (b2, r2) = random_big_unsigned(16);

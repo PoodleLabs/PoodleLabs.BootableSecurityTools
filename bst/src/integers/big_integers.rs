@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, mem::size_of};
 
 pub type Digit = u64;
@@ -101,8 +101,33 @@ impl Ord for BigSigned {
 //\/\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn from_be_bytes(_be_bytes: &[u8]) -> Self {
-        todo!()
+    pub fn from_be_bytes(be_bytes: &[u8]) -> Self {
+        // Calculate the number of digits we need.
+        let mut digit_count = be_bytes.len() / size_of::<Digit>();
+        if digit_count * size_of::<Digit>() < be_bytes.len() {
+            digit_count += 1;
+        }
+
+        // Prepare a buffer for the digits.
+        let mut digits = vec![0; digit_count];
+
+        // Iterate over the bytes from least to most significant and write into the digit buffer.
+        let mut current_byte_index = 0;
+        let mut current_digit_index = digits.len() - 1;
+        for i in (0..be_bytes.len()).rev() {
+            // Write the current byte to the correct spot in the digit buffer.
+            digits[current_digit_index] |= (be_bytes[i] as Digit) << (current_byte_index * 8);
+
+            // Increment the current byte index.
+            current_byte_index += 1;
+            if current_byte_index == size_of::<Digit>() {
+                // If we've written a whole digit, move to the next digit and reset the byte index.
+                current_digit_index -= 1;
+                current_byte_index = 0;
+            }
+        }
+
+        Self { digits }
     }
 
     pub fn from_digits(digits: &[Digit]) -> Self {

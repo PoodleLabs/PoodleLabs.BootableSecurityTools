@@ -16,6 +16,7 @@
 
 use super::{ceil, Digit};
 use crate::integers::BigUnsigned;
+use core::mem::size_of;
 use macros::log2_range;
 
 const BASE_BITS_PER_ROUND: [f64; 254] = log2_range!(256);
@@ -41,14 +42,14 @@ pub struct NumericCollector {
 impl NumericCollector {
     pub fn with_byte_capacity(capacity: usize) -> Self {
         Self {
-            big_unsigned: BigUnsigned::with_capacity(capacity),
+            big_unsigned: BigUnsigned::with_capacity(capacity / size_of::<Digit>()),
             bit_counter: 0f64,
         }
     }
 
     pub fn new() -> Self {
         Self {
-            big_unsigned: BigUnsigned::with_capacity(8),
+            big_unsigned: BigUnsigned::with_capacity(1),
             bit_counter: 0f64,
         }
     }
