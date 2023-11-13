@@ -15,12 +15,16 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
+
+type Digit = u64;
+type Carry = u128;
+const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
 
 #[derive(Debug, Clone, Eq)]
 pub struct BigUnsigned {
-    // We store digits in big-endian format, in base-256.
-    digits: Vec<u8>,
+    // We store digits in big-endian format, in base-2^64.
+    digits: Vec<Digit>,
 }
 
 impl PartialEq for BigUnsigned {
@@ -41,14 +45,14 @@ impl Ord for BigUnsigned {
     }
 }
 
-impl PartialEq<[u8]> for BigUnsigned {
-    fn eq(&self, other: &[u8]) -> bool {
+impl PartialEq<[Digit]> for BigUnsigned {
+    fn eq(&self, other: &[Digit]) -> bool {
         cmp(&self.digits, other) == Ordering::Equal
     }
 }
 
-impl PartialOrd<[u8]> for BigUnsigned {
-    fn partial_cmp(&self, other: &[u8]) -> Option<Ordering> {
+impl PartialOrd<[Digit]> for BigUnsigned {
+    fn partial_cmp(&self, other: &[Digit]) -> Option<Ordering> {
         Some(cmp(&self.digits, other))
     }
 }
@@ -96,11 +100,11 @@ impl Ord for BigSigned {
 //\/\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn from_be_bytes(be_bytes: &[u8]) -> Self {
+    pub fn from_digits(digits: &[Digit]) -> Self {
         Self {
-            digits: match Self::first_non_zero_digit_index(&be_bytes) {
+            digits: match Self::first_non_zero_digit_index(digits) {
                 // Trim any leading zero digits.
-                Some(i) => Vec::from(&be_bytes[i..]),
+                Some(i) => Vec::from(&digits[i..]),
                 // There are no non-zero digits. Initialize with a single zero digit.
                 None => Vec::from([0]),
             },
@@ -108,13 +112,13 @@ impl BigUnsigned {
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let mut bytes = Vec::with_capacity(capacity);
+        let mut digits = Vec::with_capacity(capacity);
         // We always need at least one digit; initialize as zero.
-        bytes.push(0);
-        Self { digits: bytes }
+        digits.push(0);
+        Self { digits }
     }
 
-    pub fn from_vec(digits: Vec<u8>) -> Self {
+    pub fn from_vec(digits: Vec<Digit>) -> Self {
         let mut value = Self { digits };
         if value.digit_count() == 0 {
             value.digits.push(0);
@@ -144,15 +148,15 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\//
 
 impl BigUnsigned {
-    pub fn extract_be_bytes(self) -> Vec<u8> {
+    pub fn extract_digits(self) -> Vec<Digit> {
         self.digits
     }
 
-    pub fn copy_digits_to(&self, buffer: &mut [u8]) {
+    pub fn copy_digits_to(&self, buffer: &mut [Digit]) {
         buffer.copy_from_slice(&self.digits)
     }
 
-    pub fn borrow_digits(&self) -> &[u8] {
+    pub fn borrow_digits(&self) -> &[Digit] {
         &self.digits
     }
 
@@ -189,7 +193,7 @@ impl BigSigned {
         &mut self.big_unsigned
     }
 
-    pub fn copy_digits_to(&self, buffer: &mut [u8]) {
+    pub fn copy_digits_to(&self, buffer: &mut [Digit]) {
         self.big_unsigned.copy_digits_to(buffer)
     }
 
@@ -223,7 +227,7 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn copy_digits_from(&mut self, digits: &[u8]) {
+    pub fn copy_digits_from(&mut self, digits: &[Digit]) {
         let digits = match Self::first_non_zero_digit_index(digits) {
             Some(i) => &digits[i..],
             None => {
@@ -263,7 +267,7 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
-    pub fn copy_digits_from(&mut self, digits: &[u8], is_negative: bool) {
+    pub fn copy_digits_from(&mut self, digits: &[Digit], is_negative: bool) {
         self.big_unsigned.copy_digits_from(digits);
         self.is_negative = is_negative;
     }
@@ -298,10 +302,10 @@ impl BigSigned {
 
 impl BigUnsigned {
     pub fn add_big_unsigned(&mut self, addend: &BigUnsigned) {
-        self.add_be_bytes(&addend.digits)
+        self.add(&addend.digits)
     }
 
-    pub fn add_be_bytes(&mut self, addend_digits: &[u8]) {
+    pub fn add(&mut self, addend_digits: &[Digit]) {
         let addend_digits = match Self::first_non_zero_digit_index(addend_digits) {
             // Skip any leading zero digits in the addend.
             Some(i) => &addend_digits[i..],
@@ -320,51 +324,51 @@ impl BigUnsigned {
             (false, addend_digits.len())
         };
 
-        let mut carry = 0u32;
+        let mut carry: Carry = 0;
         // Iterate over the overlapping digits, from least to most significant.
         for i in 1..(min_len + 1) {
             let augend_index = self.digits.len() - i;
-            let augend = self.digits[augend_index] as u32;
-            let addend = addend_digits[addend_digits.len() - i] as u32;
+            let augend = self.digits[augend_index] as Carry;
+            let addend = addend_digits[addend_digits.len() - i] as Carry;
 
             // Sum the digit in this position from the augend and addend with any existing carry.
             let sum = augend + addend + carry;
 
             // Set the digit in the current position.
-            self.digits[augend_index] = sum as u8;
+            self.digits[augend_index] = sum as Digit;
 
             // Carry over any overflow for the next iteration.
-            carry = sum >> 8;
+            carry = sum >> DIGIT_SHIFT;
         }
 
         if self_is_smaller {
             // We need to add digits (and any remaining carry) to the start of our augend.
             for i in (0..addend_digits.len() - min_len).rev() {
-                let sum = carry + (addend_digits[i] as u32);
-                self.digits.insert(0, sum as u8);
-                carry = sum >> 8;
+                let sum = carry + (addend_digits[i] as Carry);
+                self.digits.insert(0, sum as Digit);
+                carry = sum >> DIGIT_SHIFT;
             }
         } else {
             // We need to add any remaining carry to the leading digits of of our augend.
             for i in (0..self.digits.len() - min_len).rev() {
-                let sum = carry + (self.digits[i] as u32);
-                self.digits[i] = sum as u8;
-                carry = sum >> 8;
+                let sum = carry + (self.digits[i] as Carry);
+                self.digits[i] = sum as Digit;
+                carry = sum >> DIGIT_SHIFT;
             }
         }
 
         // Add any remaining carry to our augend.
         while carry > 0 {
-            self.digits.insert(0, carry as u8);
-            carry >>= 8;
+            self.digits.insert(0, carry as Digit);
+            carry >>= DIGIT_SHIFT;
         } // Adding can't result in leading zeroes where there were none, so there's no need to trim.
     }
 
     pub fn subtract_big_unsigned(&mut self, subtrahend: &BigUnsigned) {
-        self.subtract_be_bytes(&subtrahend.digits)
+        self.subtract(&subtrahend.digits)
     }
 
-    pub fn subtract_be_bytes(&mut self, subtrahend_digits: &[u8]) {
+    pub fn subtract(&mut self, subtrahend_digits: &[Digit]) {
         if self.is_zero() {
             // If the minuend is already zero, as we don't wrap, we can just return.
             return;
@@ -390,10 +394,10 @@ impl BigUnsigned {
     }
 
     pub fn difference_big_unsigned(&mut self, operator: &BigUnsigned) {
-        self.difference_be_bytes(&operator.digits)
+        self.difference(&operator.digits)
     }
 
-    pub fn difference_be_bytes(&mut self, operator_digits: &[u8]) {
+    pub fn difference(&mut self, operator_digits: &[Digit]) {
         let operator_digits = match Self::first_non_zero_digit_index(operator_digits) {
             // The operator is non-zero; trim any leading zero digits.
             Some(i) => &operator_digits[i..],
@@ -448,7 +452,7 @@ impl BigUnsigned {
                             let mut j = i - 1;
                             loop {
                                 if self.digits[j] == 0 {
-                                    self.digits[j] = u8::MAX;
+                                    self.digits[j] = Digit::MAX;
                                 } else {
                                     self.digits[j] -= 1;
                                     break;
@@ -466,10 +470,10 @@ impl BigUnsigned {
     }
 
     pub fn multiply_big_unsigned(&mut self, multiplier: &BigUnsigned) {
-        self.multiply_be_bytes(&multiplier.digits)
+        self.multiply(&multiplier.digits)
     }
 
-    pub fn multiply_be_bytes(&mut self, multiplier_digits: &[u8]) {
+    pub fn multiply(&mut self, multiplier_digits: &[Digit]) {
         let multiplier_digits = match Self::first_non_zero_digit_index(multiplier_digits) {
             // Skip any leading zero digits in the multiplier.
             Some(i) => &multiplier_digits[i..],
@@ -500,7 +504,7 @@ impl BigUnsigned {
 
             // Get the multiplicand digit at this index. We need to multiply it by all the digits in the multiplier, summing all the products,
             // so we need to store its original value as this digit will be mutated during each multiplication.
-            let multiplicand = self.digits[multiplicand_index] as u32;
+            let multiplicand = self.digits[multiplicand_index] as Carry;
 
             // Zero out this digit, otherwise we end up with X + (X * Y).
             self.digits[multiplicand_index] = 0;
@@ -521,16 +525,16 @@ impl BigUnsigned {
 
                 // Calculate the product for this digit's multiplication.
                 // This is the value we need to insert at magnitude K.
-                let mut value_at_magnitude = multiplicand * (multiplier_digits[j] as u32);
+                let mut value_at_magnitude = multiplicand * (multiplier_digits[j] as Carry);
                 loop {
                     // We can't discard any existing digit at magnitude K.
-                    value_at_magnitude += self.digits[k] as u32;
+                    value_at_magnitude += self.digits[k] as Carry;
 
                     // K becomes the least-significant digit of our calculated value ending at this digit.
-                    self.digits[k] = value_at_magnitude as u8;
+                    self.digits[k] = value_at_magnitude as Digit;
 
                     // Discard the least significant digit.
-                    value_at_magnitude >>= 8;
+                    value_at_magnitude >>= DIGIT_SHIFT;
                     if value_at_magnitude == 0 {
                         // Once there's nothing left to insert, we can break.
                         break;
@@ -545,7 +549,11 @@ impl BigUnsigned {
         self.trim_leading_zeroes()
     }
 
-    pub fn divide_u8_with_remainder(&mut self, divisor: u8, remainder_buffer: &mut u8) -> bool {
+    pub fn divide_by_single_digit_with_remainder(
+        &mut self,
+        divisor: Digit,
+        remainder_buffer: &mut Digit,
+    ) -> bool {
         if divisor == 0 {
             // The divisor is zero; we can't divide by zero, so return None.
             return false;
@@ -564,21 +572,21 @@ impl BigUnsigned {
         }
 
         // Track the remainder in a bigger integer format.
-        let mut remainder = 0u32;
+        let mut remainder: Carry = 0;
         // Iterate over the digits in the dividend from most to least significant.
         for i in 0..self.digits.len() {
             // Any previous remainder becomes the more significant digit. The current digit is the less significant digit.
-            let dividend = (remainder << 8) | (self.digits[i] as u32);
+            let dividend = (remainder << DIGIT_SHIFT) | (self.digits[i] as Carry);
 
             // The less significant digit of this round of division's quotient is our new digit for this index.
-            self.digits[i] = (dividend / (divisor as u32)) as u8;
+            self.digits[i] = (dividend / (divisor as Carry)) as Digit;
 
             // The remainder carries down into the next digit; 169 / 3 = 100 / 3 + 60 / 3 + 9 / 3
-            remainder = dividend % (divisor as u32);
+            remainder = dividend % (divisor as Carry);
         }
 
         self.trim_leading_zeroes();
-        *remainder_buffer = remainder as u8;
+        *remainder_buffer = remainder as Digit;
         return true;
     }
 
@@ -592,7 +600,7 @@ impl BigUnsigned {
             .digits
             .extend((0..divisor.digit_count() - 1).into_iter().map(|_| 0));
 
-        match self.divide_be_bytes_with_remainder(&divisor.digits, &mut remainder_buffer.digits) {
+        match self.divide_with_remainder(&divisor.digits, &mut remainder_buffer.digits) {
             true => {
                 remainder_buffer.trim_leading_zeroes();
                 true
@@ -601,10 +609,10 @@ impl BigUnsigned {
         }
     }
 
-    pub fn divide_be_bytes_with_remainder(
+    pub fn divide_with_remainder(
         &mut self,
-        divisor_digits: &[u8],
-        remainder_buffer: &mut [u8],
+        divisor_digits: &[Digit],
+        remainder_buffer: &mut [Digit],
     ) -> bool {
         let divisor_digits = match Self::first_non_zero_digit_index(divisor_digits) {
             // Skip any leading zero digits in the divisor.
@@ -634,8 +642,8 @@ impl BigUnsigned {
 
         if divisor_digits.len() == 1 {
             // The divisor has a single digit; we can use the simple division algorithm.
-            let mut remainder = 0u8;
-            assert!(self.divide_u8_with_remainder(divisor_digits[0], &mut remainder));
+            let mut remainder: Digit = 0;
+            assert!(self.divide_by_single_digit_with_remainder(divisor_digits[0], &mut remainder));
 
             // This is guaranteed to succeed as we already checked the divisor is non-zero.
             // Write the remainder to the remainder buffer, and return true.
@@ -681,10 +689,10 @@ impl BigUnsigned {
     }
 
     pub fn modulo_big_unsigned(&mut self, modulus: &BigUnsigned) -> bool {
-        self.modulo_be_bytes(&modulus.digits)
+        self.modulo(&modulus.digits)
     }
 
-    pub fn modulo_be_bytes(&mut self, modulus_digits: &[u8]) -> bool {
+    pub fn modulo(&mut self, modulus_digits: &[Digit]) -> bool {
         let divisor_digits = match Self::first_non_zero_digit_index(modulus_digits) {
             // Skip any leading zero digits in the divisor.
             Some(i) => &modulus_digits[i..],
@@ -699,8 +707,8 @@ impl BigUnsigned {
 
         if modulus_digits.len() == 1 {
             // The divisor has a single digit; we can use the simple division algorithm.
-            let mut remainder = 0u8;
-            assert!(self.divide_u8_with_remainder(divisor_digits[0], &mut remainder));
+            let mut remainder: Digit = 0;
+            assert!(self.divide_by_single_digit_with_remainder(divisor_digits[0], &mut remainder));
 
             // Overwrite the quotient with the remainder.
             self.copy_digits_from(&[remainder]);
@@ -740,17 +748,17 @@ impl BigUnsigned {
 
 impl BigSigned {
     pub fn add_big_unsigned(&mut self, addend: &BigUnsigned) {
-        self.add_be_bytes_unsigned(&addend.digits)
+        self.add_unsigned(&addend.digits)
     }
 
-    pub fn add_be_bytes_unsigned(&mut self, addend_digits: &[u8]) {
-        self.add_be_bytes_signed(addend_digits, false)
+    pub fn add_unsigned(&mut self, addend_digits: &[Digit]) {
+        self.add_signed(addend_digits, false)
     }
 
-    pub fn add_be_bytes_signed(&mut self, addend_digits: &[u8], is_negative: bool) {
+    pub fn add_signed(&mut self, addend_digits: &[Digit], is_negative: bool) {
         if is_negative == self.is_negative {
             // Sign is the same; we're moving away from zero, and can just perform an unsigned add.
-            self.big_unsigned.add_be_bytes(addend_digits)
+            self.big_unsigned.add(addend_digits)
         } else {
             // Sign is different; we're moving toward zero. The result is the difference between the two values, with a sign based on which is larger.
             self.is_negative = Ordering::Greater
@@ -762,51 +770,51 @@ impl BigSigned {
                     cmp(addend_digits, &self.big_unsigned.digits)
                 });
 
-            self.big_unsigned.difference_be_bytes(addend_digits)
+            self.big_unsigned.difference(addend_digits)
         }
     }
 
     pub fn subtract_big_signed(&mut self, subtrahend: &BigSigned) {
-        self.subtract_be_bytes_signed(&subtrahend.big_unsigned.digits, subtrahend.is_negative)
+        self.subtract_signed(&subtrahend.big_unsigned.digits, subtrahend.is_negative)
     }
 
-    pub fn subtract_be_bytes_signed(&mut self, subtrahend_digits: &[u8], is_negative: bool) {
+    pub fn subtract_signed(&mut self, subtrahend_digits: &[Digit], is_negative: bool) {
         // Subtracting a negative is addition, and adding a negative is subtraction. We can invert the subtrahend's sign and add it.
-        self.add_be_bytes_signed(subtrahend_digits, !is_negative)
+        self.add_signed(subtrahend_digits, !is_negative)
     }
 
     pub fn difference_big_unsigned(&mut self, operator: &BigUnsigned) {
-        self.difference_be_bytes_unsigned(&operator.digits)
+        self.difference_unsigned(&operator.digits)
     }
 
-    pub fn difference_be_bytes_unsigned(&mut self, operator_digits: &[u8]) {
-        self.difference_be_bytes_signed(operator_digits, false)
+    pub fn difference_unsigned(&mut self, operator_digits: &[Digit]) {
+        self.difference_signed(operator_digits, false)
     }
 
-    pub fn difference_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
+    pub fn difference_signed(&mut self, operator_digits: &[Digit], is_negative: bool) {
         if self.is_negative == is_negative {
             // If the values have the same sign, the difference is the unsigned difference.
-            self.big_unsigned.difference_be_bytes(operator_digits)
+            self.big_unsigned.difference(operator_digits)
         } else {
             // If the values have a different sign, the difference is the sum of the unsigned values.
-            self.big_unsigned.add_be_bytes(operator_digits)
+            self.big_unsigned.add(operator_digits)
         }
 
         // Differences are an absolute value.
         self.is_negative = false;
     }
 
-    pub fn multiply_be_bytes_unsigned(&mut self, multiplier_digits: &[u8]) {
-        self.multiply_be_bytes_signed(multiplier_digits, false)
+    pub fn multiply_unsigned(&mut self, multiplier_digits: &[Digit]) {
+        self.multiply_signed(multiplier_digits, false)
     }
 
     pub fn multiply_big_signed(&mut self, multiplier: &BigSigned) {
-        self.multiply_be_bytes_signed(&multiplier.big_unsigned.digits, multiplier.is_negative)
+        self.multiply_signed(&multiplier.big_unsigned.digits, multiplier.is_negative)
     }
 
-    pub fn multiply_be_bytes_signed(&mut self, multiplier_digits: &[u8], is_negative: bool) {
+    pub fn multiply_signed(&mut self, multiplier_digits: &[Digit], is_negative: bool) {
         // The unsigned value will always just be the product.
-        self.big_unsigned.multiply_be_bytes(multiplier_digits);
+        self.big_unsigned.multiply(multiplier_digits);
 
         // A negative multiplied by a negative is positive, and a positive multiplied by a positive is negative.
         // A negative multiplied by a positive is negative, unless the positive value is zero, in which case, the product is zero.
@@ -866,7 +874,7 @@ impl BigUnsigned {
     // STATIC HELPER METHODS //
     //\/\/\/\/\/\/\/\/\/\/\/\//
 
-    fn subtract_internal(minuend_digits: &mut [u8], subtrahend_digits: &[u8]) {
+    fn subtract_internal(minuend_digits: &mut [Digit], subtrahend_digits: &[Digit]) {
         // This is called with a subtrahend guaranteed to be smaller than the minuend, though they may have the same number of digits.
         // Calculate the number of overlapping digits. The minuend is guaranteed to have as many or more digits.
         let overlapping_digit_count = minuend_digits.len().min(subtrahend_digits.len());
@@ -891,7 +899,7 @@ impl BigUnsigned {
                 loop {
                     if minuend_digits[j] == 0 {
                         // The next more significant digit is zero. We need to keep wrapping.
-                        minuend_digits[j] = u8::MAX;
+                        minuend_digits[j] = Digit::MAX;
                         j -= 1;
                     } else {
                         // The next more significant digit is non-zero. We can subtract 1 and stop.
@@ -903,7 +911,7 @@ impl BigUnsigned {
         }
     }
 
-    fn first_non_zero_digit_index(digits: &[u8]) -> Option<usize> {
+    fn first_non_zero_digit_index(digits: &[Digit]) -> Option<usize> {
         match digits.iter().enumerate().find(|(_, x)| **x != 0) {
             Some((i, _)) => Some(i),
             None => None,
@@ -915,7 +923,7 @@ impl BigUnsigned {
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
     fn handle_remainder_equals_divisor(
         &mut self,
-        quotient_digit: u8,
+        quotient_digit: Digit,
         remainder_off: usize,
         remainder_len: usize,
         quotient_len: &mut usize,
@@ -925,7 +933,7 @@ impl BigUnsigned {
         self.append_quotient_digit(quotient_digit, quotient_len);
     }
 
-    fn append_quotient_digit(&mut self, quotient_digit: u8, quotient_len: &mut usize) {
+    fn append_quotient_digit(&mut self, quotient_digit: Digit, quotient_len: &mut usize) {
         // Add the digit to the end of the quotient.
         self.digits[*quotient_len] = quotient_digit;
         *quotient_len += 1;
@@ -956,7 +964,7 @@ impl BigUnsigned {
         }
     }
 
-    fn internal_divide(&mut self, divisor_digits: &[u8]) -> (usize, usize) {
+    fn internal_divide(&mut self, divisor_digits: &[Digit]) -> (usize, usize) {
         // Add a leading zero to the dividend to ensure we have space to fit both the quotient and the remainder.
         self.digits.insert(0, 0);
 
@@ -1027,7 +1035,7 @@ impl BigUnsigned {
                 Ordering::Greater => {
                     // The working remainder is larger than the divisor.
                     // We will perform division-by-subtraction on it.
-                    let mut subtraction_counter = 0u8;
+                    let mut subtraction_counter: Digit = 0;
                     loop {
                         // Subtract the divisor from the working remainder.
                         Self::subtract_internal(remainder, divisor_digits);
@@ -1094,7 +1102,7 @@ impl BigUnsigned {
     }
 }
 
-fn cmp(left: &[u8], right: &[u8]) -> Ordering {
+fn cmp(left: &[Digit], right: &[Digit]) -> Ordering {
     // Compares two big-endian unsigned integers with no leading zero digits.
     match left.len().cmp(&right.len()) {
         // Left and right have the same number of digits. We need to look for any differing digits.
