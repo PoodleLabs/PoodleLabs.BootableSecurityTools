@@ -161,8 +161,45 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\//
 
 impl BigUnsigned {
-    pub fn copy_be_bytes_to(&self, _buffer: &mut [u8]) {
-        todo!()
+    pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
+        let byte_count = self.byte_count();
+        if buffer.len() < byte_count {
+            panic!("Tried to copy big-endian bytes out of a BigUnsigned to a buffer whose length was too short.");
+        }
+
+        // Zero out the buffer.
+        buffer.fill(0);
+
+        // Trim any leading bytes from the output buffer.
+        let original_buffer_length = buffer.len();
+        let buffer = &mut buffer[original_buffer_length - byte_count..];
+
+        // Track the buffer index and digit indexes separately.
+        let mut buffer_index = 0;
+        let mut digit_index = 0;
+
+        let partial_digit_bytes = byte_count % size_of::<Digit>();
+        if partial_digit_bytes != 0 {
+            // The first digit has leading zero bytes; write that first.
+            let first_digit_bytes = self.digits[0].to_be_bytes();
+            for i in size_of::<Digit>() - partial_digit_bytes.. {
+                buffer[buffer_index] = first_digit_bytes[i];
+                buffer_index += 1;
+            }
+
+            digit_index += 1;
+        }
+
+        // Write all whole digits to the buffer.
+        while digit_index < self.digits.len() {
+            let digit_bytes = self.digits[digit_index].to_be_bytes();
+            for i in 0..digit_bytes.len() {
+                buffer[buffer_index] = digit_bytes[i];
+                buffer_index += 1;
+            }
+
+            digit_index += 1;
+        }
     }
 
     pub fn borrow_digits(&self) -> &[Digit] {
@@ -174,11 +211,12 @@ impl BigUnsigned {
     }
 
     pub fn byte_count(&self) -> usize {
-        (self.digits.len() * size_of::<Digit>())
+        ((self.digits.len() * size_of::<Digit>())
             - (match Self::first_non_zero_byte_index(&self.digits[0].to_be_bytes()) {
                 Some(i) => i,
                 None => size_of::<Digit>(),
-            })
+            }))
+        .max(1)
     }
 
     pub fn is_non_zero(&self) -> bool {
