@@ -18,7 +18,7 @@ use crate::{
     console_out::ConsoleOut,
     constants,
     hashing::{Hasher, Sha512},
-    integers::BigUnsigned,
+    integers::{BigUnsigned, Digit},
     programs::{
         console::{cryptography::asymmetric::prompt_for_curve_selection, write_bytes},
         Program, ProgramExitResult,
@@ -33,7 +33,7 @@ use crate::{
     String16,
 };
 use alloc::vec;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 use macros::s16;
 
 const ITERATIVE_HASHING_KEY: &[u8] = "Extremely Large Numer Private Key".as_bytes();
@@ -100,31 +100,43 @@ impl<TSystemServices: SystemServices> Program
                         });
 
                         let mut hasher = Sha512::new();
-                        let mut hash_buffer = vec![0u8; Sha512::HASH_SIZE];
+                        let mut hash_buffer = [0u8; Sha512::HASH_SIZE];
+                        let mut hash_input_buffer = vec![0u8; Sha512::HASH_SIZE];
                         let mut hmac = hasher.build_hmac(ITERATIVE_HASHING_KEY);
+                        let mut result_buffer = BigUnsigned::with_capacity(32 / size_of::<Digit>());
                         break loop {
-                            hmac.write_hmac_to(&b.borrow_digits(), &mut hash_buffer);
-                            // Take the first X bytes where X is the private key length for the curve.
-                            hash_buffer.truncate(curve.key_length);
+                            // Hash the private key's current value.
+                            let byte_count = b.byte_count();
+                            if hash_input_buffer.len() >= byte_count {
+                                hash_input_buffer[byte_count..].fill(0);
+                                hash_input_buffer.truncate(byte_count)
+                            } else {
+                                hash_input_buffer.extend(
+                                    (0..byte_count - hash_input_buffer.len())
+                                        .into_iter()
+                                        .map(|_| 0),
+                                )
+                            }
 
-                            // Give the hash buffer to a BigUnsigned; we'll compare and, if it's a valid private key, use it.
-                            let integer = BigUnsigned::from_vec(hash_buffer);
-                            if integer.is_non_zero() && integer.cmp(curve.n) == Ordering::Less {
-                                // Zero out the original integer, reset the hasher, and exit the loop with our new value.
+                            b.copy_be_bytes_to(&mut hash_input_buffer);
+                            hmac.write_hmac_to(&hash_input_buffer, &mut hash_buffer);
+
+                            // Give the truncated hash buffer to our result buffer; we'll compare and,
+                            // if it's a valid private key, use it.
+                            result_buffer.copy_be_bytes_from(&hash_buffer[..curve.key_length]);
+                            if result_buffer.is_non_zero()
+                                && result_buffer.cmp(curve.n) == Ordering::Less
+                            {
+                                // Zero out working values and break out with our result.
                                 b.zero();
                                 hasher.reset();
-                                break integer;
+                                hash_buffer.fill(0);
+                                hash_input_buffer.fill(0);
+                                break result_buffer;
                             }
 
                             // Increment the oversized private key.
                             b.add(&[1]);
-
-                            // Take back ownership of the hash buffer.
-                            hash_buffer = integer.extract_be_bytes();
-
-                            // Reset the hash buffer to the correct length.
-                            hash_buffer.truncate(0);
-                            hash_buffer.extend((0..Sha512::HASH_SIZE).into_iter().map(|_| 0))
                         };
                     }
 
@@ -141,21 +153,24 @@ impl<TSystemServices: SystemServices> Program
             };
         };
 
+        let mut private_key_bytes = vec![0u8; private_key.byte_count()];
+        private_key.copy_be_bytes_to(&mut private_key_bytes);
+        private_key.zero();
+
         write_bytes(
             &self.system_services,
             s16!("Private Key"),
-            private_key.borrow_digits(),
+            &private_key_bytes,
         );
 
         prompt_for_clipboard_write(
             &self.system_services,
             crate::clipboard::ClipboardEntry::Bytes(
                 curve.private_key_clipboard_name,
-                private_key.borrow_digits().into(),
+                private_key_bytes.into(),
             ),
         );
 
-        private_key.zero();
         ProgramExitResult::Success
     }
 }

@@ -101,7 +101,7 @@ impl Ord for BigSigned {
 //\/\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn from_be_bytes(be_bytes: &[u8]) -> Self {
+    pub fn from_be_bytes(_be_bytes: &[u8]) -> Self {
         todo!()
     }
 
@@ -153,15 +153,7 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\//
 
 impl BigUnsigned {
-    pub fn extract_digits(self) -> Vec<Digit> {
-        self.digits
-    }
-
-    pub fn copy_digits_to(&self, buffer: &mut [Digit]) {
-        buffer.copy_from_slice(&self.digits)
-    }
-
-    pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
+    pub fn copy_be_bytes_to(&self, _buffer: &mut [u8]) {
         todo!()
     }
 
@@ -206,24 +198,16 @@ impl BigSigned {
         &mut self.big_unsigned
     }
 
-    pub fn copy_digits_to(&self, buffer: &mut [Digit]) {
-        self.big_unsigned.copy_digits_to(buffer)
-    }
-
     pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
-        todo!()
+        self.big_unsigned.copy_be_bytes_to(buffer)
     }
 
     pub fn borrow_unsigned(&self) -> &BigUnsigned {
         &self.big_unsigned
     }
 
-    pub fn digit_count(&self) -> usize {
-        self.big_unsigned.digit_count()
-    }
-
     pub fn byte_count(&self) -> usize {
-        todo!()
+        self.big_unsigned.byte_count()
     }
 
     pub fn is_non_zero(&self) -> bool {
@@ -248,7 +232,7 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn copy_be_bytes_from(&mut self, be_bytes: &[u8]) {
+    pub fn copy_be_bytes_from(&mut self, _be_bytes: &[u8]) {
         todo!()
     }
 

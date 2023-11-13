@@ -47,7 +47,12 @@ pub fn prompt_for_bytes_from_any_data_type<TSystemServices: SystemServices>(
         cancel_prompt_string,
         label,
     ) {
-        DataInput::Number(number) => Ok(number.extract_be_bytes()),
+        DataInput::Number(mut number) => {
+            let mut bytes = vec![0u8; number.byte_count()];
+            number.copy_be_bytes_to(&mut bytes);
+            number.zero();
+            Ok(bytes)
+        }
         DataInput::None => Err(ProgramExitResult::UserCancelled),
         DataInput::Text(mut text) => {
             // Build a UTF8 buffer.

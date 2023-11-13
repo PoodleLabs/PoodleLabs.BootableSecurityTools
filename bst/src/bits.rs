@@ -16,7 +16,7 @@
 
 use core::mem::size_of;
 
-trait BitTarget: Sized + Eq {
+pub trait BitTarget: Sized + Eq + Copy {
     fn bits_per_digit() -> usize {
         size_of::<Self>() * 8
     }
@@ -96,7 +96,7 @@ pub const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Op
     }
 }
 
-pub const fn try_get_bit_at_index<T: BitTarget>(bit_index: usize, digits: &[T]) -> Option<bool> {
+pub fn try_get_bit_at_index<T: BitTarget>(bit_index: usize, digits: &[T]) -> Option<bool> {
     let byte_index = bit_index / T::bits_per_digit();
     if byte_index >= digits.len() {
         return None;
@@ -104,7 +104,7 @@ pub const fn try_get_bit_at_index<T: BitTarget>(bit_index: usize, digits: &[T]) 
 
     let digit = digits[byte_index];
     let bit_index = bit_index % T::bits_per_digit();
-    let mut bit_mask = T::shift_start().right_shift(bit_index);
+    let bit_mask = T::shift_start().right_shift(bit_index);
     Some(digit.and(bit_mask) != T::zero())
 }
 
@@ -116,7 +116,7 @@ pub fn try_set_bit_at_index<T: BitTarget>(bit_index: usize, value: bool, bytes: 
 
     let byte = bytes[byte_index];
     let bit_index = bit_index % T::bits_per_digit();
-    let mut bit_mask = T::shift_start().right_shift(bit_index);
+    let bit_mask = T::shift_start().right_shift(bit_index);
     bytes[byte_index] = if value {
         byte.or(bit_mask)
     } else {

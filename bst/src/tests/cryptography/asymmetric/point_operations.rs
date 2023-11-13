@@ -451,8 +451,8 @@ fn a2() -> &'static BigUnsigned {
 fn point(x: u16, y: u16) -> EllipticCurvePoint {
     let mut p = EllipticCurvePoint::infinity(4);
     let (xp, yp) = p.borrow_coordinates_mut();
-    xp.borrow_unsigned_mut().copy_digits_from(&x.to_be_bytes());
-    yp.borrow_unsigned_mut().copy_digits_from(&y.to_be_bytes());
+    xp.copy_digits_from(&[x as u64], false);
+    yp.copy_digits_from(&[y as u64], false);
     unsafe {
         p.set_not_infinity();
     }
