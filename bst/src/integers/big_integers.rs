@@ -17,9 +17,10 @@
 use alloc::vec::Vec;
 use core::{cmp::Ordering, mem::size_of};
 
-type Digit = u64;
+pub type Digit = u64;
+pub const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
+
 type Carry = u128;
-const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
 
 #[derive(Debug, Clone, Eq)]
 pub struct BigUnsigned {
@@ -100,6 +101,10 @@ impl Ord for BigSigned {
 //\/\/\/\/\/\/\///
 
 impl BigUnsigned {
+    pub fn from_be_bytes(be_bytes: &[u8]) -> Self {
+        todo!()
+    }
+
     pub fn from_digits(digits: &[Digit]) -> Self {
         Self {
             digits: match Self::first_non_zero_digit_index(digits) {
@@ -156,12 +161,20 @@ impl BigUnsigned {
         buffer.copy_from_slice(&self.digits)
     }
 
+    pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
+        todo!()
+    }
+
     pub fn borrow_digits(&self) -> &[Digit] {
         &self.digits
     }
 
     pub fn digit_count(&self) -> usize {
         self.digits.len()
+    }
+
+    pub fn byte_count(&self) -> usize {
+        todo!()
     }
 
     pub fn is_non_zero(&self) -> bool {
@@ -197,12 +210,20 @@ impl BigSigned {
         self.big_unsigned.copy_digits_to(buffer)
     }
 
+    pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
+        todo!()
+    }
+
     pub fn borrow_unsigned(&self) -> &BigUnsigned {
         &self.big_unsigned
     }
 
     pub fn digit_count(&self) -> usize {
         self.big_unsigned.digit_count()
+    }
+
+    pub fn byte_count(&self) -> usize {
+        todo!()
     }
 
     pub fn is_non_zero(&self) -> bool {
@@ -227,6 +248,10 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\///
 
 impl BigUnsigned {
+    pub fn copy_be_bytes_from(&mut self, be_bytes: &[u8]) {
+        todo!()
+    }
+
     pub fn copy_digits_from(&mut self, digits: &[Digit]) {
         let digits = match Self::first_non_zero_digit_index(digits) {
             Some(i) => &digits[i..],
@@ -267,6 +292,11 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
+    pub fn copy_be_bytes_from(&mut self, be_bytes: &[u8], is_negative: bool) {
+        self.big_unsigned.copy_be_bytes_from(be_bytes);
+        self.is_negative = is_negative;
+    }
+
     pub fn copy_digits_from(&mut self, digits: &[Digit], is_negative: bool) {
         self.big_unsigned.copy_digits_from(digits);
         self.is_negative = is_negative;

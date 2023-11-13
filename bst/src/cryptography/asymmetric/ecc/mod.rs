@@ -23,7 +23,7 @@ pub use point::{EllipticCurvePoint, COMPRESSED_Y_IS_EVEN_IDENTIFIER};
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
     global_runtime_immutable::GlobalRuntimeImmutable,
-    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator},
+    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator, Digit},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::cmp::Ordering;
@@ -31,7 +31,7 @@ use core::cmp::Ordering;
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
 static mut CUBE: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
-    GlobalRuntimeImmutable::from(|| BigUnsigned::from_be_bytes(&[0x03]));
+    GlobalRuntimeImmutable::from(|| BigUnsigned::from_digits(&[3]));
 
 pub struct EllipticCurvePointAdditionContext {
     unsigned_calculator: BigUnsignedCalculator,
@@ -85,7 +85,7 @@ pub struct EllipticCurvePointMultiplicationContext {
     i: &'static BigUnsigned,
     b: &'static BigUnsigned,
     n: &'static BigUnsigned,
-    bit_buffer: Vec<u8>,
+    bit_buffer: Vec<Digit>,
 }
 
 impl EllipticCurvePointMultiplicationContext {
@@ -105,7 +105,7 @@ impl EllipticCurvePointMultiplicationContext {
             addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
             side_channel_mitigation_point: EllipticCurvePoint::infinity(integer_capacity),
             working_point: EllipticCurvePoint::infinity(integer_capacity),
-            bit_buffer: vec![0u8; n.digit_count()],
+            bit_buffer: vec![0; n.digit_count()],
             comparison_box: Box::from(None),
             i,
             b,

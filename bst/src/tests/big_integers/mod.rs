@@ -17,35 +17,39 @@
 mod big_signed_integers;
 mod big_unsigned_integers;
 
-use crate::integers::{BigSigned, BigUnsigned};
+use crate::integers::{BigSigned, BigUnsigned, DIGIT_SHIFT};
 use rand::{random, thread_rng, Rng};
 
 fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
-    let bytes = big_unsigned.borrow_digits();
-    let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
-        Some((i, _)) => &bytes[i..],
-        None => return 0,
-    };
+    if big_unsigned.is_zero() {
+        return 0;
+    }
 
-    let mut u128_buffer = [0u8; 16];
-    u128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
-    u128::from_be_bytes(u128_buffer)
+    if big_unsigned.digit_count() * DIGIT_SHIFT > 128 {
+        panic!("Tried to read a BigUnsigned with more than 128 bits into a u128");
+    }
+
+    let mut aggregate = 0u128;
+    let digits = big_unsigned.borrow_digits();
+    for i in (0..digits.len()).rev() {
+        aggregate <<= DIGIT_SHIFT;
+        aggregate |= digits[i] as u128;
+    }
+
+    aggregate
 }
 
 fn big_signed_to_i128(big_signed: &BigSigned) -> i128 {
-    let bytes = big_signed.borrow_unsigned().borrow_digits();
-    let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
-        Some((i, _)) => &bytes[i..],
-        None => return 0,
-    };
+    let aggregate = big_unsigned_to_u128(big_signed.borrow_unsigned());
+    if aggregate > i128::MAX as u128 {
+        panic!("Tried to read a BigSigned into an i128 with a value larger than i128::MAX.")
+    }
 
-    let mut i128_buffer = [0u8; 16];
-    i128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
-    let unsigned = i128::from_be_bytes(i128_buffer);
+    let aggregate = aggregate as i128;
     if big_signed.is_negative() {
-        -unsigned
+        -aggregate
     } else {
-        unsigned
+        aggregate
     }
 }
 
@@ -101,7 +105,7 @@ fn add_random_count_leading_zero(vec: &mut Vec<u8>) {
 fn random_big_unsigned(max_bytes: u8) -> (BigUnsigned, u128) {
     let (mut bytes, u128) = random_byte_length_u128(max_bytes);
     add_random_count_leading_zero(&mut bytes);
-    (BigUnsigned::from_vec(bytes), u128)
+    (BigUnsigned::from_be_bytes(&bytes), u128)
 }
 
 fn random_big_signed(max_bytes: u8) -> (BigSigned, i128) {

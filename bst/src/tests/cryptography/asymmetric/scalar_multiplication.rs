@@ -57,7 +57,7 @@ fn secp256k1_derive_pubkey_n_plus_one_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
     let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.add_be_bytes(&[1]);
+    n_plus_one.add(&[1]);
 
     assert_eq!(
         context.multiply_point(
@@ -74,7 +74,7 @@ fn secp256k1_derive_pubkey_more_bytes_than_n_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
     let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.add_be_bytes(&[1]);
+    n_plus_one.add(&[1]);
 
     assert_eq!(
         context.multiply_point(
@@ -118,8 +118,8 @@ fn secp256k1_derive_pubkey_random_privkey() {
             ) {
                 Some(p) => {
                     // secp256k1 library requires exactly 32 bytes.
-                    padded_private_key[..32 - private_key.digit_count()].fill(0);
-                    private_key.copy_digits_to(&mut padded_private_key[32 - private_key.digit_count()..]);
+                    padded_private_key[..32 - private_key.byte_count()].fill(0);
+                    private_key.copy_be_bytes_to(&mut padded_private_key[32 - private_key.byte_count()..]);
                     let expected_serialized_key_bytes =
                         secp256k1::SecretKey::from_slice(&padded_private_key)
                             .unwrap()
@@ -141,7 +141,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
                     );
 
                     // Decompress the point and assert the decompressed Y coordinate is the same as the original point.
-                    decompression_buffer_x.copy_digits_from(&expected_serialized_key_bytes[1..]);
+                    decompression_buffer_x.copy_be_bytes_from(&expected_serialized_key_bytes[1..]);
                     context.calculate_y_from_x(
                         expected_serialized_key_bytes[0] == COMPRESSED_Y_IS_EVEN_IDENTIFIER,
                         &decompression_buffer_x,

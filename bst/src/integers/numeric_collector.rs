@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::ceil;
+use super::{ceil, Digit};
 use crate::integers::BigUnsigned;
 use macros::log2_range;
 
@@ -81,16 +81,16 @@ impl NumericCollector {
                     // Push a digit to the end of the unsigned integer.
                     let bits = BASE_BITS_PER_ROUND[(round_base - 2) as usize];
                     self.bit_counter += bits;
-                    self.big_unsigned.multiply_be_bytes(&[round_base]);
-                    self.big_unsigned.add_be_bytes(&[round_value]);
+                    self.big_unsigned.multiply(&[round_base as Digit]);
+                    self.big_unsigned.add(&[round_value as Digit]);
                     Ok((bits, self.bit_counter))
                 }
             }
             NumericCollectorRoundBase::WholeByte => {
                 // Push a digit to the end of the unsigned integer.
                 self.bit_counter += 8f64;
-                self.big_unsigned.multiply_be_bytes(&[1, 0]);
-                self.big_unsigned.add_be_bytes(&[round_value]);
+                self.big_unsigned.multiply(&[256]);
+                self.big_unsigned.add(&[round_value as Digit]);
                 Ok((8f64, self.bit_counter))
             }
         }
@@ -98,13 +98,13 @@ impl NumericCollector {
 
     pub fn copy_padded_bytes_to(&self, buffer: &mut [u8]) {
         let padding = self.padded_byte_count() - self.trimmed_byte_count();
-        self.big_unsigned.copy_digits_to(&mut buffer[padding..]);
+        self.big_unsigned.copy_be_bytes_to(&mut buffer[padding..]);
         // Make sure our leading zeroes are actually zeroes.
         buffer[..padding].fill(0);
     }
 
     pub fn trimmed_byte_count(&self) -> usize {
-        self.big_unsigned.digit_count()
+        self.big_unsigned.byte_count()
     }
 
     pub fn padded_byte_count(&self) -> usize {

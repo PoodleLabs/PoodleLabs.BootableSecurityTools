@@ -16,7 +16,8 @@
 
 use super::BigUnsigned;
 use crate::{
-    characters::Character, console_out::ConsoleOut, ui::console::ConsoleWriteable, String16,
+    characters::Character, console_out::ConsoleOut, integers::Digit, ui::console::ConsoleWriteable,
+    String16,
 };
 use alloc::vec::Vec;
 use macros::{s16, u16_array};
@@ -275,11 +276,13 @@ impl NumericBase {
         null_terminate: bool,
         pad_to_length: usize,
     ) -> Vec<u16> {
-        let mut remainder = 0u8;
+        let mut remainder = 0;
         let mut vec = Vec::new();
         // Pop the next digit off the unsigned integer.
         while unsigned_integer.is_non_zero() {
-            assert!(unsigned_integer.divide_u8_with_remainder(self.base, &mut remainder));
+            assert!(unsigned_integer
+                .divide_by_single_digit_with_remainder(self.base as Digit, &mut remainder));
+
             // We're working from right to left, so we insert at 0.
             vec.insert(0, self.characters[remainder as usize]);
         }

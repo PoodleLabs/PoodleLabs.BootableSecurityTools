@@ -30,7 +30,7 @@ const RANDOM_ITERATIONS: usize = 100000;
 
 #[test]
 fn equal_big_signeds_are_equal() {
-    let vbs = [random::<u8>(), random::<u8>(), random::<u8>()];
+    let vbs = [random::<u64>(), random::<u64>(), random::<u64>()];
     let integer_sets = [
         [
             from_digits(false, vec![0, 0, vbs[0], vbs[1], vbs[2]]),
@@ -63,7 +63,7 @@ fn equal_big_signeds_are_equal() {
 
 #[test]
 fn unequal_big_signeds_are_unequal() {
-    let vbs = [random::<u8>(), random::<u8>(), random::<u8>()];
+    let vbs = [random::<u64>(), random::<u64>(), random::<u64>()];
     let integers = [
         from_digits(true, vec![1, 1, vbs[0], vbs[1], vbs[2]]),
         from_digits(true, vec![1, vbs[0], vbs[1], vbs[2]]),
@@ -253,6 +253,6 @@ fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
         });
 }
 
-fn from_digits(is_negative: bool, digits: Vec<u8>) -> BigSigned {
+fn from_digits(is_negative: bool, digits: Vec<u64>) -> BigSigned {
     BigSigned::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
 }

@@ -268,10 +268,11 @@ fn prompt_for_unsigned_integer<
             _ => return None,
         };
 
-        if number.digit_count() <= SIZE {
+        let byte_count = number.byte_count();
+        if byte_count <= SIZE {
             // If the returned number fits within the size of the requested integer, extract its bytes.
             let mut buffer = [0u8; SIZE];
-            number.copy_digits_to(&mut buffer[SIZE - number.digit_count()..]);
+            number.copy_be_bytes_to(&mut buffer[SIZE - byte_count..]);
 
             // Turn those bytes into the uint type.
             let integer = from_be_bytes(buffer);

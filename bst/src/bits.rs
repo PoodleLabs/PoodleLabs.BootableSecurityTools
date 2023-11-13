@@ -14,6 +14,78 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use core::mem::size_of;
+
+trait BitTarget: Sized + Eq {
+    fn bits_per_digit() -> usize {
+        size_of::<Self>() * 8
+    }
+
+    fn right_shift(self, by: usize) -> Self;
+
+    fn and(self, value: Self) -> Self;
+
+    fn or(self, value: Self) -> Self;
+
+    fn complement(self) -> Self;
+
+    fn shift_start() -> Self;
+
+    fn zero() -> Self;
+}
+
+impl BitTarget for u8 {
+    fn right_shift(self, by: usize) -> Self {
+        self >> by
+    }
+
+    fn and(self, value: Self) -> Self {
+        self & value
+    }
+
+    fn or(self, value: Self) -> Self {
+        self | value
+    }
+
+    fn complement(self) -> Self {
+        !self
+    }
+
+    fn shift_start() -> Self {
+        1u8 << 7
+    }
+
+    fn zero() -> Self {
+        0
+    }
+}
+
+impl BitTarget for u64 {
+    fn right_shift(self, by: usize) -> Self {
+        self >> by
+    }
+
+    fn and(self, value: Self) -> Self {
+        self & value
+    }
+
+    fn or(self, value: Self) -> Self {
+        self | value
+    }
+
+    fn complement(self) -> Self {
+        !self
+    }
+
+    fn shift_start() -> Self {
+        1u64 << 63
+    }
+
+    fn zero() -> Self {
+        0
+    }
+}
+
 pub const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Option<usize> {
     let available_bits = byte_count * 8;
     if available_bits < bit_count {
@@ -24,31 +96,31 @@ pub const fn try_get_bit_start_offset(bit_count: usize, byte_count: usize) -> Op
     }
 }
 
-pub const fn try_get_bit_at_index(bit_index: usize, bytes: &[u8]) -> Option<bool> {
-    let byte_index = bit_index / 8;
-    if byte_index >= bytes.len() {
+pub const fn try_get_bit_at_index<T: BitTarget>(bit_index: usize, digits: &[T]) -> Option<bool> {
+    let byte_index = bit_index / T::bits_per_digit();
+    if byte_index >= digits.len() {
         return None;
     }
 
-    let byte = bytes[byte_index];
-    let bit_index = bit_index % 8;
-    let bit_mask = 0b10000000u8 >> bit_index;
-    Some((bit_mask & byte) != 0)
+    let digit = digits[byte_index];
+    let bit_index = bit_index % T::bits_per_digit();
+    let mut bit_mask = T::shift_start().right_shift(bit_index);
+    Some(digit.and(bit_mask) != T::zero())
 }
 
-pub fn try_set_bit_at_index(bit_index: usize, value: bool, bytes: &mut [u8]) -> bool {
-    let byte_index = bit_index / 8;
+pub fn try_set_bit_at_index<T: BitTarget>(bit_index: usize, value: bool, bytes: &mut [T]) -> bool {
+    let byte_index = bit_index / T::bits_per_digit();
     if byte_index >= bytes.len() {
         return false;
     }
 
     let byte = bytes[byte_index];
-    let bit_index = bit_index % 8;
-    let bit_mask = 0b10000000u8 >> bit_index;
+    let bit_index = bit_index % T::bits_per_digit();
+    let mut bit_mask = T::shift_start().right_shift(bit_index);
     bytes[byte_index] = if value {
-        byte | bit_mask
+        byte.or(bit_mask)
     } else {
-        byte & (!bit_mask)
+        byte.and(bit_mask.complement())
     };
 
     true

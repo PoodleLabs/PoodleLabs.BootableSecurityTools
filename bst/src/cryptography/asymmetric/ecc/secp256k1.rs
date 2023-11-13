@@ -35,9 +35,9 @@ static mut P: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
 static mut P_I: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     GlobalRuntimeImmutable::from(|| {
         let mut i = p().clone();
-        i.add_be_bytes(&[1]);
-        let mut r = 0u8;
-        i.divide_u8_with_remainder(4, &mut r);
+        i.add(&[1]);
+        let mut r = 0;
+        i.divide_by_single_digit_with_remainder(4, &mut r);
         i
     });
 
