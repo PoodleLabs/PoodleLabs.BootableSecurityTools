@@ -102,31 +102,14 @@ impl Ord for BigSigned {
 
 impl BigUnsigned {
     pub fn from_be_bytes(be_bytes: &[u8]) -> Self {
-        // Calculate the number of digits we need.
-        let mut digit_count = be_bytes.len() / size_of::<Digit>();
-        if digit_count * size_of::<Digit>() < be_bytes.len() {
-            digit_count += 1;
-        }
+        // Calculate the number of required digits, and trim leading zeroes from the input bytes.
+        let (digit_count, be_bytes) = Self::calculate_required_digits_for_bytes(be_bytes);
 
         // Prepare a buffer for the digits.
         let mut digits = vec![0; digit_count];
 
-        // Iterate over the bytes from least to most significant and write into the digit buffer.
-        let mut current_byte_index = 0;
-        let mut current_digit_index = digits.len() - 1;
-        for i in (0..be_bytes.len()).rev() {
-            // Write the current byte to the correct spot in the digit buffer.
-            digits[current_digit_index] |= (be_bytes[i] as Digit) << (current_byte_index * 8);
-
-            // Increment the current byte index.
-            current_byte_index += 1;
-            if current_byte_index == size_of::<Digit>() {
-                // If we've written a whole digit, move to the next digit and reset the byte index.
-                current_digit_index -= 1;
-                current_byte_index = 0;
-            }
-        }
-
+        // Copy in the bytes.
+        Self::copy_bytes_to_digit_buffer(&mut digits, be_bytes);
         Self { digits }
     }
 
@@ -257,8 +240,21 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\///
 
 impl BigUnsigned {
-    pub fn copy_be_bytes_from(&mut self, _be_bytes: &[u8]) {
-        todo!()
+    pub fn copy_be_bytes_from(&mut self, be_bytes: &[u8]) {
+        // Calculate the number of required digits, and trim leading zeroes from the input bytes.
+        let (digit_count, be_bytes) = Self::calculate_required_digits_for_bytes(be_bytes);
+
+        // Match the internal digit buffer to the required digit length.
+        if self.digits.len() < digit_count {
+            self.digits
+                .extend((0..digit_count - self.digits.len()).into_iter().map(|_| 0));
+        } else {
+            self.digits[digit_count..].fill(0);
+            self.digits.truncate(digit_count);
+        }
+
+        // Copy in the bytes.
+        Self::copy_bytes_to_digit_buffer(&mut self.digits, be_bytes)
     }
 
     pub fn copy_digits_from(&mut self, digits: &[Digit]) {
@@ -912,6 +908,50 @@ impl BigUnsigned {
     //\/\/\/\/\/\/\/\/\/\/\/\//
     // STATIC HELPER METHODS //
     //\/\/\/\/\/\/\/\/\/\/\/\//
+
+    fn calculate_required_digits_for_bytes(bytes: &[u8]) -> (usize, &[u8]) {
+        if bytes.len() == 0 {
+            return (0, bytes);
+        }
+
+        // We always want at least one digit, so we will consider the final digit to be the default
+        // 'first non zero' byte index.
+        let mut first_non_zero_index = bytes.len() - 1;
+        for i in 0..bytes.len() {
+            if bytes[i] != 0 {
+                // Set the first non-zero index and break at the first non-zero byte encountered.
+                first_non_zero_index = i;
+                break;
+            }
+        }
+
+        // Calculate the number of digits we need.
+        let byte_count = bytes.len() - first_non_zero_index;
+        let mut digit_count = byte_count / size_of::<Digit>();
+        if digit_count * size_of::<Digit>() < byte_count {
+            digit_count += 1;
+        }
+
+        return (digit_count, &bytes[first_non_zero_index..]);
+    }
+
+    fn copy_bytes_to_digit_buffer(digits: &mut [Digit], be_bytes: &[u8]) {
+        // Iterate over the bytes from least to most significant and write into the digit buffer.
+        let mut current_byte_index = 0;
+        let mut current_digit_index = digits.len() - 1;
+        for i in (0..be_bytes.len()).rev() {
+            // Write the current byte to the correct spot in the digit buffer.
+            digits[current_digit_index] |= (be_bytes[i] as Digit) << (current_byte_index * 8);
+
+            // Increment the current byte index.
+            current_byte_index += 1;
+            if current_byte_index == size_of::<Digit>() {
+                // If we've written a whole digit, move to the next digit and reset the byte index.
+                current_digit_index -= 1;
+                current_byte_index = 0;
+            }
+        }
+    }
 
     fn subtract_internal(minuend_digits: &mut [Digit], subtrahend_digits: &[Digit]) {
         // This is called with a subtrahend guaranteed to be smaller than the minuend, though they may have the same number of digits.
