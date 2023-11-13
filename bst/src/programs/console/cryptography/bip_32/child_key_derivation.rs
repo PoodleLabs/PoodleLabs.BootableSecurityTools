@@ -273,7 +273,7 @@ impl<TSystemServices: SystemServices> Program
 
         let label = match key_type {
             Bip32KeyType::Private => s16!("BIP 32 Child Private Key"),
-            Bip32KeyType::Public => todo!("BIP 32 Child Public Key"),
+            Bip32KeyType::Public => s16!("BIP 32 Child Public Key"),
         };
 
         write_string_program_output(&self.system_services, label, String16::from(&base58_key));

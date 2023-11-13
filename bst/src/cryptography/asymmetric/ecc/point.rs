@@ -299,14 +299,6 @@ impl EllipticCurvePoint {
         }
     }
 
-    pub fn from(x: BigSigned, y: BigSigned) -> Self {
-        Self {
-            is_infinity: x.is_zero() && y.is_zero(),
-            x,
-            y,
-        }
-    }
-
     pub fn try_serialize_compressed<const N: usize>(&self) -> Option<[u8; N]> {
         // We can compress a point on a prime finite field elliptic curve by representing it with only the X value,
         // and a single byte to indicate whether the Y value is odd or even, because there are two possible Y values
@@ -333,8 +325,9 @@ impl EllipticCurvePoint {
         Some(buffer)
     }
 
-    pub fn y(&self) -> &BigSigned {
-        &self.y
+    #[cfg(test)]
+    pub fn borrow_coordinates(&self) -> (&BigSigned, &BigSigned) {
+        (&self.x, &self.y)
     }
 
     pub fn add(

@@ -774,10 +774,7 @@ impl<
         collector.copy_padded_bytes_to(&mut bytes);
 
         // Empty the bytes pre-emptively (they'd otherwise be zeroed on de-allocation).
-        collector
-            .extract_big_unsigned()
-            .take_data_ownership()
-            .zero();
+        collector.extract_big_unsigned().zero();
 
         // Output the raw collected bytes.
         write_bytes(&self.system_services, s16!("Collected Bytes"), &bytes);

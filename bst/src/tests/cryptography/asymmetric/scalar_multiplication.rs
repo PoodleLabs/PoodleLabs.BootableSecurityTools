@@ -74,7 +74,7 @@ fn secp256k1_derive_pubkey_more_bytes_than_n_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
     let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.multiply_u64(u64::MAX);
+    n_plus_one.add_u8(1); //TODO
 
     assert_eq!(
         context.multiply_point(
@@ -111,7 +111,6 @@ fn secp256k1_derive_pubkey_random_privkey() {
                     .collect::<Vec<u8>>(),
             );
 
-            println!("{},{}P: {:?}", i, j, private_key.clone_be_bytes());
             match context.multiply_point(
                 crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
                 crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
@@ -129,7 +128,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
 
                     println!("{},{}P: {:?}", i, j, p);
 
-                    expected_decompressed_y_buffer.set_equal_to(&p.y().borrow_unsigned());
+                    expected_decompressed_y_buffer.set_equal_to(&p.borrow_coordinates().1.borrow_unsigned());
                     let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
 
                     println!("{},{}E: {:?}", i, j, expected_serialized_key_bytes);

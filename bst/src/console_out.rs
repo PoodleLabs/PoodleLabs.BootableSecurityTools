@@ -51,11 +51,6 @@ impl ConsoleCursorState {
     pub const fn position(&self) -> Point {
         self.position
     }
-
-    #[allow(dead_code)]
-    pub const fn visible(&self) -> bool {
-        self.visible
-    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]

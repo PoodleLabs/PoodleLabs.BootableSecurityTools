@@ -134,7 +134,7 @@ pub fn prompt_for_data_input<TSystemServices: SystemServices>(
 
                         // Pre-emptively zero the numeric collector; there might be sensitive data,
                         // and it's preferable to not rely on dealloc zeroing.
-                        n.extract_big_unsigned().take_data_ownership().zero();
+                        n.extract_big_unsigned().zero();
                         break DataInput::Bytes(vec);
                     }
                     None => {
@@ -154,7 +154,7 @@ pub fn prompt_for_data_input<TSystemServices: SystemServices>(
                 {
                     Some(n) => {
                         // Extract the underlying big unsigned integer and just return it.
-                        break DataInput::Number(n.extract_big_unsigned().take_data_ownership());
+                        break DataInput::Number(n.extract_big_unsigned());
                     }
                     None => {
                         if ConsoleUiConfirmationPrompt::from(system_services)
@@ -230,52 +230,6 @@ pub fn prompt_for_u32<
         u32::from_be_bytes,
         label,
         s16!("4,294,967,296 (2^32)"),
-        cancel_prompt_string,
-        system_services,
-        base,
-    )
-}
-
-#[allow(dead_code)]
-pub fn prompt_for_u64<
-    'a,
-    TSystemServices: SystemServices,
-    FValidate: Fn(u64) -> Option<String16<'a>>,
->(
-    validate: FValidate,
-    label: String16<'static>,
-    system_services: &TSystemServices,
-    cancel_prompt_string: String16<'static>,
-    base: Option<NumericBaseWithCharacterPredicate>,
-) -> Option<u64> {
-    prompt_for_unsigned_integer(
-        validate,
-        u64::from_be_bytes,
-        label,
-        s16!("18,446,744,073,709,551,616 (2^64)"),
-        cancel_prompt_string,
-        system_services,
-        base,
-    )
-}
-
-#[allow(dead_code)]
-pub fn prompt_for_u128<
-    'a,
-    TSystemServices: SystemServices,
-    FValidate: Fn(u128) -> Option<String16<'a>>,
->(
-    validate: FValidate,
-    label: String16<'static>,
-    system_services: &TSystemServices,
-    cancel_prompt_string: String16<'static>,
-    base: Option<NumericBaseWithCharacterPredicate>,
-) -> Option<u128> {
-    prompt_for_unsigned_integer(
-        validate,
-        u128::from_be_bytes,
-        label,
-        s16!("340,282,366,920,938,463,463,374,607,431,768,211,456 (2^128)"),
         cancel_prompt_string,
         system_services,
         base,

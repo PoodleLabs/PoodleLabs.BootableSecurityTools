@@ -16,40 +16,9 @@
 
 use super::ceil;
 use crate::integers::BigUnsigned;
-use alloc::boxed::Box;
 use macros::log2_range;
 
 const BASE_BITS_PER_ROUND: [f64; 254] = log2_range!(256);
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct CollectedNumericData<T> {
-    trimmed_byte_count: usize,
-    padded_byte_count: usize,
-    bit_count: f64,
-    data: T,
-}
-
-impl<T> CollectedNumericData<T> {
-    pub const fn trimmed_byte_count(&self) -> usize {
-        self.trimmed_byte_count
-    }
-
-    pub const fn padded_byte_count(&self) -> usize {
-        self.padded_byte_count
-    }
-
-    pub const fn bit_count(&self) -> f64 {
-        self.bit_count
-    }
-
-    pub const fn data(&self) -> &T {
-        &self.data
-    }
-
-    pub fn take_data_ownership(self) -> T {
-        self.data
-    }
-}
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum NumericCollectorRoundBase {
@@ -84,24 +53,8 @@ impl NumericCollector {
         }
     }
 
-    pub fn extract_trimmed_bytes(self) -> CollectedNumericData<Box<[u8]>> {
-        let trimmed_byte_count = self.trimmed_byte_count();
-        let padded_byte_count = self.padded_byte_count();
-        CollectedNumericData {
-            data: self.big_unsigned.extract_be_bytes().into(),
-            bit_count: self.bit_counter,
-            trimmed_byte_count,
-            padded_byte_count,
-        }
-    }
-
-    pub fn extract_big_unsigned(self) -> CollectedNumericData<BigUnsigned> {
-        CollectedNumericData {
-            trimmed_byte_count: self.trimmed_byte_count(),
-            padded_byte_count: self.padded_byte_count(),
-            bit_count: self.bit_counter,
-            data: self.big_unsigned,
-        }
+    pub fn extract_big_unsigned(self) -> BigUnsigned {
+        self.big_unsigned
     }
 
     pub const fn bit_counter(&self) -> f64 {

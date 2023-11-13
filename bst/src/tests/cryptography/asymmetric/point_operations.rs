@@ -17,7 +17,7 @@
 use crate::{
     cryptography::asymmetric::ecc::{EllipticCurvePoint, EllipticCurvePointAdditionContext},
     global_runtime_immutable::GlobalRuntimeImmutable,
-    integers::{BigSigned, BigUnsigned},
+    integers::BigUnsigned,
 };
 
 static mut P1: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
@@ -449,10 +449,15 @@ fn a2() -> &'static BigUnsigned {
 }
 
 fn point(x: u16, y: u16) -> EllipticCurvePoint {
-    EllipticCurvePoint::from(
-        BigSigned::from_unsigned(false, BigUnsigned::from_be_bytes(&x.to_be_bytes())),
-        BigSigned::from_unsigned(false, BigUnsigned::from_be_bytes(&y.to_be_bytes())),
-    )
+    let mut p = EllipticCurvePoint::infinity(4);
+    let (xp, yp) = p.borrow_coordinates_mut();
+    xp.borrow_unsigned_mut().copy_digits_from(&x.to_be_bytes());
+    yp.borrow_unsigned_mut().copy_digits_from(&y.to_be_bytes());
+    unsafe {
+        p.set_not_infinity();
+    }
+
+    p
 }
 
 fn add(

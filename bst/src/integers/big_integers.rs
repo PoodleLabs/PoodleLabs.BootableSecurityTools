@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{boxed::Box, vec::Vec};
-use core::{cmp::Ordering, mem::size_of};
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 
 #[derive(Debug, Clone, Eq)]
 pub struct BigUnsigned {
@@ -134,15 +134,6 @@ impl BigSigned {
         }
     }
 
-    pub fn from_be_bytes(is_negative: bool, be_bytes: &[u8]) -> Self {
-        Self::from_unsigned(is_negative, BigUnsigned::from_be_bytes(be_bytes))
-    }
-
-    #[allow(dead_code)]
-    pub fn from_vec(is_negative: bool, digits: Vec<u8>) -> Self {
-        Self::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
-    }
-
     pub fn with_capacity(capacity: usize) -> Self {
         Self::from_unsigned(false, BigUnsigned::with_capacity(capacity))
     }
@@ -159,10 +150,6 @@ impl BigUnsigned {
 
     pub fn copy_digits_to(&self, buffer: &mut [u8]) {
         buffer.copy_from_slice(&self.digits)
-    }
-
-    pub fn clone_be_bytes(&self) -> Box<[u8]> {
-        (&self.digits[..]).into()
     }
 
     pub fn borrow_digits(&self) -> &[u8] {
@@ -195,19 +182,9 @@ impl BigUnsigned {
         // We guarantee at least one digit. The final digit's final bit is all we need to check.
         self.digits[self.digits.len() - 1] & 1 == 0
     }
-
-    #[allow(dead_code)]
-    pub fn is_odd(&self) -> bool {
-        !self.is_even()
-    }
 }
 
 impl BigSigned {
-    #[allow(dead_code)]
-    pub fn extract_be_bytes(self) -> Vec<u8> {
-        self.big_unsigned.extract_be_bytes()
-    }
-
     pub fn borrow_unsigned_mut(&mut self) -> &mut BigUnsigned {
         &mut self.big_unsigned
     }
@@ -216,18 +193,8 @@ impl BigSigned {
         self.big_unsigned.copy_digits_to(buffer)
     }
 
-    #[allow(dead_code)]
     pub fn borrow_unsigned(&self) -> &BigUnsigned {
         &self.big_unsigned
-    }
-
-    pub fn clone_be_bytes(&self) -> Box<[u8]> {
-        self.big_unsigned.clone_be_bytes()
-    }
-
-    #[allow(dead_code)]
-    pub fn borrow_digits(&self) -> &[u8] {
-        self.big_unsigned.borrow_digits()
     }
 
     pub fn digit_count(&self) -> usize {
@@ -246,18 +213,8 @@ impl BigSigned {
         self.is_negative
     }
 
-    #[allow(dead_code)]
-    pub fn is_positive(&self) -> bool {
-        !self.is_negative
-    }
-
     pub fn is_even(&self) -> bool {
         self.big_unsigned.is_even()
-    }
-
-    #[allow(dead_code)]
-    pub fn is_odd(&self) -> bool {
-        !self.is_even()
     }
 }
 
@@ -335,340 +292,18 @@ impl BigSigned {
     }
 }
 
-//\/\/\/\///
-// Macros //
-//\/\/\/\///
-
-macro_rules! simple_operation_implement_unsigned_type {
-    ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
-        $(
-            #[allow(dead_code)]
-            pub fn $operation_name(&mut self, operator: $operator_type) {
-                self.$digits_name(&operator.to_be_bytes())
-            }
-        )*
-    };
-}
-
-macro_rules! fallible_operation_implement_unsigned_type {
-    ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
-        $(
-            #[allow(dead_code)]
-            pub fn $operation_name(&mut self, operator: $operator_type) -> bool {
-                self.$digits_name(&operator.to_be_bytes())
-            }
-        )*
-    };
-}
-
-macro_rules! simple_operation_implement_unsigned_types {
-    ($($digits_name:ident: $u8_name:ident, $u16_name:ident, $u32_name:ident, $usize_name:ident, $u64_name:ident, $u128_name:ident, $big_unsigned_name:ident,)*) => {
-    $(
-        simple_operation_implement_unsigned_type!(
-            ($digits_name, $u8_name): u8,
-            ($digits_name, $u16_name): u16,
-            ($digits_name, $u32_name): u32,
-            ($digits_name, $usize_name): usize,
-            ($digits_name, $u64_name): u64,
-            ($digits_name, $u128_name): u128,
-        );
-
-        #[allow(dead_code)]
-        pub fn $big_unsigned_name(&mut self, value: &BigUnsigned) {
-            self.$digits_name(&value.digits)
-        }
-    )*
-    }
-}
-
-macro_rules! fallible_operation_implement_unsigned_types {
-    ($($digits_name:ident: $u8_name:ident, $u16_name:ident, $u32_name:ident, $usize_name:ident, $u64_name:ident, $u128_name:ident, $big_unsigned_name:ident,)*) => {
-    $(
-        fallible_operation_implement_unsigned_type!(
-            ($digits_name, $u8_name): u8,
-            ($digits_name, $u16_name): u16,
-            ($digits_name, $u32_name): u32,
-            ($digits_name, $usize_name): usize,
-            ($digits_name, $u64_name): u64,
-            ($digits_name, $u128_name): u128,
-        );
-
-        #[allow(dead_code)]
-        pub fn $big_unsigned_name(&mut self, value: &BigUnsigned) -> bool {
-            self.$digits_name(&value.digits)
-        }
-    )*
-    }
-}
-
-macro_rules! simple_operation_implement_signed_type {
-    ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
-        $(
-            #[allow(dead_code)]
-            pub fn $operation_name(&mut self, operator: $operator_type) {
-                self.$digits_name(&operator.unsigned_abs().to_be_bytes(), operator < 0)
-            }
-        )*
-    };
-}
-
-macro_rules! fallible_operation_implement_signed_type {
-    ($(($digits_name:ident, $operation_name:ident): $operator_type:ty,)*) => {
-        $(
-            #[allow(dead_code)]
-            pub fn $operation_name(&mut self, operator: $operator_type) -> bool {
-                self.$digits_name(&operator.unsigned_abs().to_be_bytes(), operator < 0)
-            }
-        )*
-    };
-}
-
-macro_rules! simple_operation_implement_signed_types {
-    ($($digits_name:ident: $i8_name:ident, $i16_name:ident, $i32_name:ident, $isize_name:ident, $i64_name:ident, $i128_name:ident, $big_unsigned_name:ident,)*) => {
-    $(
-        simple_operation_implement_signed_type!(
-            ($digits_name, $i8_name): i8,
-            ($digits_name, $i16_name): i16,
-            ($digits_name, $i32_name): i32,
-            ($digits_name, $isize_name): isize,
-            ($digits_name, $i64_name): i64,
-            ($digits_name, $i128_name): i128,
-        );
-
-        #[allow(dead_code)]
-        pub fn $big_unsigned_name(&mut self, value: &BigSigned) {
-            self.$digits_name(&value.big_unsigned.digits, value.is_negative)
-        }
-    )*
-    }
-}
-
-macro_rules! fallible_operation_implement_signed_types {
-    ($($digits_name:ident: $i8_name:ident, $i16_name:ident, $i32_name:ident, $isize_name:ident, $i64_name:ident, $i128_name:ident, $big_unsigned_name:ident,)*) => {
-    $(
-        fallible_operation_implement_signed_type!(
-            ($digits_name, $i8_name): i8,
-            ($digits_name, $i16_name): i16,
-            ($digits_name, $i32_name): i32,
-            ($digits_name, $isize_name): isize,
-            ($digits_name, $i64_name): i64,
-            ($digits_name, $i128_name): i128,
-        );
-
-        #[allow(dead_code)]
-        pub fn $big_unsigned_name(&mut self, value: &BigSigned) -> bool {
-            self.$digits_name(&value.big_unsigned.digits, value.is_negative)
-        }
-    )*
-    }
-}
-
-macro_rules! big_unsigned_division_implementation {
-    ($($division_name:ident: $division_type:ident, $remainder_buffer_size:expr,)*) => {
-    $(
-        #[allow(dead_code)]
-        pub fn $division_name(&mut self, divisor: $division_type, remainder_buffer: &mut $division_type) -> bool {
-            let mut remainder_bytes = [0u8; $remainder_buffer_size];
-            match self.divide_be_bytes_with_remainder(&divisor.to_be_bytes(), &mut remainder_bytes) {
-                true => {
-                    *remainder_buffer = $division_type::from_be_bytes(remainder_bytes);
-                    true
-                }
-                false => false,
-            }
-        }
-    )*
-    }
-}
-
-macro_rules! big_signed_division_implementation_for_unsigned_with_remainder {
-    ($($division_name:ident: $divisor_type:ty, $remainder_type:ty,)*) => {
-        $(
-            #[allow(dead_code)]
-            pub fn $division_name(
-                &mut self,
-                divisor: $divisor_type,
-                remainder_buffer: $remainder_type,
-                remainder_is_negative: &mut bool,
-            ) -> bool {
-                if self
-                    .big_unsigned
-                    .$division_name(divisor, remainder_buffer)
-                {
-                    *remainder_is_negative = self.is_negative;
-                    self.is_negative = self.is_negative && !self.is_zero();
-                    true
-                } else {
-                    false
-                }
-            }
-        )*
-        }
-}
-
-macro_rules! big_signed_division_implementation_for_signed_with_remainder {
-    ($(($division_name:ident, $unsigned_division_name:ident): $divisor_type:ty, $remainder_type:ty,)*) => {
-        $(
-            #[allow(dead_code)]
-            pub fn $division_name(&mut self, divisor: $divisor_type, remainder_buffer: $remainder_type) -> bool {
-                let mut unsigned_remainder = 0;
-                if self
-                    .big_unsigned
-                    .$unsigned_division_name(divisor.unsigned_abs(), &mut unsigned_remainder)
-                {
-                    *remainder_buffer = if self.is_negative {
-                        -(unsigned_remainder as $divisor_type)
-                    } else {
-                        unsigned_remainder as $divisor_type
-                    };
-
-                    self.is_negative = self.is_negative != (divisor < 0) && !self.is_zero();
-                    true
-                } else {
-                    false
-                }
-            }
-        )*
-        }
-}
-
-//\/\/\/\/\/\/\/\/\/\///
-// Logical Operations //
-//\/\/\/\/\/\/\/\/\/\///
-
-impl BigUnsigned {
-    simple_operation_implement_unsigned_types!(
-        and_be_bytes: and_u8, and_u16, and_u32, and_usize, and_u64, and_u128, and_big_unsigned,
-    );
-
-    pub fn and_be_bytes(&mut self, operator_digits: &[u8]) {
-        let operator_digits = match Self::first_non_zero_digit_index(operator_digits) {
-            Some(i) => &operator_digits[i..],
-            None => {
-                // The operator has no non-zero digits. We end up with zero as X & 0 = 0.
-                self.zero();
-                return;
-            }
-        };
-
-        let operand_digit_count = self.digit_count();
-        let (operand_digits, operator_digits) = if operator_digits.len() >= operand_digit_count {
-            // The operator has a digit length greater than or equal to the operand's digit length. We can ignore leading digits, as X & 0 = 0.
-            (
-                &mut self.digits[..],
-                &operator_digits[operator_digits.len() - operand_digit_count..],
-            )
-        } else {
-            // The operator has a digit length less than the operand's digit length. X & 0 = 0, so zero out the operand's leading digits.
-            let offset = operand_digit_count - operator_digits.len();
-            self.digits[..offset].fill(0);
-            (&mut self.digits[offset..], &operator_digits[..])
-        };
-
-        for i in 0..operator_digits.len() {
-            // Perform the AND on each overlapping digit.
-            operand_digits[i] &= operator_digits[i];
-        }
-
-        self.trim_leading_zeroes();
-    }
-
-    simple_operation_implement_unsigned_types!(
-        xor_be_bytes: xor_u8, xor_u16, xor_u32, xor_usize, xor_u64, xor_u128, xor_big_unsigned,
-    );
-
-    pub fn xor_be_bytes(&mut self, operator_digits: &[u8]) {
-        let (operand_digits, operator_digits) = match self.prepare_or_or_xor(operator_digits) {
-            Some(d) => d,
-            None => return,
-        };
-
-        for i in 0..operator_digits.len() {
-            // Perform the XOR on each overlapping digit.
-            operand_digits[i] ^= operator_digits[i];
-        }
-
-        self.trim_leading_zeroes();
-    }
-
-    simple_operation_implement_unsigned_types!(
-        or_be_bytes: or_u8, or_u16, or_u32, or_usize, or_u64, or_u128, or_big_unsigned,
-    );
-
-    pub fn or_be_bytes(&mut self, operator_digits: &[u8]) {
-        let (operand_digits, operator_digits) = match self.prepare_or_or_xor(operator_digits) {
-            Some(d) => d,
-            None => return,
-        };
-
-        for i in 0..operator_digits.len() {
-            // Perform the OR on each overlapping digit.
-            operand_digits[i] |= operator_digits[i];
-        } // OR can't zero out any digits, so there's no need to trim.
-    }
-}
-
-impl BigSigned {
-    simple_operation_implement_unsigned_types!(
-        and_be_bytes_unsigned: and_u8, and_u16, and_u32, and_usize, and_u64, and_u128, and_big_unsigned,
-    );
-
-    pub fn and_be_bytes_unsigned(&mut self, operator_digits: &[u8]) {
-        self.and_be_bytes_signed(operator_digits, false)
-    }
-
-    simple_operation_implement_signed_types!(
-        and_be_bytes_signed: and_i8, and_i16, and_i32, and_isize, and_i64, and_i128, and_big_signed,
-    );
-
-    pub fn and_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
-        self.big_unsigned.and_be_bytes(operator_digits);
-        self.is_negative &= is_negative;
-    }
-
-    simple_operation_implement_unsigned_types!(
-        xor_be_bytes_unsigned: xor_u8, xor_u16, xor_u32, xor_usize, xor_u64, xor_u128, xor_big_unsigned,
-    );
-
-    pub fn xor_be_bytes_unsigned(&mut self, operator_digits: &[u8]) {
-        self.xor_be_bytes_signed(operator_digits, false)
-    }
-
-    simple_operation_implement_signed_types!(
-        xor_be_bytes_signed: xor_i8, xor_i16, xor_i32, xor_isize, xor_i64, xor_i128, xor_big_signed,
-    );
-
-    pub fn xor_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
-        self.big_unsigned.xor_be_bytes(operator_digits);
-        self.is_negative ^= is_negative;
-    }
-
-    simple_operation_implement_unsigned_types!(
-        or_be_bytes_unsigned: or_u8, or_u16, or_u32, or_usize, or_u64, or_u128, or_big_unsigned,
-    );
-
-    pub fn or_be_bytes_unsigned(&mut self, operator_digits: &[u8]) {
-        self.or_be_bytes_signed(operator_digits, false)
-    }
-
-    simple_operation_implement_signed_types!(
-        or_be_bytes_signed: or_i8, or_i16, or_i32, or_isize, or_i64, or_i128, or_big_signed,
-    );
-
-    pub fn or_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
-        self.big_unsigned.or_be_bytes(operator_digits);
-        self.is_negative |= is_negative;
-    }
-}
-
 //\/\/\/\/\/\///
 // Arithmetic //
 //\/\/\/\/\/\///
 
 impl BigUnsigned {
-    simple_operation_implement_unsigned_types!(
-        add_be_bytes: add_u8, add_u16, add_u32, add_usize, add_u64, add_u128, add_big_unsigned,
-    );
+    pub fn add_u8(&mut self, addend: u8) {
+        self.add_be_bytes(&[addend])
+    }
+
+    pub fn add_big_unsigned(&mut self, addend: &BigUnsigned) {
+        self.add_be_bytes(&addend.digits)
+    }
 
     pub fn add_be_bytes(&mut self, addend_digits: &[u8]) {
         let addend_digits = match Self::first_non_zero_digit_index(addend_digits) {
@@ -729,9 +364,9 @@ impl BigUnsigned {
         } // Adding can't result in leading zeroes where there were none, so there's no need to trim.
     }
 
-    simple_operation_implement_unsigned_types!(
-        subtract_be_bytes: subtract_u8, subtract_u16, subtract_u32, subtract_usize, subtract_u64, subtract_u128, subtract_big_unsigned,
-    );
+    pub fn subtract_big_unsigned(&mut self, subtrahend: &BigUnsigned) {
+        self.subtract_be_bytes(&subtrahend.digits)
+    }
 
     pub fn subtract_be_bytes(&mut self, subtrahend_digits: &[u8]) {
         if self.is_zero() {
@@ -758,9 +393,9 @@ impl BigUnsigned {
         }
     }
 
-    simple_operation_implement_unsigned_types!(
-        difference_be_bytes: difference_u8, difference_u16, difference_u32, difference_usize, difference_u64, difference_u128, difference_big_unsigned,
-    );
+    pub fn difference_big_unsigned(&mut self, operator: &BigUnsigned) {
+        self.difference_be_bytes(&operator.digits)
+    }
 
     pub fn difference_be_bytes(&mut self, operator_digits: &[u8]) {
         let operator_digits = match Self::first_non_zero_digit_index(operator_digits) {
@@ -834,9 +469,17 @@ impl BigUnsigned {
         }
     }
 
-    simple_operation_implement_unsigned_types!(
-        multiply_be_bytes: multiply_u8, multiply_u16, multiply_u32, multiply_usize, multiply_u64, multiply_u128, multiply_big_unsigned,
-    );
+    pub fn multiply_u8(&mut self, multiplier: u8) {
+        self.multiply_be_bytes(&[multiplier])
+    }
+
+    pub fn multiply_u16(&mut self, multiplier: u16) {
+        self.multiply_be_bytes(&multiplier.to_be_bytes())
+    }
+
+    pub fn multiply_big_unsigned(&mut self, multiplier: &BigUnsigned) {
+        self.multiply_be_bytes(&multiplier.digits)
+    }
 
     pub fn multiply_be_bytes(&mut self, multiplier_digits: &[u8]) {
         let multiplier_digits = match Self::first_non_zero_digit_index(multiplier_digits) {
@@ -951,14 +594,6 @@ impl BigUnsigned {
         return true;
     }
 
-    big_unsigned_division_implementation!(
-        divide_u16_with_remainder: u16, 2,
-        divide_u32_with_remainder: u32, 4,
-        divide_usize_with_remainder: usize, size_of::<usize>(),
-        divide_u64_with_remainder: u64, 8,
-        divide_u128_with_remainder: u128, 16,
-    );
-
     pub fn divide_big_unsigned_with_remainder(
         &mut self,
         divisor: &BigUnsigned,
@@ -1057,9 +692,9 @@ impl BigUnsigned {
         true
     }
 
-    fallible_operation_implement_unsigned_types!(
-        modulo_be_bytes: modulo_u8, modulo_u16, modulo_u32, modulo_usize, modulo_u64, modulo_u128, modulo_big_unsigned,
-    );
+    pub fn modulo_big_unsigned(&mut self, modulus: &BigUnsigned) -> bool {
+        self.modulo_be_bytes(&modulus.digits)
+    }
 
     pub fn modulo_be_bytes(&mut self, modulus_digits: &[u8]) -> bool {
         let divisor_digits = match Self::first_non_zero_digit_index(modulus_digits) {
@@ -1116,17 +751,13 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
-    simple_operation_implement_unsigned_types!(
-        add_be_bytes_unsigned: add_u8, add_u16, add_u32, add_usize, add_u64, add_u128, add_big_unsigned,
-    );
+    pub fn add_big_unsigned(&mut self, addend: &BigUnsigned) {
+        self.add_be_bytes_unsigned(&addend.digits)
+    }
 
     pub fn add_be_bytes_unsigned(&mut self, addend_digits: &[u8]) {
         self.add_be_bytes_signed(addend_digits, false)
     }
-
-    simple_operation_implement_signed_types!(
-        add_be_bytes_signed: add_i8, add_i16, add_i32, add_isize, add_i64, add_i128, add_big_signed,
-    );
 
     pub fn add_be_bytes_signed(&mut self, addend_digits: &[u8], is_negative: bool) {
         if is_negative == self.is_negative {
@@ -1147,34 +778,22 @@ impl BigSigned {
         }
     }
 
-    simple_operation_implement_unsigned_types!(
-        subtract_be_bytes_unsigned: subtract_u8, subtract_u16, subtract_u32, subtract_usize, subtract_u64, subtract_u128, subtract_big_unsigned,
-    );
-
-    pub fn subtract_be_bytes_unsigned(&mut self, subtrahend_digits: &[u8]) {
-        self.subtract_be_bytes_signed(subtrahend_digits, false)
+    pub fn subtract_big_signed(&mut self, subtrahend: &BigSigned) {
+        self.subtract_be_bytes_signed(&subtrahend.big_unsigned.digits, subtrahend.is_negative)
     }
-
-    simple_operation_implement_signed_types!(
-        subtract_be_bytes_signed: subtract_i8, subtract_i16, subtract_i32, subtract_isize, subtract_i64, subtract_i128, subtract_big_signed,
-    );
 
     pub fn subtract_be_bytes_signed(&mut self, subtrahend_digits: &[u8], is_negative: bool) {
         // Subtracting a negative is addition, and adding a negative is subtraction. We can invert the subtrahend's sign and add it.
         self.add_be_bytes_signed(subtrahend_digits, !is_negative)
     }
 
-    simple_operation_implement_unsigned_types!(
-        difference_be_bytes_unsigned: difference_u8, difference_u16, difference_u32, difference_usize, difference_u64, difference_u128, difference_big_unsigned,
-    );
+    pub fn difference_big_unsigned(&mut self, operator: &BigUnsigned) {
+        self.difference_be_bytes_unsigned(&operator.digits)
+    }
 
     pub fn difference_be_bytes_unsigned(&mut self, operator_digits: &[u8]) {
         self.difference_be_bytes_signed(operator_digits, false)
     }
-
-    simple_operation_implement_signed_types!(
-        difference_be_bytes_signed: difference_i8, difference_i16, difference_i32, difference_isize, difference_i64, difference_i128, difference_big_signed,
-    );
 
     pub fn difference_be_bytes_signed(&mut self, operator_digits: &[u8], is_negative: bool) {
         if self.is_negative == is_negative {
@@ -1189,17 +808,17 @@ impl BigSigned {
         self.is_negative = false;
     }
 
-    simple_operation_implement_unsigned_types!(
-        multiply_be_bytes_unsigned: multiply_u8, multiply_u16, multiply_u32, multiply_usize, multiply_u64, multiply_u128, multiply_big_unsigned,
-    );
+    pub fn multiply_u8(&mut self, multiplier: u8) {
+        self.multiply_be_bytes_unsigned(&[multiplier])
+    }
 
     pub fn multiply_be_bytes_unsigned(&mut self, multiplier_digits: &[u8]) {
         self.multiply_be_bytes_signed(multiplier_digits, false)
     }
 
-    simple_operation_implement_signed_types!(
-        multiply_be_bytes_signed: multiply_i8, multiply_i16, multiply_i32, multiply_isize, multiply_i64, multiply_i128, multiply_big_signed,
-    );
+    pub fn multiply_big_signed(&mut self, multiplier: &BigSigned) {
+        self.multiply_be_bytes_signed(&multiplier.big_unsigned.digits, multiplier.is_negative)
+    }
 
     pub fn multiply_be_bytes_signed(&mut self, multiplier_digits: &[u8], is_negative: bool) {
         // The unsigned value will always just be the product.
@@ -1210,84 +829,18 @@ impl BigSigned {
         self.is_negative = self.is_negative != is_negative && !self.is_zero()
     }
 
-    big_signed_division_implementation_for_unsigned_with_remainder!(
-        divide_u8_with_remainder: u8, &mut u8,
-        divide_u16_with_remainder: u16, &mut u16,
-        divide_u32_with_remainder: u32, &mut u32,
-        divide_usize_with_remainder: usize, &mut usize,
-        divide_u64_with_remainder: u64, &mut u64,
-        divide_u128_with_remainder: u128, &mut u128,
-        divide_big_unsigned_with_remainder: &BigUnsigned, &mut BigUnsigned,
-        divide_be_bytes_with_remainder: &[u8], &mut [u8],
-    );
-
-    big_signed_division_implementation_for_signed_with_remainder!(
-        (divide_i8_with_remainder, divide_u8_with_remainder): i8, &mut i8,
-        (divide_i16_with_remainder, divide_u16_with_remainder): i16, &mut i16,
-        (divide_i32_with_remainder, divide_u32_with_remainder): i32, &mut i32,
-        (divide_isize_with_remainder, divide_usize_with_remainder): isize, &mut isize,
-        (divide_i64_with_remainder, divide_u64_with_remainder): i64, &mut i64,
-        (divide_i128_with_remainder, divide_u128_with_remainder): i128, &mut i128,
-    );
-
-    pub fn divide_big_signed_with_remainder(
-        &mut self,
-        divisor: &BigSigned,
-        remainder_buffer: &mut BigSigned,
-    ) -> bool {
-        if self.big_unsigned.divide_big_unsigned_with_remainder(
-            &divisor.big_unsigned,
-            &mut remainder_buffer.big_unsigned,
-        ) {
-            remainder_buffer.is_negative = self.is_negative && !remainder_buffer.is_zero();
-            self.is_negative = self.is_negative != divisor.is_negative && !self.is_zero();
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn divide_big_signed_with_modulus(
-        &mut self,
-        divisor: &BigSigned,
-        modulus_buffer: &mut BigSigned,
-    ) -> bool {
-        let dividend_was_negative = self.is_negative;
-        if self.divide_big_signed_with_remainder(divisor, modulus_buffer) {
-            if modulus_buffer.is_non_zero() {
-                if dividend_was_negative != divisor.is_negative {
-                    modulus_buffer
-                        .big_unsigned
-                        .difference_big_unsigned(&divisor.big_unsigned);
-                }
-
-                modulus_buffer.is_negative = divisor.is_negative;
-            }
-
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn divide_big_unsigned_with_modulus(
+    pub fn divide_big_unsigned_with_remainder(
         &mut self,
         divisor: &BigUnsigned,
-        modulus_buffer: &mut BigUnsigned,
+        remainder_buffer: &mut BigUnsigned,
+        remainder_is_negative: &mut bool,
     ) -> bool {
-        let dividend_was_negative = self.is_negative;
-        let mut remainder_is_negative = false;
-        if self.divide_big_unsigned_with_remainder(
-            divisor,
-            modulus_buffer,
-            &mut remainder_is_negative,
-        ) {
-            if modulus_buffer.is_non_zero() {
-                if dividend_was_negative {
-                    modulus_buffer.difference_big_unsigned(&divisor);
-                }
-            }
-
+        if self
+            .big_unsigned
+            .divide_big_unsigned_with_remainder(divisor, remainder_buffer)
+        {
+            *remainder_is_negative = self.is_negative;
+            self.is_negative = self.is_negative && !self.is_zero();
             true
         } else {
             false
@@ -1309,42 +862,8 @@ impl BigSigned {
             modulus_buffer.is_negative = false;
             if modulus_buffer.is_non_zero() {
                 if dividend_was_negative {
-                    modulus_buffer.difference_big_unsigned(&divisor);
+                    modulus_buffer.difference_big_unsigned(divisor);
                 }
-            }
-
-            true
-        } else {
-            false
-        }
-    }
-
-    fallible_operation_implement_unsigned_types!(
-        modulo_be_bytes_unsigned: modulo_u8, modulo_u16, modulo_u32, modulo_usize, modulo_u64, modulo_u128, modulo_big_unsigned,
-    );
-
-    pub fn modulo_be_bytes_unsigned(&mut self, modulus_digits: &[u8]) -> bool {
-        self.modulo_be_bytes_signed(modulus_digits, false)
-    }
-
-    fallible_operation_implement_signed_types!(
-        modulo_be_bytes_signed: modulo_i8, modulo_i16, modulo_i32, modulo_isize, modulo_i64, modulo_i128, modulo_big_signed,
-    );
-
-    pub fn modulo_be_bytes_signed(
-        &mut self,
-        modulus_digits: &[u8],
-        modulus_is_negative: bool,
-    ) -> bool {
-        if self.big_unsigned.modulo_be_bytes(modulus_digits) {
-            if self.is_non_zero() {
-                if self.is_negative != modulus_is_negative {
-                    self.big_unsigned.difference_be_bytes(modulus_digits);
-                }
-
-                self.is_negative = modulus_is_negative;
-            } else {
-                self.is_negative = false;
             }
 
             true
@@ -1410,37 +929,6 @@ impl BigUnsigned {
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
     // INSTANCE HELPER METHODS //
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
-
-    fn prepare_or_or_xor<'a>(
-        &'a mut self,
-        operator_digits: &'a [u8],
-    ) -> Option<(&'a mut [u8], &'a [u8])> {
-        let operator_digits = match Self::first_non_zero_digit_index(operator_digits) {
-            Some(i) => &operator_digits[i..],
-            None => {
-                // The operator has no non-zero digits. This is a no-op as X | 0 = X, and X ^ 0 = X.
-                return None;
-            }
-        };
-
-        Some(if operator_digits.len() >= self.digits.len() {
-            // The operator has a digit length greater than or equal to the operand's digit length.
-            // Pre-pend the operand with the operator's leading digits as X | 0 = X, and X ^ 0 = X.
-            let offset = operator_digits.len() - self.digits.len();
-            self.digits
-                .splice(0..0, operator_digits[..offset].iter().cloned());
-
-            (&mut self.digits[offset..], &operator_digits[offset..])
-        } else {
-            // The operator has a digit length less than the operand's digit length. X | 0 = X, and X ^ 0 = X, so skip the operand's leading digits.
-            let digit_count = self.digit_count();
-            (
-                &mut self.digits[digit_count - operator_digits.len()..],
-                operator_digits,
-            )
-        })
-    }
-
     fn handle_remainder_equals_divisor(
         &mut self,
         quotient_digit: u8,

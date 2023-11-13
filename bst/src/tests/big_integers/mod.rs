@@ -21,7 +21,7 @@ use crate::integers::{BigSigned, BigUnsigned};
 use rand::{random, thread_rng, Rng};
 
 fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
-    let bytes = big_unsigned.clone_be_bytes();
+    let bytes = big_unsigned.borrow_digits();
     let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
         Some((i, _)) => &bytes[i..],
         None => return 0,
@@ -33,7 +33,7 @@ fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
 }
 
 fn big_signed_to_i128(big_signed: &BigSigned) -> i128 {
-    let bytes = big_signed.clone_be_bytes();
+    let bytes = big_signed.borrow_unsigned().borrow_digits();
     let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
         Some((i, _)) => &bytes[i..],
         None => return 0,
@@ -49,20 +49,11 @@ fn big_signed_to_i128(big_signed: &BigSigned) -> i128 {
     }
 }
 
-fn big_signed_to_u128(big_unsigned: &BigSigned) -> u128 {
-    let bytes = big_unsigned.clone_be_bytes();
-    let bytes = match bytes.iter().enumerate().find(|(_, x)| **x != 0) {
-        Some((i, _)) => &bytes[i..],
-        None => return 0,
-    };
-
-    let mut u128_buffer = [0u8; 16];
-    u128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
-    u128::from_be_bytes(u128_buffer)
-}
-
 fn i128_to_big_signed(value: i128) -> BigSigned {
-    BigSigned::from_be_bytes(value < 0, &value.unsigned_abs().to_be_bytes())
+    BigSigned::from_unsigned(
+        value < 0,
+        BigUnsigned::from_be_bytes(&value.unsigned_abs().to_be_bytes()),
+    )
 }
 
 fn bytes_to_u128(bytes: &[u8]) -> u128 {

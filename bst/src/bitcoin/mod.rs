@@ -67,9 +67,7 @@ pub fn base_58_encode_with_checksum(bytes: &[u8]) -> Vec<u16> {
     }
 
     // Extract the underlying big unsigned integer.
-    let mut integer = numeric_collector
-        .extract_big_unsigned()
-        .take_data_ownership();
+    let mut integer = numeric_collector.extract_big_unsigned();
 
     // Build a base-58 string from the big integer.
     let base_58_string =
