@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::bits::BitTarget;
 use alloc::{vec, vec::Vec};
-use core::{cmp::Ordering, mem::size_of};
+use core::{cmp::Ordering, mem::size_of, panic};
 
 pub const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
 pub type Digit = u8;
@@ -458,7 +459,7 @@ impl BigUnsigned {
 
         match cmp(&self.digits, subtrahend_digits) {
             Ordering::Greater => {
-                Self::subtract_internal(&mut self.digits, subtrahend_digits);
+                Self::subtract_internal(&mut self.digits, subtrahend_digits, Digit::MAX);
                 self.trim_leading_zeroes();
             }
             _ => {
@@ -488,7 +489,7 @@ impl BigUnsigned {
             }
             Ordering::Greater => {
                 // The operand is larger than the operator. The difference is operand - operator.
-                Self::subtract_internal(&mut self.digits, operator_digits);
+                Self::subtract_internal(&mut self.digits, operator_digits, Digit::MAX);
                 self.trim_leading_zeroes();
             }
             Ordering::Less => {
@@ -988,7 +989,11 @@ impl BigUnsigned {
         }
     }
 
-    fn subtract_internal(minuend_digits: &mut [Digit], subtrahend_digits: &[Digit]) {
+    fn subtract_internal(
+        minuend_digits: &mut [Digit],
+        subtrahend_digits: &[Digit],
+        most_significant_digit_mask: Digit,
+    ) {
         // This is called with a subtrahend guaranteed to be smaller than the minuend, though they may have the same number of digits.
         // Calculate the number of overlapping digits. The minuend is guaranteed to have as many or more digits.
         let overlapping_digit_count = minuend_digits.len().min(subtrahend_digits.len());
@@ -1001,8 +1006,14 @@ impl BigUnsigned {
         for i in (0..overlapping_digit_count).rev() {
             let minuend_digit_index = minuend_digit_offset + i;
             // Get the minuend and subtrahend for the current magnitude.
-            let minuend = minuend_digits[minuend_digit_index];
-            let subtrahend = subtrahend_digits[i];
+            let mut minuend = minuend_digits[minuend_digit_index];
+            let mut subtrahend = subtrahend_digits[i];
+            if i == 0 && most_significant_digit_mask != Digit::MAX {
+                // Binary division requires subtraction at a bit level; the same algorithm with larger-than-bit digits becomes
+                // exponentially slower the larger the base. Only the most significant digit can possibly require masking.
+                subtrahend &= most_significant_digit_mask;
+                minuend &= most_significant_digit_mask;
+            }
 
             // Subtract the subtrahend from the minuend. This may wrap.
             minuend_digits[minuend_digit_index] = minuend.wrapping_sub(subtrahend);
@@ -1042,24 +1053,6 @@ impl BigUnsigned {
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
     // INSTANCE HELPER METHODS //
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
-    fn handle_remainder_equals_divisor(
-        &mut self,
-        quotient_digit: Digit,
-        remainder_off: usize,
-        remainder_len: usize,
-        quotient_len: &mut usize,
-    ) {
-        // The remainder is equal to the divisor. Zero the remainder digits.
-        self.digits[remainder_off..remainder_off + remainder_len].fill(0);
-        self.append_quotient_digit(quotient_digit, quotient_len);
-    }
-
-    fn append_quotient_digit(&mut self, quotient_digit: Digit, quotient_len: &mut usize) {
-        // Add the digit to the end of the quotient.
-        self.digits[*quotient_len] = quotient_digit;
-        *quotient_len += 1;
-    }
-
     fn trim_leading_zeroes(&mut self) {
         match Self::first_non_zero_digit_index(&self.digits) {
             // There are non-zero digits; remove any leading zeroes.
@@ -1085,7 +1078,27 @@ impl BigUnsigned {
         }
     }
 
+    fn handle_remainder_equals_divisor(
+        &mut self,
+        quotient_digit: Digit,
+        remainder_off: usize,
+        remainder_len: usize,
+        quotient_len: &mut usize,
+    ) {
+        // The remainder is equal to the divisor. Zero the remainder digits.
+        self.digits[remainder_off..remainder_off + remainder_len].fill(0);
+        self.append_quotient_digit(quotient_digit, quotient_len);
+    }
+
+    fn append_quotient_digit(&mut self, quotient_digit: Digit, quotient_len: &mut usize) {
+        // Add the digit to the end of the quotient.
+        self.digits[*quotient_len] = quotient_digit;
+        *quotient_len += 1;
+    }
+
     fn internal_divide(&mut self, divisor_digits: &[Digit]) -> (usize, usize) {
+        // TODO: Operate on bits.
+
         // Add a leading zero to the dividend to ensure we have space to fit both the quotient and the remainder.
         self.digits.insert(0, 0);
 
@@ -1159,7 +1172,7 @@ impl BigUnsigned {
                     let mut subtraction_counter: Digit = 0;
                     loop {
                         // Subtract the divisor from the working remainder.
-                        Self::subtract_internal(remainder, divisor_digits);
+                        Self::subtract_internal(remainder, divisor_digits, Digit::MAX);
                         subtraction_counter += 1;
 
                         // Trim any new leading zero digits.
