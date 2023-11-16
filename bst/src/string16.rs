@@ -28,8 +28,8 @@ pub struct String16<'a>(&'a [u16]);
 
 impl Debug for String16<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("String16")
-            .field(&String::from_utf16(&self.content_slice()))
+        f.debug_tuple("S16")
+            .field(&String::from_utf16(&self.content_slice()).unwrap())
             .finish()
     }
 }

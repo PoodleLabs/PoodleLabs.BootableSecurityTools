@@ -46,9 +46,15 @@ enum DivisionResult {
     // No mutation has occurred.
     Equal,
 
+    // The dividend was greater than the divisor, but less than divisor * 2.
+    // The quotient is 1, and the remainder is dividend - divisor. No mutation has occurred.
+    SingleSubtraction,
+
     // The dividend was greater than the divisor. The quotient and remainder have been calculated,
-    // and can be extracted from the working value with the result indexes.
-    FullDivision(usize, usize),
+    // and can be extracted from the working value. The returned value is quotient_start, and:
+    // self.digits[..quotient_start] is the remainder
+    // self.digits[quotient_start..] is the quotient
+    FullDivision(usize),
 }
 
 #[derive(Debug, Clone, Eq)]
@@ -71,19 +77,19 @@ impl PartialOrd for BigUnsigned {
 
 impl Ord for BigUnsigned {
     fn cmp(&self, other: &Self) -> Ordering {
-        cmp(&self.digits, &other.digits)
+        Self::cmp(&self.digits, &other.digits)
     }
 }
 
 impl PartialEq<[Digit]> for BigUnsigned {
     fn eq(&self, other: &[Digit]) -> bool {
-        cmp(&self.digits, other) == Ordering::Equal
+        BigUnsigned::cmp(&self.digits, other) == Ordering::Equal
     }
 }
 
 impl PartialOrd<[Digit]> for BigUnsigned {
     fn partial_cmp(&self, other: &[Digit]) -> Option<Ordering> {
-        Some(cmp(&self.digits, other))
+        Some(BigUnsigned::cmp(&self.digits, other))
     }
 }
 
@@ -461,9 +467,9 @@ impl BigUnsigned {
             None => return,
         };
 
-        match cmp(&self.digits, subtrahend_digits) {
+        match Self::cmp(&self.digits, subtrahend_digits) {
             Ordering::Greater => {
-                Self::subtract_internal(&mut self.digits, subtrahend_digits, Digit::MAX);
+                Self::internal_subtract(&mut self.digits, subtrahend_digits);
                 self.trim_leading_zeroes();
             }
             _ => {
@@ -486,14 +492,14 @@ impl BigUnsigned {
         };
 
         // Compare the operand and operator.
-        match cmp(&self.digits, operator_digits) {
+        match Self::cmp(&self.digits, operator_digits) {
             Ordering::Equal => {
                 // The operand and operator are equal. The difference is zero.
                 self.zero();
             }
             Ordering::Greater => {
                 // The operand is larger than the operator. The difference is operand - operator.
-                Self::subtract_internal(&mut self.digits, operator_digits, Digit::MAX);
+                Self::internal_subtract(&mut self.digits, operator_digits);
                 self.trim_leading_zeroes();
             }
             Ordering::Less => {
@@ -699,22 +705,20 @@ impl BigUnsigned {
             return false;
         }
 
-        // We can definitely perform the division at this point, so ensure the remainder buffer is zeroed out.
+        // Ensure the remainder buffer is zeroed out.
         remainder_buffer.fill(0);
 
-        // Get a window into the remainder buffer which can be written to without worrying about leading zero digits.
-        let remainder_buffer_length = remainder_buffer.len();
-        let remainder_digits =
-            &mut remainder_buffer[remainder_buffer_length - divisor_digits.len()..];
-        let remainder_digit_count = remainder_digits.len();
-
+        let remainder_length = remainder_buffer.len();
         match self.internal_divide(divisor_digits) {
             DivisionResult::DivideByZero => return false,
             DivisionResult::DivisorIsZero => {}
-            DivisionResult::SingleDigitDivisor(d) => remainder_digits[0] = d,
+            DivisionResult::SingleDigitDivisor(d) => {
+                // Set the least sigfnicant digit in the remainder buffer to the remainder.
+                remainder_buffer[remainder_buffer.len() - 1] = d
+            }
             DivisionResult::RemainderOnly => {
                 // Copy the value into the remainder buffer.
-                remainder_digits[remainder_digit_count - self.digits.len()..]
+                remainder_buffer[remainder_length - self.digits.len()..]
                     .copy_from_slice(&self.digits);
 
                 // Zero the quotient.
@@ -724,12 +728,24 @@ impl BigUnsigned {
                 // The remainder has already been set to zero. Set the quotient to one.
                 self.one();
             }
-            DivisionResult::FullDivision(i, j) => {
-                todo!(
-                    "Extract the remainder, truncate to the quotient: {}, {}",
-                    i,
-                    j
-                )
+            DivisionResult::SingleSubtraction => {
+                // Subtract the divisor from the dividend to yield the remainder.
+                self.subtract(divisor_digits);
+
+                // Move the remainder to the remainder buffer.
+                remainder_buffer[remainder_length - self.digits.len()..]
+                    .copy_from_slice(&self.digits);
+
+                // Set the quotient to one.
+                self.one();
+            }
+            DivisionResult::FullDivision(i) => {
+                // Copy the remainder into the remainder buffer.
+                remainder_buffer[remainder_length - i..].copy_from_slice(&self.digits[..i]);
+
+                // Trim away the remainder, yielding the quotient.
+                self.digits.drain(0..i);
+                self.trim_leading_zeroes();
             }
         };
 
@@ -751,8 +767,10 @@ impl BigUnsigned {
             }
             DivisionResult::RemainderOnly => {} // The value was less than the modulus; nothing needs to be done.
             DivisionResult::Equal => self.zero(), // The value was equal to the modulus; the result is 0.
-            DivisionResult::FullDivision(i, j) => {
-                todo!("Truncate to the remainder: {}, {}", i, j)
+            DivisionResult::SingleSubtraction => self.subtract(modulus_digits), // Subtract the divisor from the dividend to yield the remainder.
+            DivisionResult::FullDivision(i) => {
+                // Drop the quotient.
+                self.digits.truncate(i);
             }
         };
 
@@ -778,10 +796,10 @@ impl BigSigned {
             self.is_negative = Ordering::Greater
                 == (if self.is_negative {
                     // Augend is negative, addend is positive. If augend > addend, sum < 0, and we are negative.
-                    cmp(&self.big_unsigned.digits, addend_digits)
+                    BigUnsigned::cmp(&self.big_unsigned.digits, addend_digits)
                 } else {
                     // Augend is positive, addend is negative. If addend > augend, sum < 0, and we are negative.
-                    cmp(addend_digits, &self.big_unsigned.digits)
+                    BigUnsigned::cmp(addend_digits, &self.big_unsigned.digits)
                 });
 
             self.big_unsigned.difference(addend_digits)
@@ -927,11 +945,7 @@ impl BigUnsigned {
         }
     }
 
-    fn subtract_internal(
-        minuend_digits: &mut [Digit],
-        subtrahend_digits: &[Digit],
-        most_significant_digit_mask: Digit,
-    ) {
+    fn internal_subtract(minuend_digits: &mut [Digit], subtrahend_digits: &[Digit]) {
         // This is called with a subtrahend guaranteed to be smaller than the minuend, though they may have the same number of digits.
         // Calculate the number of overlapping digits. The minuend is guaranteed to have as many or more digits.
         let overlapping_digit_count = minuend_digits.len().min(subtrahend_digits.len());
@@ -944,14 +958,8 @@ impl BigUnsigned {
         for i in (0..overlapping_digit_count).rev() {
             let minuend_digit_index = minuend_digit_offset + i;
             // Get the minuend and subtrahend for the current magnitude.
-            let mut minuend = minuend_digits[minuend_digit_index];
-            let mut subtrahend = subtrahend_digits[i];
-            if i == 0 && most_significant_digit_mask != Digit::MAX {
-                // Binary division requires subtraction at a bit level; the same algorithm with larger-than-bit digits becomes
-                // exponentially slower the larger the base. Only the most significant digit can possibly require masking.
-                subtrahend &= most_significant_digit_mask;
-                minuend &= most_significant_digit_mask;
-            }
+            let minuend = minuend_digits[minuend_digit_index];
+            let subtrahend = subtrahend_digits[i];
 
             // Subtract the subtrahend from the minuend. This may wrap.
             minuend_digits[minuend_digit_index] = minuend.wrapping_sub(subtrahend);
@@ -988,6 +996,45 @@ impl BigUnsigned {
         }
     }
 
+    fn cmp(left: &[Digit], right: &[Digit]) -> Ordering {
+        let left = match Self::first_non_zero_digit_index(left) {
+            Some(i) => &left[i..],
+            None => {
+                return if Self::first_non_zero_digit_index(right).is_none() {
+                    Ordering::Equal
+                } else {
+                    Ordering::Less
+                }
+            }
+        };
+
+        let right = match Self::first_non_zero_digit_index(right) {
+            Some(i) => &right[i..],
+            None => return Ordering::Greater,
+        };
+
+        // Compares two big-endian unsigned integers.
+        match left.len().cmp(&right.len()) {
+            // Left and right have the same number of digits. We need to look for any differing digits.
+            Ordering::Equal => match left.iter().enumerate().find(|(i, d)| **d != right[*i]) {
+                Some((i, left_digit)) => {
+                    // There is a differing digit; we just need to compare the first differing digit to get the comparison result.
+                    if *left_digit < right[i] {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
+                }
+                // There are no differing digits; left and right are equal.
+                None => Ordering::Equal,
+            },
+            // Left has more digits than right; it's larger.
+            Ordering::Greater => Ordering::Greater,
+            // Left has fewer digits than right; it's smaller.
+            Ordering::Less => Ordering::Less,
+        }
+    }
+
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
     // INSTANCE HELPER METHODS //
     //\/\/\/\/\/\/\/\/\/\/\/\/\//
@@ -1016,12 +1063,67 @@ impl BigUnsigned {
         }
     }
 
-    fn internal_divide(&mut self, divisor_digits: &[Digit]) -> DivisionResult {
-        if self.is_zero() {
-            // The dividend is zero; 0 / X = 0 r0, so we can just return.
-            return DivisionResult::DivisorIsZero;
+    pub fn left_shift_sub_digit(&mut self, bits: usize) {
+        let first_non_zero_digit_index = match Self::first_non_zero_digit_index(&self.digits) {
+            Some(i) => i,
+            // There are no non-zero digits; we can just return.
+            None => return,
+        };
+
+        if first_non_zero_digit_index == 0 {
+            // There are no leading zeroes. Get the index of the first high bit.
+            let first_high_bit_index =
+                Self::first_high_bit_index(self.digits[first_non_zero_digit_index]);
+            if bits > first_high_bit_index {
+                // Our shift overflows the current bounds of the digit vector. Left-pad with a zero.
+                self.digits.insert(0, 0);
+            }
         }
 
+        // Shift the first digit. This is either a zero digit, or we can shift it safely without overflow.
+        self.digits[0] <<= bits;
+
+        // Iterate over the remaining digits from most to least significant.
+        for i in 1..self.digit_count() {
+            // Move bits which overflow out of this digit to the more siginificant digit.
+            self.digits[i - 1] |= self.digits[i] >> (BITS_PER_DIGIT - bits);
+
+            // Shift the current digit.
+            self.digits[i] <<= bits;
+        }
+    }
+
+    fn right_shift_sub_digit(&mut self, bits: usize) {
+        // Iterate over the digits from least to most significant, except the most significant digit.
+        for i in (1..self.digit_count()).rev() {
+            // Shift the current digit.
+            self.digits[i] >>= bits;
+
+            // Shift in the bits from the next more significant digit.
+            self.digits[i] |= self.digits[i - 1] << (BITS_PER_DIGIT - bits);
+        }
+
+        // Shift the most significant digit.
+        self.digits[0] >>= bits;
+    }
+
+    fn first_high_bit_index(digit: Digit) -> usize {
+        let mut first_high_bit_index = BITS_PER_DIGIT - 1;
+        for i in 0..first_high_bit_index {
+            if (digit & DIGIT_SHIFT_START >> i) != 0 {
+                first_high_bit_index = i;
+                break;
+            }
+        }
+
+        first_high_bit_index
+    }
+
+    fn bit_length(first_high_bit_index: usize, digit_count: usize) -> usize {
+        digit_count * BITS_PER_DIGIT - first_high_bit_index
+    }
+
+    fn internal_divide(&mut self, divisor_digits: &[Digit]) -> DivisionResult {
         let divisor_digits = match Self::first_non_zero_digit_index(divisor_digits) {
             // Skip any leading zero digits in the divisor.
             Some(i) => &divisor_digits[i..],
@@ -1036,55 +1138,101 @@ impl BigUnsigned {
             return DivisionResult::SingleDigitDivisor(remainder);
         }
 
+        if self.is_zero() {
+            // The dividend is zero; 0 / X = 0 r0, so we can just return.
+            return DivisionResult::DivisorIsZero;
+        }
+
         // Compare the dividend to the divisor and return early if we can shortcut division.
-        match cmp(&self.digits, divisor_digits) {
+        match Self::cmp(&self.digits, divisor_digits) {
             Ordering::Less => return DivisionResult::RemainderOnly,
             Ordering::Equal => return DivisionResult::Equal,
             Ordering::Greater => {} // We have to actually perform division; fall through the switch.
         };
+
+        // Calculate the index of the first non-zero bit in the dividend.
+        // This is guaranteed to be in the first digit.
+        let dividend_first_high_bit_index = Self::first_high_bit_index(self.digits[0]);
+
+        // Calculate the length of the dividend in bits.
+        let dividend_bit_length =
+            Self::bit_length(dividend_first_high_bit_index, self.digits.len());
+
+        // Calculate the index of the first non-zero bit in the divisor.
+        // This is guaranteed to be in the first digit.
+        let divisor_first_high_bit_index = Self::first_high_bit_index(divisor_digits[0]);
+
+        // Calculate the length of the divisor in bits.
+        let divisor_bit_length =
+            Self::bit_length(divisor_first_high_bit_index, divisor_digits.len());
+
+        if dividend_bit_length == divisor_bit_length {
+            // The divisor and dividend have the same number of significant bits. The dividend must be less than twice the divisor,
+            // so the quotient is guaranteed to be one, and the remainder is dividend - divisor.
+            return DivisionResult::SingleSubtraction;
+        }
 
         // We will now perform binary long division in-place, writing both the quotient and remainder
         // to the instance. At this point, the following is guaranteed:
         // 1. The divisor is less than the dividend.
         // 2. Both the divisor and dividend have more than one digit.
         // 3. Neither values have any leading zeroes.
+        // 4. The dividend has more significant bits than the divisor.
 
-        // Calculate the index of the first non-zero bit in the divisor.
-        // This is guaranteed to be in the first digit.
-        let mut divisor_first_high_bit_index = BITS_PER_DIGIT - 1;
-        for i in 0..divisor_first_high_bit_index {
-            if (divisor_digits[0] & DIGIT_SHIFT_START >> i) != 0 {
-                divisor_first_high_bit_index = i;
-                break;
-            }
+        // Reserve space for a left-shift overflow digit, and a quotient digit at the end.
+        self.digits.reserve(2);
+
+        // Add an extra digit to the end of the dividend, to ensure we have all the working space we need.
+        self.digits.push(0);
+
+        // Align the dividend to have the same number of leading bits as the divisor.
+        if dividend_first_high_bit_index > divisor_first_high_bit_index {
+            self.left_shift_sub_digit(dividend_first_high_bit_index - divisor_first_high_bit_index);
+        } else if dividend_first_high_bit_index < divisor_first_high_bit_index {
+            self.right_shift_sub_digit(
+                divisor_first_high_bit_index - dividend_first_high_bit_index,
+            );
         }
 
-        DivisionResult::FullDivision(
-            divisor_first_high_bit_index,
-            todo!("Implement binary long division."),
-        )
-    }
-}
+        let quotient_length = self.digits.len() - divisor_digits.len();
+        for _ in 0..dividend_bit_length - divisor_bit_length {
+            let l = self.digits.len();
+            let window = &mut self.digits[..l - quotient_length];
+            if Self::cmp(window, divisor_digits) != Ordering::Less {
+                // If the working remainder >= the divisor, subtract the divisor.
+                Self::internal_subtract(window, divisor_digits);
 
-fn cmp(left: &[Digit], right: &[Digit]) -> Ordering {
-    // Compares two big-endian unsigned integers with no leading zero digits.
-    match left.len().cmp(&right.len()) {
-        // Left and right have the same number of digits. We need to look for any differing digits.
-        Ordering::Equal => match left.iter().enumerate().find(|(i, d)| **d != right[*i]) {
-            Some((i, left_digit)) => {
-                // There is a differing digit; we just need to compare the first differing digit to get the comparison result.
-                if *left_digit < right[i] {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
-                }
+                // Set the current quotient bit to 1.
+                let l = self.digits.len();
+                self.digits[l - 1] |= 1;
             }
-            // There are no differing digits; left and right are equal.
-            None => Ordering::Equal,
-        },
-        // Left has more digits than right; it's larger.
-        Ordering::Greater => Ordering::Greater,
-        // Left has fewer digits than right; it's smaller.
-        Ordering::Less => Ordering::Less,
+
+            // Shift the working value by one bit.
+            self.left_shift_sub_digit(1);
+        }
+
+        let l = self.digits.len();
+        let window = &mut self.digits[..l - quotient_length];
+        if Self::cmp(window, divisor_digits) != Ordering::Less {
+            // If the working remainder >= the divisor, subtract the divisor.
+            Self::internal_subtract(window, divisor_digits);
+
+            // Set the final quotient bit to 1.
+            let l = self.digits.len();
+            self.digits[l - 1] |= 1;
+        }
+
+        // The working value is the concatenation of remainder | quotient. The quotient has a fixed length which
+        // is padded with zeroes, and remainder may have leading zeroes due to bit shifting overflow. We should
+        // trim the leading zeroes from the remainder, so it will fit in remainder buffers.
+        self.trim_leading_zeroes();
+
+        DivisionResult::FullDivision(if self.digits.len() > quotient_length {
+            // There is a remainder preceding the quotient.
+            self.digits.len() - quotient_length
+        } else {
+            // The remainder was 0, and has been trimmed away. Only the quotient remains.
+            0
+        })
     }
 }
