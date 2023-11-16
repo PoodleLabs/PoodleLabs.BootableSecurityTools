@@ -17,13 +17,28 @@
 use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, mem::size_of, panic};
 
-pub const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
-pub type Digit = u64;
+#[cfg(target_pointer_width = "8")]
+pub type Digit = u8;
+#[cfg(target_pointer_width = "8")]
+type Carry = u16;
 
-// Integer format must be 2x larger than Digit.
+#[cfg(target_pointer_width = "16")]
+pub type Digit = u16;
+#[cfg(target_pointer_width = "16")]
+type Carry = u32;
+
+#[cfg(target_pointer_width = "32")]
+pub type Digit = u32;
+#[cfg(target_pointer_width = "32")]
+type Carry = u64;
+
+#[cfg(target_pointer_width = "64")]
+pub type Digit = u64;
+#[cfg(target_pointer_width = "64")]
 type Carry = u128;
 
-const BITS_PER_DIGIT: usize = size_of::<Digit>() * 8;
+pub const BITS_PER_DIGIT: usize = size_of::<Digit>() * 8;
+
 const DIGIT_SHIFT_START: Digit = 1 << (BITS_PER_DIGIT - 1);
 
 // An enum used to facilitate shared logic between different division-type arithmetic methods.
@@ -424,7 +439,7 @@ impl BigUnsigned {
             self.digits[augend_index] = sum as Digit;
 
             // Carry over any overflow for the next iteration.
-            carry = sum >> DIGIT_SHIFT;
+            carry = sum >> BITS_PER_DIGIT;
         }
 
         if self_is_smaller {
@@ -432,21 +447,21 @@ impl BigUnsigned {
             for i in (0..addend_digits.len() - min_len).rev() {
                 let sum = carry + (addend_digits[i] as Carry);
                 self.digits.insert(0, sum as Digit);
-                carry = sum >> DIGIT_SHIFT;
+                carry = sum >> BITS_PER_DIGIT;
             }
         } else {
             // We need to add any remaining carry to the leading digits of of our augend.
             for i in (0..self.digits.len() - min_len).rev() {
                 let sum = carry + (self.digits[i] as Carry);
                 self.digits[i] = sum as Digit;
-                carry = sum >> DIGIT_SHIFT;
+                carry = sum >> BITS_PER_DIGIT;
             }
         }
 
         // Add any remaining carry to our augend.
         while carry > 0 {
             self.digits.insert(0, carry as Digit);
-            carry >>= DIGIT_SHIFT;
+            carry >>= BITS_PER_DIGIT;
         } // Adding can't result in leading zeroes where there were none, so there's no need to trim.
     }
 
@@ -620,7 +635,7 @@ impl BigUnsigned {
                     self.digits[k] = value_at_magnitude as Digit;
 
                     // Discard the least significant digit.
-                    value_at_magnitude >>= DIGIT_SHIFT;
+                    value_at_magnitude >>= BITS_PER_DIGIT;
                     if value_at_magnitude == 0 {
                         // Once there's nothing left to insert, we can break.
                         break;
@@ -662,7 +677,7 @@ impl BigUnsigned {
         // Iterate over the digits in the dividend from most to least significant.
         for i in 0..self.digits.len() {
             // Any previous remainder becomes the more significant digit. The current digit is the less significant digit.
-            let dividend = (remainder << DIGIT_SHIFT) | (self.digits[i] as Carry);
+            let dividend = (remainder << BITS_PER_DIGIT) | (self.digits[i] as Carry);
 
             // The less significant digit of this round of division's quotient is our new digit for this index.
             self.digits[i] = (dividend / (divisor as Carry)) as Digit;

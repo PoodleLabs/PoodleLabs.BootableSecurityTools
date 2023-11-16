@@ -17,7 +17,7 @@
 mod big_signed_integers;
 mod big_unsigned_integers;
 
-use crate::integers::{BigSigned, BigUnsigned, DIGIT_SHIFT};
+use crate::integers::{BigSigned, BigUnsigned, BITS_PER_DIGIT};
 use rand::{random, thread_rng, Rng};
 
 fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
@@ -25,7 +25,7 @@ fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
         return 0;
     }
 
-    if big_unsigned.digit_count() * DIGIT_SHIFT > 128 {
+    if big_unsigned.digit_count() * BITS_PER_DIGIT > 128 {
         panic!("Tried to read a BigUnsigned with more than 128 bits into a u128");
     }
 
