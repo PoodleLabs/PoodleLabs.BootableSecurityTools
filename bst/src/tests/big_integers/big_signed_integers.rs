@@ -21,7 +21,6 @@ use crate::{
         PARALLELIZED_TEST_THREAD_COUNT,
     },
 };
-use alloc::vec;
 use core::cmp::Ordering;
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -33,20 +32,20 @@ fn equal_big_signeds_are_equal() {
     let vbs = [random::<Digit>(), random::<Digit>(), random::<Digit>()];
     let integer_sets = [
         [
-            from_digits(false, vec![0, 0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(false, vec![0, 0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(false, vec![0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(false, vec![0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(false, vec![vbs[0], vbs[1], vbs[2]]),
-            from_digits(false, vec![vbs[0], vbs[1], vbs[2]]),
+            from_digits(false, &[0, 0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(false, &[0, 0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(false, &[0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(false, &[0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(false, &[vbs[0], vbs[1], vbs[2]]),
+            from_digits(false, &[vbs[0], vbs[1], vbs[2]]),
         ],
         [
-            from_digits(true, vec![0, 0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(true, vec![0, 0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(true, vec![0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(true, vec![0, vbs[0], vbs[1], vbs[2]]),
-            from_digits(true, vec![vbs[0], vbs[1], vbs[2]]),
-            from_digits(true, vec![vbs[0], vbs[1], vbs[2]]),
+            from_digits(true, &[0, 0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(true, &[0, 0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(true, &[0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(true, &[0, vbs[0], vbs[1], vbs[2]]),
+            from_digits(true, &[vbs[0], vbs[1], vbs[2]]),
+            from_digits(true, &[vbs[0], vbs[1], vbs[2]]),
         ],
     ];
 
@@ -65,12 +64,12 @@ fn equal_big_signeds_are_equal() {
 fn unequal_big_signeds_are_unequal() {
     let vbs = [random::<Digit>(), random::<Digit>(), random::<Digit>()];
     let integers = [
-        from_digits(true, vec![1, 1, vbs[0], vbs[1], vbs[2]]),
-        from_digits(true, vec![1, vbs[0], vbs[1], vbs[2]]),
-        from_digits(true, vec![vbs[0], vbs[1], vbs[2]]),
-        from_digits(false, vec![1, 1, vbs[0], vbs[1], vbs[2]]),
-        from_digits(false, vec![1, vbs[0], vbs[1], vbs[2]]),
-        from_digits(false, vec![vbs[0], vbs[1], vbs[2]]),
+        from_digits(true, &[1, 1, vbs[0], vbs[1], vbs[2]]),
+        from_digits(true, &[1, vbs[0], vbs[1], vbs[2]]),
+        from_digits(true, &[vbs[0], vbs[1], vbs[2]]),
+        from_digits(false, &[1, 1, vbs[0], vbs[1], vbs[2]]),
+        from_digits(false, &[1, vbs[0], vbs[1], vbs[2]]),
+        from_digits(false, &[vbs[0], vbs[1], vbs[2]]),
     ];
 
     for i in 0..integers.len() {
@@ -88,52 +87,52 @@ fn unequal_big_signeds_are_unequal() {
 #[test]
 fn big_signed_less_than() {
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![0, 0, 1])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[0, 0, 1])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![0, 1, 0])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[0, 1, 0])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![1, 0, 0])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[1, 0, 0])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![0, 1, 1])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[0, 1, 1])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![1, 0, 1])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[1, 0, 1])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![1, 1, 1])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[1, 1, 1])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 0]).cmp(&from_digits(false, vec![1, 0, 0, 0])),
+        from_digits(false, &[0, 0, 0]).cmp(&from_digits(false, &[1, 0, 0, 0])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(true, vec![0, 0, 1]).cmp(&from_digits(false, vec![0, 0, 1])),
+        from_digits(true, &[0, 0, 1]).cmp(&from_digits(false, &[0, 0, 1])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(true, vec![0, 1, 0]).cmp(&from_digits(false, vec![0, 1, 0])),
+        from_digits(true, &[0, 1, 0]).cmp(&from_digits(false, &[0, 1, 0])),
         Ordering::Less
     );
 
     assert_eq!(
-        from_digits(true, vec![1, 0, 0]).cmp(&from_digits(false, vec![1, 0, 0])),
+        from_digits(true, &[1, 0, 0]).cmp(&from_digits(false, &[1, 0, 0])),
         Ordering::Less
     );
 }
@@ -141,52 +140,52 @@ fn big_signed_less_than() {
 #[test]
 fn big_signed_greater_than() {
     assert_eq!(
-        from_digits(false, vec![0, 0, 1]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[0, 0, 1]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 1, 0]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[0, 1, 0]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![1, 0, 0]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[1, 0, 0]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 1, 1]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[0, 1, 1]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![1, 0, 1]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[1, 0, 1]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![1, 1, 1]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[1, 1, 1]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![1, 0, 0, 0]).cmp(&from_digits(false, vec![0, 0, 0])),
+        from_digits(false, &[1, 0, 0, 0]).cmp(&from_digits(false, &[0, 0, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 0, 1]).cmp(&from_digits(true, vec![0, 0, 1])),
+        from_digits(false, &[0, 0, 1]).cmp(&from_digits(true, &[0, 0, 1])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![0, 1, 0]).cmp(&from_digits(true, vec![0, 1, 0])),
+        from_digits(false, &[0, 1, 0]).cmp(&from_digits(true, &[0, 1, 0])),
         Ordering::Greater
     );
 
     assert_eq!(
-        from_digits(false, vec![1, 0, 0]).cmp(&from_digits(true, vec![1, 0, 0])),
+        from_digits(false, &[1, 0, 0]).cmp(&from_digits(true, &[1, 0, 0])),
         Ordering::Greater
     );
 }
@@ -253,6 +252,6 @@ fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
         });
 }
 
-fn from_digits(is_negative: bool, digits: Vec<Digit>) -> BigSigned {
-    BigSigned::from_unsigned(is_negative, BigUnsigned::from_vec(digits))
+fn from_digits(is_negative: bool, digits: &[Digit]) -> BigSigned {
+    BigSigned::from_unsigned(is_negative, BigUnsigned::from_digits(digits))
 }

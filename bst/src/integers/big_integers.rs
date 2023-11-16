@@ -180,17 +180,6 @@ impl BigUnsigned {
         digits.push(0);
         Self { digits }
     }
-
-    pub fn from_vec(digits: Vec<Digit>) -> Self {
-        let mut value = Self { digits };
-        if value.digit_count() == 0 {
-            value.digits.push(0);
-        } else {
-            value.trim_leading_zeroes();
-        }
-
-        value
-    }
 }
 
 impl BigSigned {
