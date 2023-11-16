@@ -37,7 +37,6 @@ pub trait BitTarget: Sized + Eq + Copy {
 macro_rules! bit_target_integer {
     ($($integer:ident $shift_start_offset:ident,)*) => {
         $(
-            #[allow(dead_code)]
             impl BitTarget for $integer {
                 fn right_shift(self, by: usize) -> Self {
                     self >> by
