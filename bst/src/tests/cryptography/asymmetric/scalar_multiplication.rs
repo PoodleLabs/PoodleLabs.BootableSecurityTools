@@ -103,7 +103,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
         let secp_context = secp256k1::Secp256k1::new();
         let mut padded_private_key = [0u8; 32];
 
-        for j in 0..iterations {
+        for _ in 0..iterations {
             let private_key = BigUnsigned::from_be_bytes(
                 &(0..thread_rng().gen_range(1..33))
                     .into_iter()
@@ -126,13 +126,8 @@ fn secp256k1_derive_pubkey_random_privkey() {
                             .public_key(&secp_context)
                             .serialize();
 
-                    println!("{},{}P: {:?}", i, j, p);
-
                     expected_decompressed_y_buffer.set_equal_to(&p.borrow_coordinates().1.borrow_unsigned());
                     let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
-
-                    println!("{},{}E: {:?}", i, j, expected_serialized_key_bytes);
-                    println!("{},{}A: {:?}", i, j, actual_serialized_key_bytes);
 
                     // Assert public key is as expected.
                     assert_eq!(
@@ -153,12 +148,9 @@ fn secp256k1_derive_pubkey_random_privkey() {
                         )
                 }
                 None => {
-                    println!("{},{}: None", i, j);
                     assert!(private_key.is_zero() || private_key.cmp(crate::cryptography::asymmetric::ecc::secp256k1::n()) != Ordering::Less);
                 }
             };
-
-            println!("{},{} complete.", i, j);
         }
     });
 }
