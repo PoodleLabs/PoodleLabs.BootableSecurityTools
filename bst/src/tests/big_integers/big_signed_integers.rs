@@ -26,7 +26,7 @@ use core::cmp::Ordering;
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 100000;
+const RANDOM_ITERATIONS: usize = 1000000;
 
 #[test]
 fn equal_big_signeds_are_equal() {

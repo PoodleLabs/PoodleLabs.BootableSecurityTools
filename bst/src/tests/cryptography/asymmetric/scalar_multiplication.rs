@@ -22,7 +22,7 @@ use core::cmp::Ordering;
 use rand::{random, thread_rng, Rng};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 16;
+const RANDOM_ITERATIONS: usize = 100;
 
 #[test]
 fn secp256k1_derive_pubkey_zero_privkey() {

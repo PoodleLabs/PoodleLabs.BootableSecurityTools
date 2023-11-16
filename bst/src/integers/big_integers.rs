@@ -18,10 +18,10 @@ use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, mem::size_of, panic};
 
 pub const DIGIT_SHIFT: usize = size_of::<Digit>() * 8;
-pub type Digit = u8;
+pub type Digit = u64;
 
-// Must be larger than Digit.
-type Carry = u16;
+// Integer format must be 2x larger than Digit.
+type Carry = u128;
 
 const BITS_PER_DIGIT: usize = size_of::<Digit>() * 8;
 const DIGIT_SHIFT_START: Digit = 1 << (BITS_PER_DIGIT - 1);
@@ -744,6 +744,7 @@ impl BigUnsigned {
                 remainder_buffer[remainder_length - i..].copy_from_slice(&self.digits[..i]);
 
                 // Trim away the remainder, yielding the quotient.
+                self.digits[0..i].fill(0);
                 self.digits.drain(0..i);
                 self.trim_leading_zeroes();
             }
@@ -770,7 +771,11 @@ impl BigUnsigned {
             DivisionResult::SingleSubtraction => self.subtract(modulus_digits), // Subtract the divisor from the dividend to yield the remainder.
             DivisionResult::FullDivision(i) => {
                 // Drop the quotient.
+                self.digits[i..].fill(0);
                 self.digits.truncate(i);
+                if self.digits.len() == 0 {
+                    self.digits.push(0)
+                }
             }
         };
 
