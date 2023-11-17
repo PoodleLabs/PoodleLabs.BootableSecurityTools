@@ -18,6 +18,7 @@ mod big_signed_integers;
 mod big_unsigned_integers;
 
 use crate::integers::{BigSigned, BigUnsigned, BITS_PER_DIGIT};
+use core::mem::size_of;
 use rand::{random, thread_rng, Rng};
 
 fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
@@ -29,7 +30,7 @@ fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
         panic!("Tried to read a BigUnsigned with more than 128 bits into a u128");
     }
 
-    let mut bytes = [0u8; 16];
+    let mut bytes = [0u8; size_of::<u128>()];
     big_unsigned.copy_be_bytes_to(&mut bytes);
     u128::from_be_bytes(bytes)
 }
@@ -56,14 +57,14 @@ fn i128_to_big_signed(value: i128) -> BigSigned {
 }
 
 fn bytes_to_u128(bytes: &[u8]) -> u128 {
-    let mut u128_buffer = [0u8; 16];
-    u128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
+    let mut u128_buffer = [0u8; size_of::<u128>()];
+    u128_buffer[size_of::<u128>() - bytes.len()..].copy_from_slice(&bytes);
     u128::from_be_bytes(u128_buffer)
 }
 
 fn bytes_to_i128(bytes: &[u8]) -> i128 {
-    let mut i128_buffer = [0u8; 16];
-    i128_buffer[16 - bytes.len()..].copy_from_slice(&bytes);
+    let mut i128_buffer = [0u8; size_of::<u128>()];
+    i128_buffer[size_of::<u128>() - bytes.len()..].copy_from_slice(&bytes);
     i128::from_be_bytes(i128_buffer)
 }
 

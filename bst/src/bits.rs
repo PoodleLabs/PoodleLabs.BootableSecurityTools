@@ -124,3 +124,15 @@ pub fn try_set_bit_at_index<T: BitTarget>(bit_index: usize, value: bool, bytes: 
 
     true
 }
+
+pub fn first_high_bit_index<T: BitTarget>(digit: T) -> usize {
+    let mut first_high_bit_index = T::bits_per_digit() - 1;
+    for i in 0..first_high_bit_index {
+        if (digit.and(T::shift_start().right_shift(i))) != T::zero() {
+            first_high_bit_index = i;
+            break;
+        }
+    }
+
+    first_high_bit_index
+}

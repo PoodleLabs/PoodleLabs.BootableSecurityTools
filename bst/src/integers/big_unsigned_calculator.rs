@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{BigUnsigned, Digit};
-use crate::bits::try_get_bit_at_index;
-use core::mem::size_of;
+use super::{BigUnsigned, BITS_PER_DIGIT};
+use crate::bits::{first_high_bit_index, try_get_bit_at_index};
 
 pub struct BigUnsignedCalculator {
     a: BigUnsigned,
@@ -160,15 +159,8 @@ impl BigUnsignedCalculator {
         self.x.one();
 
         let e = exponent.borrow_digits();
-        let bit_count = e.len() * size_of::<Digit>() * 8;
-        let mut first_high_bit = bit_count;
-        for i in 0..bit_count {
-            if try_get_bit_at_index(i, e).unwrap() {
-                first_high_bit = i;
-                break;
-            }
-        }
-
+        let bit_count = e.len() * BITS_PER_DIGIT;
+        let first_high_bit = first_high_bit_index(e[0]);
         for i in (first_high_bit..bit_count).rev() {
             if try_get_bit_at_index(i, e).unwrap() {
                 self.x.multiply_big_unsigned(&value);

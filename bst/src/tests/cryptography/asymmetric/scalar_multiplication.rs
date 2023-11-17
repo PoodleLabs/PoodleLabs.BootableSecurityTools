@@ -56,7 +56,8 @@ fn secp256k1_derive_pubkey_n_privkey() {
 fn secp256k1_derive_pubkey_n_plus_one_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
-    let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
+    let n = crate::cryptography::asymmetric::ecc::secp256k1::n();
+    let mut n_plus_one = n.clone();
     n_plus_one.add(&[1]);
 
     assert_eq!(
@@ -73,14 +74,15 @@ fn secp256k1_derive_pubkey_n_plus_one_privkey() {
 fn secp256k1_derive_pubkey_more_bytes_than_n_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
-    let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.add(&[1]);
+    let n = crate::cryptography::asymmetric::ecc::secp256k1::n();
+    let mut n_times_n = n.clone();
+    n_times_n.multiply_big_unsigned(n);
 
     assert_eq!(
         context.multiply_point(
             crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
             crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
-            &n_plus_one,
+            &n_times_n,
         ),
         None
     );
@@ -120,25 +122,23 @@ fn secp256k1_derive_pubkey_random_privkey() {
                     // secp256k1 library requires exactly 32 bytes.
                     padded_private_key[..32 - private_key.byte_count()].fill(0);
                     private_key.copy_be_bytes_to(&mut padded_private_key[32 - private_key.byte_count()..]);
-                    let expected_serialized_key_bytes =
-                        secp256k1::SecretKey::from_slice(&padded_private_key)
-                            .unwrap()
-                            .public_key(&secp_context)
-                            .serialize();
+                    
+                    let expected_key = secp256k1::SecretKey::from_slice(&padded_private_key).unwrap().public_key(&secp_context);
+                    let expected_ser_bytes = expected_key.serialize();
 
-                    expected_decompressed_y_buffer.set_equal_to(&p.borrow_coordinates().1.borrow_unsigned());
-                    let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
+                    expected_decompressed_y_buffer.copy_be_bytes_from(&expected_key.serialize_uncompressed()[33..]);
+                    let actual_ser_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
 
                     // Assert public key is as expected.
                     assert_eq!(
-                        actual_serialized_key_bytes,
-                        expected_serialized_key_bytes
+                        actual_ser_bytes,
+                        expected_ser_bytes
                     );
 
                     // Decompress the point and assert the decompressed Y coordinate is the same as the original point.
-                    decompression_buffer_x.copy_be_bytes_from(&expected_serialized_key_bytes[1..]);
+                    decompression_buffer_x.copy_be_bytes_from(&expected_ser_bytes[1..]);
                     context.calculate_y_from_x(
-                        expected_serialized_key_bytes[0] == COMPRESSED_Y_IS_EVEN_IDENTIFIER,
+                        expected_ser_bytes[0] == COMPRESSED_Y_IS_EVEN_IDENTIFIER,
                         &decompression_buffer_x,
                         &mut decompression_buffer_y);
 

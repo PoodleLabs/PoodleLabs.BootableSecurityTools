@@ -303,7 +303,8 @@ impl EllipticCurvePoint {
         // We can compress a point on a prime finite field elliptic curve by representing it with only the X value,
         // and a single byte to indicate whether the Y value is odd or even, because there are two possible Y values
         // for any given X coordinate, and (mod p) results in one Y value always being even, and the other always being odd.
-        if self.x.byte_count() + 1 > N {
+        let byte_count = self.x.byte_count();
+        if byte_count + 1 > N {
             // We need to be able to fit X in the buffer, with one additional byte to spare. If we can't manage that, return None.
             return None;
         }
@@ -319,15 +320,8 @@ impl EllipticCurvePoint {
         };
 
         // Copy the bytes from the X coordinate to the end of the buffer.
-        self.x
-            .copy_be_bytes_to(&mut buffer[N - self.x.byte_count()..]);
-
+        self.x.copy_be_bytes_to(&mut buffer[N - byte_count..]);
         Some(buffer)
-    }
-
-    #[cfg(test)]
-    pub fn borrow_coordinates(&self) -> (&BigSigned, &BigSigned) {
-        (&self.x, &self.y)
     }
 
     pub fn add(

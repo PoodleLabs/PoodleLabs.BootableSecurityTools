@@ -23,10 +23,10 @@ pub use point::{EllipticCurvePoint, COMPRESSED_Y_IS_EVEN_IDENTIFIER};
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
     global_runtime_immutable::GlobalRuntimeImmutable,
-    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator, Digit},
+    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator, Digit, BITS_PER_DIGIT},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::{cmp::Ordering, mem::size_of};
+use core::cmp::Ordering;
 
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
@@ -260,9 +260,9 @@ impl EllipticCurvePointMultiplicationContext {
                 multiplier_digits[j]
             };
 
-            for j in 0..8 * size_of::<Digit>() {
+            for j in 0..BITS_PER_DIGIT {
                 assert!(try_set_bit_at_index(
-                    i * 8 * size_of::<Digit>() + j,
+                    i * BITS_PER_DIGIT + j,
                     try_get_bit_at_index(j, &[digit]).unwrap(),
                     &mut self.bit_buffer
                 ));
@@ -276,7 +276,7 @@ impl EllipticCurvePointMultiplicationContext {
         self.working_point.set_equal_to_unsigned(x, y);
 
         // Iterate over the bits in the multiplier from least to most significant.
-        for i in (0..self.bit_buffer.len() * size_of::<Digit>() * 8).rev() {
+        for i in (0..self.bit_buffer.len() * BITS_PER_DIGIT).rev() {
             if try_get_bit_at_index(i, &self.bit_buffer).unwrap() {
                 // The bit at the current index is high; we should add to our product.
                 product.add(&self.working_point, &mut self.addition_context);

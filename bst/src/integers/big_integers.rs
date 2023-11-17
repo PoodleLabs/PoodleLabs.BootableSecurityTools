@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::bits::first_high_bit_index;
 use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, mem::size_of, panic};
 
@@ -38,8 +39,6 @@ pub type Digit = u64;
 type Carry = u128;
 
 pub const BITS_PER_DIGIT: usize = size_of::<Digit>() * 8;
-
-const DIGIT_SHIFT_START: Digit = 1 << (BITS_PER_DIGIT - 1);
 
 // An enum used to facilitate shared logic between different division-type arithmetic methods.
 enum DivisionResult {
@@ -991,7 +990,7 @@ impl BigUnsigned {
         }
     }
 
-    fn first_non_zero_digit_index(digits: &[Digit]) -> Option<usize> {
+    pub fn first_non_zero_digit_index(digits: &[Digit]) -> Option<usize> {
         match digits.iter().enumerate().find(|(_, x)| **x != 0) {
             Some((i, _)) => Some(i),
             None => None,
@@ -1082,7 +1081,7 @@ impl BigUnsigned {
         if first_non_zero_digit_index == 0 {
             // There are no leading zeroes. Get the index of the first high bit.
             let first_high_bit_index =
-                Self::first_high_bit_index(self.digits[first_non_zero_digit_index]);
+                first_high_bit_index(self.digits[first_non_zero_digit_index]);
             if bits > first_high_bit_index {
                 // Our shift overflows the current bounds of the digit vector. Left-pad with a zero.
                 self.digits.insert(0, 0);
@@ -1114,18 +1113,6 @@ impl BigUnsigned {
 
         // Shift the most significant digit.
         self.digits[0] >>= bits;
-    }
-
-    fn first_high_bit_index(digit: Digit) -> usize {
-        let mut first_high_bit_index = BITS_PER_DIGIT - 1;
-        for i in 0..first_high_bit_index {
-            if (digit & DIGIT_SHIFT_START >> i) != 0 {
-                first_high_bit_index = i;
-                break;
-            }
-        }
-
-        first_high_bit_index
     }
 
     fn bit_length(first_high_bit_index: usize, digit_count: usize) -> usize {
@@ -1161,7 +1148,7 @@ impl BigUnsigned {
 
         // Calculate the index of the first non-zero bit in the dividend.
         // This is guaranteed to be in the first digit.
-        let dividend_first_high_bit_index = Self::first_high_bit_index(self.digits[0]);
+        let dividend_first_high_bit_index = first_high_bit_index(self.digits[0]);
 
         // Calculate the length of the dividend in bits.
         let dividend_bit_length =
@@ -1169,7 +1156,7 @@ impl BigUnsigned {
 
         // Calculate the index of the first non-zero bit in the divisor.
         // This is guaranteed to be in the first digit.
-        let divisor_first_high_bit_index = Self::first_high_bit_index(divisor_digits[0]);
+        let divisor_first_high_bit_index = first_high_bit_index(divisor_digits[0]);
 
         // Calculate the length of the divisor in bits.
         let divisor_bit_length =
