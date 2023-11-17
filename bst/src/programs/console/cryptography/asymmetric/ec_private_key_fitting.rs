@@ -18,7 +18,7 @@ use crate::{
     console_out::ConsoleOut,
     constants,
     hashing::{Hasher, Sha512},
-    integers::{BigUnsigned, Digit},
+    integers::BigUnsigned,
     programs::{
         console::{cryptography::asymmetric::prompt_for_curve_selection, write_bytes},
         Program, ProgramExitResult,
@@ -33,7 +33,7 @@ use crate::{
     String16,
 };
 use alloc::vec;
-use core::{cmp::Ordering, mem::size_of};
+use core::cmp::Ordering;
 use macros::s16;
 
 const ITERATIVE_HASHING_KEY: &[u8] = "Extremely Large Numer Private Key".as_bytes();
@@ -103,7 +103,7 @@ impl<TSystemServices: SystemServices> Program
                         let mut hash_buffer = [0u8; Sha512::HASH_SIZE];
                         let mut hash_input_buffer = vec![0u8; Sha512::HASH_SIZE];
                         let mut hmac = hasher.build_hmac(ITERATIVE_HASHING_KEY);
-                        let mut result_buffer = BigUnsigned::with_capacity(32 / size_of::<Digit>());
+                        let mut result_buffer = BigUnsigned::with_byte_capacity(32);
                         break loop {
                             // Hash the private key's current value.
                             let byte_count = b.byte_count();

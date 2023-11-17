@@ -40,37 +40,6 @@ type Carry = u128;
 
 pub const BITS_PER_DIGIT: usize = size_of::<Digit>() * 8;
 
-// An enum used to facilitate shared logic between different division-type arithmetic methods.
-enum DivisionResult {
-    // The divisor was zero, and division could not be performed.
-    DivideByZero,
-
-    // The dividend was zero; nothing happens.
-    DivisorIsZero,
-
-    // The divisor had a single digit, so the simple division method was used.
-    // The working value is the quotient, and the value in the result is the remainder.
-    SingleDigitDivisor(Digit),
-
-    // The dividend was less than the divisor, and as such, the quotient is 0, and
-    // the remainder is the working value (the dividend). No mutation has occurred.
-    RemainderOnly,
-
-    // The dividend was equal to the divisor, and as such, the quotient is 1, and the remainder is 0.
-    // No mutation has occurred.
-    Equal,
-
-    // The dividend was greater than the divisor, but less than divisor * 2.
-    // The quotient is 1, and the remainder is dividend - divisor. No mutation has occurred.
-    SingleSubtraction,
-
-    // The dividend was greater than the divisor. The quotient and remainder have been calculated,
-    // and can be extracted from the working value. The returned value is quotient_start, and:
-    // self.digits[..quotient_start] is the remainder
-    // self.digits[quotient_start..] is the quotient
-    FullDivision(usize),
-}
-
 #[derive(Debug, Clone, Eq)]
 pub struct BigUnsigned {
     // We store digits in big-endian format, in base-2^64.
@@ -150,6 +119,19 @@ impl Ord for BigSigned {
 //\/\/\/\/\/\/\///
 
 impl BigUnsigned {
+    pub fn with_byte_capacity(capacity: usize) -> Self {
+        // Calculate the number of digits we need to hold the specified number of bytes.
+        let mut digits = capacity / size_of::<Digit>();
+        if capacity % size_of::<Digit>() != 0 {
+            digits += 1;
+        }
+
+        let mut digits = Vec::with_capacity(digits);
+        // We always need at least one digit; initialize as zero.
+        digits.push(0);
+        Self { digits }
+    }
+
     pub fn from_be_bytes(be_bytes: &[u8]) -> Self {
         // Calculate the number of required digits, and trim leading zeroes from the input bytes.
         let (digit_count, be_bytes) = Self::calculate_required_digits_for_bytes(be_bytes);
@@ -172,13 +154,6 @@ impl BigUnsigned {
             },
         }
     }
-
-    pub fn with_capacity(capacity: usize) -> Self {
-        let mut digits = Vec::with_capacity(capacity);
-        // We always need at least one digit; initialize as zero.
-        digits.push(0);
-        Self { digits }
-    }
 }
 
 impl BigSigned {
@@ -189,8 +164,8 @@ impl BigSigned {
         }
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self::from_unsigned(false, BigUnsigned::with_capacity(capacity))
+    pub fn with_byte_capacity(capacity: usize) -> Self {
+        Self::from_unsigned(false, BigUnsigned::with_byte_capacity(capacity))
     }
 }
 
@@ -388,6 +363,37 @@ impl BigSigned {
 //\/\/\/\/\/\///
 // Arithmetic //
 //\/\/\/\/\/\///
+
+// An enum used to facilitate shared logic between different division-type arithmetic methods.
+enum DivisionResult {
+    // The divisor was zero, and division could not be performed.
+    DivideByZero,
+
+    // The dividend was zero; nothing happens.
+    DivisorIsZero,
+
+    // The divisor had a single digit, so the simple division method was used.
+    // The working value is the quotient, and the value in the result is the remainder.
+    SingleDigitDivisor(Digit),
+
+    // The dividend was less than the divisor, and as such, the quotient is 0, and
+    // the remainder is the working value (the dividend). No mutation has occurred.
+    RemainderOnly,
+
+    // The dividend was equal to the divisor, and as such, the quotient is 1, and the remainder is 0.
+    // No mutation has occurred.
+    Equal,
+
+    // The dividend was greater than the divisor, but less than divisor * 2.
+    // The quotient is 1, and the remainder is dividend - divisor. No mutation has occurred.
+    SingleSubtraction,
+
+    // The dividend was greater than the divisor. The quotient and remainder have been calculated,
+    // and can be extracted from the working value. The returned value is quotient_start, and:
+    // self.digits[..quotient_start] is the remainder
+    // self.digits[quotient_start..] is the quotient
+    FullDivision(usize),
+}
 
 impl BigUnsigned {
     pub fn add_big_unsigned(&mut self, addend: &BigUnsigned) {

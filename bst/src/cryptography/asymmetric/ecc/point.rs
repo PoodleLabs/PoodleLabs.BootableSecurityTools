@@ -291,10 +291,10 @@ pub struct EllipticCurvePoint {
 }
 
 impl EllipticCurvePoint {
-    pub fn infinity(integer_capacity: usize) -> Self {
+    pub fn infinity(integer_byte_capacity: usize) -> Self {
         Self {
-            x: BigSigned::with_capacity(integer_capacity),
-            y: BigSigned::with_capacity(integer_capacity),
+            x: BigSigned::with_byte_capacity(integer_byte_capacity),
+            y: BigSigned::with_byte_capacity(integer_byte_capacity),
             is_infinity: true,
         }
     }

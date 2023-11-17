@@ -45,7 +45,7 @@ fn point_addition_1() {
     let p5 = point(993, 1231);
 
     // Infinity
-    let inf = EllipticCurvePoint::infinity(1);
+    let inf = EllipticCurvePoint::infinity(4);
     let mut p = inf.clone();
 
     // Inf + Inf = Inf
@@ -214,7 +214,7 @@ fn point_addition_2() {
     let p5 = point(56, 8);
 
     // Infinity
-    let inf = EllipticCurvePoint::infinity(1);
+    let inf = EllipticCurvePoint::infinity(2);
     let mut p = inf.clone();
 
     // Inf + Inf = Inf
@@ -375,7 +375,7 @@ fn point_addition_2() {
 #[test]
 fn point_doubling_1() {
     let mut context = point_addition_context_1();
-    let mut p = EllipticCurvePoint::infinity(1);
+    let mut p = EllipticCurvePoint::infinity(4);
 
     // (22, 2321) + (22, 2321) = (605, 851)
     p = double(p, &point(22, 2321), &mut context);
@@ -401,7 +401,7 @@ fn point_doubling_1() {
 #[test]
 fn point_doubling_2() {
     let mut context = point_addition_context_2();
-    let mut p = EllipticCurvePoint::infinity(1);
+    let mut p = EllipticCurvePoint::infinity(2);
 
     // (17, 10) + (17, 10) = (32, 90)
     p = double(p, &point(17, 10), &mut context);
@@ -425,11 +425,11 @@ fn point_doubling_2() {
 }
 
 fn point_addition_context_1() -> EllipticCurvePointAdditionContext {
-    EllipticCurvePointAdditionContext::from(p1(), a1(), 1)
+    EllipticCurvePointAdditionContext::from(4, p1(), a1())
 }
 
 fn point_addition_context_2() -> EllipticCurvePointAdditionContext {
-    EllipticCurvePointAdditionContext::from(p2(), a2(), 1)
+    EllipticCurvePointAdditionContext::from(2, p2(), a2())
 }
 
 fn p1() -> &'static BigUnsigned {
@@ -449,7 +449,7 @@ fn a2() -> &'static BigUnsigned {
 }
 
 fn point(x: u16, y: u16) -> EllipticCurvePoint {
-    let mut p = EllipticCurvePoint::infinity(1);
+    let mut p = EllipticCurvePoint::infinity(4);
     let (xp, yp) = p.borrow_coordinates_mut();
     xp.copy_be_bytes_from(&x.to_be_bytes(), false);
     yp.copy_be_bytes_from(&y.to_be_bytes(), false);

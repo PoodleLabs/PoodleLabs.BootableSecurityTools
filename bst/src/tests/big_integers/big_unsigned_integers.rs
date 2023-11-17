@@ -22,7 +22,7 @@ use crate::{
     },
 };
 use alloc::vec;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
@@ -180,7 +180,7 @@ fn big_unsigned_random_multiply() {
 
 #[test]
 fn big_unsigned_edge_case_divide() {
-    let mut remainder_buffer = BigUnsigned::with_capacity(2);
+    let mut remainder_buffer = BigUnsigned::with_byte_capacity(size_of::<u128>());
 
     let mut b1 = BigUnsigned::from_be_bytes(&[53, 224, 51, 154, 252]);
     let b2 = BigUnsigned::from_be_bytes(&[53, 224]);
@@ -249,7 +249,7 @@ fn big_unsigned_random_divide() {
                 RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
             };
 
-            let mut remainder_buffer = BigUnsigned::with_capacity(2);
+            let mut remainder_buffer = BigUnsigned::with_byte_capacity(size_of::<u128>());
             for _ in 0..iterations {
                 let (mut b1, r1) = random_big_unsigned(16);
                 let (b2, r2) = random_big_unsigned(16);

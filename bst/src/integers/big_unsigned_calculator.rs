@@ -27,14 +27,14 @@ pub struct BigUnsignedCalculator {
 }
 
 impl BigUnsignedCalculator {
-    pub fn new(internal_integer_initial_capacities: usize) -> Self {
+    pub fn new(integer_byte_capacity: usize) -> Self {
         Self {
-            a: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            m: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            x: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            y: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            q: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            r: BigUnsigned::with_capacity(internal_integer_initial_capacities),
+            a: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            m: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            x: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            y: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            q: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            r: BigUnsigned::with_byte_capacity(integer_byte_capacity),
         }
     }
 

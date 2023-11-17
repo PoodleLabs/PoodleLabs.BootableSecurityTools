@@ -32,7 +32,7 @@ fn secp256k1_derive_pubkey_zero_privkey() {
         context.multiply_point(
             crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
             crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
-            &BigUnsigned::with_capacity(0)
+            &BigUnsigned::with_byte_capacity(1)
         ),
         None
     );
@@ -97,11 +97,10 @@ fn secp256k1_derive_pubkey_random_privkey() {
             RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
         };
 
-        let mut decompression_buffer_x = BigUnsigned::with_capacity(2);
-        let mut decompression_buffer_y = BigUnsigned::with_capacity(2);
-        let mut expected_decompressed_y_buffer = BigUnsigned::with_capacity(2);
-        let mut context =
-            crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+        let mut context = crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+        let mut expected_decompressed_y_buffer = BigUnsigned::with_byte_capacity(32);
+        let mut decompression_buffer_x = BigUnsigned::with_byte_capacity(32);
+        let mut decompression_buffer_y = BigUnsigned::with_byte_capacity(32);
         let secp_context = secp256k1::Secp256k1::new();
         let mut padded_private_key = [0u8; 32];
 

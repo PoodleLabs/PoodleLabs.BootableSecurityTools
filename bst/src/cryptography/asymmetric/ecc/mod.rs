@@ -26,7 +26,7 @@ use crate::{
     integers::{BigSigned, BigUnsigned, BigUnsignedCalculator, Digit, BITS_PER_DIGIT},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
@@ -42,11 +42,15 @@ pub struct EllipticCurvePointAdditionContext {
 }
 
 impl EllipticCurvePointAdditionContext {
-    pub fn from(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
+    pub fn from(
+        integer_byte_capacity: usize,
+        p: &'static BigUnsigned,
+        a: &'static BigUnsigned,
+    ) -> Self {
         Self {
-            unsigned_calculator: BigUnsignedCalculator::new(integer_capacity),
-            slope: BigSigned::with_capacity(integer_capacity),
-            augend: EllipticCurvePoint::infinity(integer_capacity),
+            unsigned_calculator: BigUnsignedCalculator::new(integer_byte_capacity),
+            augend: EllipticCurvePoint::infinity(integer_byte_capacity),
+            slope: BigSigned::with_byte_capacity(integer_byte_capacity),
             p,
             a,
         }
@@ -90,21 +94,21 @@ pub struct EllipticCurvePointMultiplicationContext {
 
 impl EllipticCurvePointMultiplicationContext {
     pub fn new(
+        integer_byte_capacity: usize,
         n: &'static BigUnsigned,
         p: &'static BigUnsigned,
         i: &'static BigUnsigned,
         a: &'static BigUnsigned,
         b: &'static BigUnsigned,
-        integer_capacity: usize,
     ) -> Self {
         if n.digit_count() == 0 {
             panic!("Zero-length N for Elliptic Curve Point Multiplication Context.");
         }
 
         Self {
-            addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
-            side_channel_mitigation_point: EllipticCurvePoint::infinity(integer_capacity),
-            working_point: EllipticCurvePoint::infinity(integer_capacity),
+            addition_context: EllipticCurvePointAdditionContext::from(integer_byte_capacity, p, a),
+            side_channel_mitigation_point: EllipticCurvePoint::infinity(integer_byte_capacity),
+            working_point: EllipticCurvePoint::infinity(integer_byte_capacity),
             bit_buffer: vec![0; n.digit_count()],
             comparison_box: Box::from(None),
             i,
@@ -270,7 +274,9 @@ impl EllipticCurvePointMultiplicationContext {
         }
 
         // Prepare a zero product (in an elliptic curve, 'infinity' is a neutral element where X + Infinity = X).
-        let mut product = EllipticCurvePoint::infinity(self.addition_context.p.digit_count());
+        let mut product = EllipticCurvePoint::infinity(
+            self.addition_context.p.digit_count() * size_of::<Digit>(),
+        );
 
         // Prepare our addend to equal the value we're multiplying.
         self.working_point.set_equal_to_unsigned(x, y);

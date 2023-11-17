@@ -21,7 +21,7 @@ use crate::{
         PARALLELIZED_TEST_THREAD_COUNT,
     },
 };
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
@@ -228,7 +228,7 @@ fn big_signed_random_divide_by_unsigned_with_signed_modulus() {
                 RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
             };
 
-            let mut modulus_buffer = BigSigned::with_capacity(2);
+            let mut modulus_buffer = BigSigned::with_byte_capacity(size_of::<u128>());
             for _ in 0..iterations {
                 let (mut b1, r1) = random_big_signed(16);
                 let (b2, r2) = random_big_unsigned(15);
