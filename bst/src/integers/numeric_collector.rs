@@ -105,7 +105,9 @@ impl NumericCollector {
 
     pub fn copy_padded_bytes_to(&self, buffer: &mut [u8]) {
         let padding = self.padded_byte_count() - self.trimmed_byte_count();
-        self.big_unsigned.copy_be_bytes_to(&mut buffer[padding..]);
+        assert!(self
+            .big_unsigned
+            .try_copy_be_bytes_to(&mut buffer[padding..]));
         // Make sure our leading zeroes are actually zeroes.
         buffer[..padding].fill(0);
     }

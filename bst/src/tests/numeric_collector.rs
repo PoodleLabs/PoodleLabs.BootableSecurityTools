@@ -55,7 +55,7 @@ fn numeric_collector_multiplies_by_base_and_adds_round() {
         let mut byte_array = [0u8; 8];
         let bits = numeric_collector.bit_counter();
         let number = numeric_collector.extract_big_unsigned();
-        number.copy_be_bytes_to(&mut byte_array[8 - number.byte_count()..]);
+        assert!(number.try_copy_be_bytes_to(&mut byte_array[8 - number.byte_count()..]));
 
         let mut expected_bits = 0f64;
         let mut expected_value = 0u64;

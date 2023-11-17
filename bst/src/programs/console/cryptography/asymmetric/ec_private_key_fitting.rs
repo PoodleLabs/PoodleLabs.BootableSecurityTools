@@ -118,7 +118,7 @@ impl<TSystemServices: SystemServices> Program
                                 )
                             }
 
-                            b.copy_be_bytes_to(&mut hash_input_buffer);
+                            assert!(b.try_copy_be_bytes_to(&mut hash_input_buffer));
                             hmac.write_hmac_to(&hash_input_buffer, &mut hash_buffer);
 
                             // Give the truncated hash buffer to our result buffer; we'll compare and,
@@ -154,7 +154,7 @@ impl<TSystemServices: SystemServices> Program
         };
 
         let mut private_key_bytes = vec![0u8; private_key.byte_count()];
-        private_key.copy_be_bytes_to(&mut private_key_bytes);
+        assert!(private_key.try_copy_be_bytes_to(&mut private_key_bytes));
         private_key.zero();
 
         write_bytes(

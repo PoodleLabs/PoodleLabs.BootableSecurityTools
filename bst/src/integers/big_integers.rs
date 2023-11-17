@@ -16,7 +16,7 @@
 
 use crate::bits::first_high_bit_index;
 use alloc::{vec, vec::Vec};
-use core::{cmp::Ordering, mem::size_of, panic};
+use core::{cmp::Ordering, mem::size_of};
 
 #[cfg(target_pointer_width = "8")]
 pub type Digit = u8;
@@ -42,7 +42,7 @@ pub const BITS_PER_DIGIT: usize = size_of::<Digit>() * 8;
 
 #[derive(Debug, Clone, Eq)]
 pub struct BigUnsigned {
-    // We store digits in big-endian format, in base-2^64.
+    // We store digits in big-endian format, in base-2^X, where X is the bit length of the native pointer type.
     digits: Vec<Digit>,
 }
 
@@ -174,10 +174,10 @@ impl BigSigned {
 //\/\/\/\/\/\/\/\//
 
 impl BigUnsigned {
-    pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
+    pub fn try_copy_be_bytes_to(&self, buffer: &mut [u8]) -> bool {
         let byte_count = self.byte_count();
         if buffer.len() < byte_count {
-            panic!("Tried to copy big-endian bytes out of a BigUnsigned to a buffer whose length was too short.");
+            return false;
         }
 
         // Zero out the buffer.
@@ -213,6 +213,8 @@ impl BigUnsigned {
 
             digit_index += 1;
         }
+
+        true
     }
 
     pub fn borrow_digits(&self) -> &[Digit] {
@@ -257,12 +259,12 @@ impl BigUnsigned {
 }
 
 impl BigSigned {
-    pub fn borrow_unsigned_mut(&mut self) -> &mut BigUnsigned {
-        &mut self.big_unsigned
+    pub fn try_copy_be_bytes_to(&self, buffer: &mut [u8]) -> bool {
+        self.big_unsigned.try_copy_be_bytes_to(buffer)
     }
 
-    pub fn copy_be_bytes_to(&self, buffer: &mut [u8]) {
-        self.big_unsigned.copy_be_bytes_to(buffer)
+    pub fn borrow_unsigned_mut(&mut self) -> &mut BigUnsigned {
+        &mut self.big_unsigned
     }
 
     pub fn borrow_unsigned(&self) -> &BigUnsigned {

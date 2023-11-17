@@ -320,7 +320,7 @@ impl EllipticCurvePoint {
         };
 
         // Copy the bytes from the X coordinate to the end of the buffer.
-        self.x.copy_be_bytes_to(&mut buffer[N - byte_count..]);
+        assert!(self.x.try_copy_be_bytes_to(&mut buffer[N - byte_count..]));
         Some(buffer)
     }
 

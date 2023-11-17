@@ -120,7 +120,7 @@ fn secp256k1_derive_pubkey_random_privkey() {
                 Some(p) => {
                     // secp256k1 library requires exactly 32 bytes.
                     padded_private_key[..32 - private_key.byte_count()].fill(0);
-                    private_key.copy_be_bytes_to(&mut padded_private_key[32 - private_key.byte_count()..]);
+                    assert!(private_key.try_copy_be_bytes_to(&mut padded_private_key[32 - private_key.byte_count()..]));
                     
                     let expected_key = secp256k1::SecretKey::from_slice(&padded_private_key).unwrap().public_key(&secp_context);
                     let expected_ser_bytes = expected_key.serialize();

@@ -31,7 +31,7 @@ fn big_unsigned_to_u128(big_unsigned: &BigUnsigned) -> u128 {
     }
 
     let mut bytes = [0u8; size_of::<u128>()];
-    big_unsigned.copy_be_bytes_to(&mut bytes);
+    assert!(big_unsigned.try_copy_be_bytes_to(&mut bytes));
     u128::from_be_bytes(bytes)
 }
 

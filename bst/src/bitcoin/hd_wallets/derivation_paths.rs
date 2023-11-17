@@ -134,9 +134,9 @@ impl Bip32DerivationPathPoint {
 
                     // Copy the resulting key into a new key material buffer.
                     let mut key_material = [0u8; 33];
-                    private_key_buffer.copy_be_bytes_to(
+                    assert!(private_key_buffer.try_copy_be_bytes_to(
                         &mut key_material[33 - private_key_buffer.byte_count()..],
-                    );
+                    ));
 
                     // Zero our private key buffer; we're done with it.
                     private_key_buffer.zero();

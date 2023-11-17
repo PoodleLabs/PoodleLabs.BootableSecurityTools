@@ -49,7 +49,7 @@ pub fn prompt_for_bytes_from_any_data_type<TSystemServices: SystemServices>(
     ) {
         DataInput::Number(mut number) => {
             let mut bytes = vec![0u8; number.byte_count()];
-            number.copy_be_bytes_to(&mut bytes);
+            assert!(number.try_copy_be_bytes_to(&mut bytes));
             number.zero();
             Ok(bytes)
         }
@@ -277,7 +277,7 @@ fn prompt_for_unsigned_integer<
         if byte_count <= SIZE {
             // If the returned number fits within the size of the requested integer, extract its bytes.
             let mut buffer = [0u8; SIZE];
-            number.copy_be_bytes_to(&mut buffer[SIZE - byte_count..]);
+            assert!(number.try_copy_be_bytes_to(&mut buffer[SIZE - byte_count..]));
 
             // Turn those bytes into the uint type.
             let integer = from_be_bytes(buffer);
