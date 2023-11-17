@@ -22,11 +22,11 @@ use crate::{
     },
 };
 use alloc::vec;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 use rand::random;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 100000;
+const RANDOM_ITERATIONS: usize = 1000000;
 
 #[test]
 fn equal_big_unsigneds_are_equal() {
@@ -42,7 +42,6 @@ fn equal_big_unsigneds_are_equal() {
 
     for i in 0..integers.len() {
         for j in 0..integers.len() {
-            // println!("{}, {}", i, j);
             assert_eq!(integers[i], integers[j]);
             assert_eq!(integers[i].cmp(&integers[j]), Ordering::Equal);
         }
@@ -64,7 +63,6 @@ fn unequal_big_unsigneds_are_unequal() {
                 continue;
             }
 
-            // println!("{}, {}", i, j);
             assert_ne!(integers[i], integers[j]);
             assert_ne!(integers[i].cmp(&integers[j]), Ordering::Equal);
         }
@@ -148,51 +146,10 @@ fn big_unsigned_greater_than() {
 }
 
 #[test]
-fn big_unsigned_random_and_test() {
-    for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1) = random_big_unsigned(16);
-        let (b2, r2) = random_big_unsigned(16);
-        println!("ORD:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("ORR:{:?};{}", b2.clone_be_bytes(), r2);
-        b1.and_big_unsigned(&b2);
-
-        assert_eq!(big_unsigned_to_u128(&b1), r1 & r2);
-    }
-}
-
-#[test]
-fn big_unsigned_random_xor_test() {
-    for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1) = random_big_unsigned(16);
-        let (b2, r2) = random_big_unsigned(16);
-        println!("ORD:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("ORR:{:?};{}", b2.clone_be_bytes(), r2);
-        b1.xor_big_unsigned(&b2);
-
-        assert_eq!(big_unsigned_to_u128(&b1), r1 ^ r2);
-    }
-}
-
-#[test]
-fn big_unsigned_random_or_test() {
-    for _ in 0..RANDOM_ITERATIONS {
-        let (mut b1, r1) = random_big_unsigned(16);
-        let (b2, r2) = random_big_unsigned(16);
-        println!("ORD:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("ORR:{:?};{}", b2.clone_be_bytes(), r2);
-        b1.or_big_unsigned(&b2);
-
-        assert_eq!(big_unsigned_to_u128(&b1), r1 | r2);
-    }
-}
-
-#[test]
 fn big_unsigned_random_add() {
     for _ in 0..RANDOM_ITERATIONS {
         let (mut b1, r1) = random_big_unsigned(15);
         let (b2, r2) = random_big_unsigned(15);
-        println!("AUG:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("ADD:{:?};{}", b2.clone_be_bytes(), r2);
         b1.add_big_unsigned(&b2);
 
         assert_eq!(big_unsigned_to_u128(&b1), r1 + r2);
@@ -204,8 +161,6 @@ fn big_unsigned_random_subtract() {
     for _ in 0..RANDOM_ITERATIONS {
         let (mut b1, r1) = random_big_unsigned(16);
         let (b2, r2) = random_big_unsigned(16);
-        println!("M:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("S:{:?};{}", b2.clone_be_bytes(), r2);
         b1.subtract_big_unsigned(&b2);
 
         assert_eq!(big_unsigned_to_u128(&b1), if r1 > r2 { r1 - r2 } else { 0 });
@@ -217,8 +172,6 @@ fn big_unsigned_random_multiply() {
     for _ in 0..RANDOM_ITERATIONS {
         let (mut b1, r1) = random_big_unsigned(8);
         let (b2, r2) = random_big_unsigned(8);
-        println!("MPD:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("MPR:{:?};{}", b2.clone_be_bytes(), r2);
         b1.multiply_big_unsigned(&b2);
 
         assert_eq!(big_unsigned_to_u128(&b1), r1 * r2);
@@ -227,7 +180,7 @@ fn big_unsigned_random_multiply() {
 
 #[test]
 fn big_unsigned_edge_case_divide() {
-    let mut remainder_buffer = BigUnsigned::with_capacity(16);
+    let mut remainder_buffer = BigUnsigned::with_byte_capacity(size_of::<u128>());
 
     let mut b1 = BigUnsigned::from_be_bytes(&[53, 224, 51, 154, 252]);
     let b2 = BigUnsigned::from_be_bytes(&[53, 224]);
@@ -296,13 +249,10 @@ fn big_unsigned_random_divide() {
                 RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
             };
 
-            let mut remainder_buffer = BigUnsigned::with_capacity(16);
+            let mut remainder_buffer = BigUnsigned::with_byte_capacity(size_of::<u128>());
             for _ in 0..iterations {
                 let (mut b1, r1) = random_big_unsigned(16);
                 let (b2, r2) = random_big_unsigned(16);
-                println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
-                println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
-
                 let successful_division =
                     b1.divide_big_unsigned_with_remainder(&b2, &mut remainder_buffer);
 
@@ -332,9 +282,6 @@ fn big_unsigned_random_modulo() {
             for _ in 0..iterations {
                 let (mut b1, r1) = random_big_unsigned(16);
                 let (b2, r2) = random_big_unsigned(16);
-                println!("DND:{:?};{}", b1.clone_be_bytes(), r1);
-                println!("DSR:{:?};{}", b2.clone_be_bytes(), r2);
-
                 let success = b1.modulo_big_unsigned(&b2);
                 if r2 == 0 {
                     assert!(!success);
@@ -351,8 +298,6 @@ fn big_unsigned_random_difference() {
     for _ in 0..RANDOM_ITERATIONS {
         let (mut b1, r1) = random_big_unsigned(16);
         let (b2, r2) = random_big_unsigned(16);
-        println!("A:{:?};{}", b1.clone_be_bytes(), r1);
-        println!("B:{:?};{}", b2.clone_be_bytes(), r2);
         b1.difference_big_unsigned(&b2);
 
         assert_eq!(big_unsigned_to_u128(&b1), r1.abs_diff(r2));

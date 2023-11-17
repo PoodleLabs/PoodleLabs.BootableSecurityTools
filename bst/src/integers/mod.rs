@@ -19,7 +19,7 @@ mod big_unsigned_calculator;
 mod numeric_base;
 mod numeric_collector;
 
-pub use big_integers::{BigSigned, BigUnsigned};
+pub use big_integers::{BigSigned, BigUnsigned, Digit, BITS_PER_DIGIT};
 pub use big_unsigned_calculator::BigUnsignedCalculator;
 pub use numeric_base::{NumericBase, NumericBaseWithCharacterPredicate, NumericBases};
 pub use numeric_collector::{

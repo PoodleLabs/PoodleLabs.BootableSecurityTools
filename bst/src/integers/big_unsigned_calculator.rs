@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::BigUnsigned;
-use crate::bits::try_get_bit_at_index;
+use super::{BigUnsigned, BITS_PER_DIGIT};
+use crate::bits::{first_high_bit_index, try_get_bit_at_index};
 
 pub struct BigUnsignedCalculator {
     a: BigUnsigned,
@@ -27,14 +27,14 @@ pub struct BigUnsignedCalculator {
 }
 
 impl BigUnsignedCalculator {
-    pub fn new(internal_integer_initial_capacities: usize) -> Self {
+    pub fn new(integer_byte_capacity: usize) -> Self {
         Self {
-            a: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            m: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            x: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            y: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            q: BigUnsigned::with_capacity(internal_integer_initial_capacities),
-            r: BigUnsigned::with_capacity(internal_integer_initial_capacities),
+            a: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            m: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            x: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            y: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            q: BigUnsigned::with_byte_capacity(integer_byte_capacity),
+            r: BigUnsigned::with_byte_capacity(integer_byte_capacity),
         }
     }
 
@@ -159,8 +159,9 @@ impl BigUnsignedCalculator {
         self.x.one();
 
         let e = exponent.borrow_digits();
-        let bit_count = e.len() * 8;
-        for i in (0..bit_count).rev() {
+        let bit_count = e.len() * BITS_PER_DIGIT;
+        let first_high_bit = first_high_bit_index(e[0]);
+        for i in (first_high_bit..bit_count).rev() {
             if try_get_bit_at_index(i, e).unwrap() {
                 self.x.multiply_big_unsigned(&value);
                 self.x.modulo_big_unsigned(modulus);

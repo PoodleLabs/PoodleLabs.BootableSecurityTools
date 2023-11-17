@@ -44,7 +44,7 @@ Other hashing algorithms and 'attachment' schemes could be considered.
 
 ### Asymmetric Encryption
 
-- Private & Public Key Derivation on secp256k1 - **DONE (Slow)**
+- Private & Public Key Derivation on secp256k1 - **DONE**
 - ECDSA on secp256k1 - **NOT STARTED**
 - ECIES on secp256k1 - **NOT STARTED**
 

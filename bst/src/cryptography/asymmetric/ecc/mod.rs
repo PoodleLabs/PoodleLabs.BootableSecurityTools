@@ -23,15 +23,15 @@ pub use point::{EllipticCurvePoint, COMPRESSED_Y_IS_EVEN_IDENTIFIER};
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
     global_runtime_immutable::GlobalRuntimeImmutable,
-    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator},
+    integers::{BigSigned, BigUnsigned, BigUnsignedCalculator, Digit, BITS_PER_DIGIT},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::size_of};
 
 const PRIVATE_KEY_PREFIX: u8 = 0x00;
 
 static mut CUBE: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
-    GlobalRuntimeImmutable::from(|| BigUnsigned::from_be_bytes(&[0x03]));
+    GlobalRuntimeImmutable::from(|| BigUnsigned::from_digits(&[3]));
 
 pub struct EllipticCurvePointAdditionContext {
     unsigned_calculator: BigUnsignedCalculator,
@@ -42,11 +42,15 @@ pub struct EllipticCurvePointAdditionContext {
 }
 
 impl EllipticCurvePointAdditionContext {
-    pub fn from(p: &'static BigUnsigned, a: &'static BigUnsigned, integer_capacity: usize) -> Self {
+    pub fn from(
+        integer_byte_capacity: usize,
+        p: &'static BigUnsigned,
+        a: &'static BigUnsigned,
+    ) -> Self {
         Self {
-            unsigned_calculator: BigUnsignedCalculator::new(integer_capacity),
-            slope: BigSigned::with_capacity(integer_capacity),
-            augend: EllipticCurvePoint::infinity(integer_capacity),
+            unsigned_calculator: BigUnsignedCalculator::new(integer_byte_capacity),
+            augend: EllipticCurvePoint::infinity(integer_byte_capacity),
+            slope: BigSigned::with_byte_capacity(integer_byte_capacity),
             p,
             a,
         }
@@ -85,27 +89,27 @@ pub struct EllipticCurvePointMultiplicationContext {
     i: &'static BigUnsigned,
     b: &'static BigUnsigned,
     n: &'static BigUnsigned,
-    bit_buffer: Vec<u8>,
+    bit_buffer: Vec<Digit>,
 }
 
 impl EllipticCurvePointMultiplicationContext {
     pub fn new(
+        integer_byte_capacity: usize,
         n: &'static BigUnsigned,
         p: &'static BigUnsigned,
         i: &'static BigUnsigned,
         a: &'static BigUnsigned,
         b: &'static BigUnsigned,
-        integer_capacity: usize,
     ) -> Self {
         if n.digit_count() == 0 {
             panic!("Zero-length N for Elliptic Curve Point Multiplication Context.");
         }
 
         Self {
-            addition_context: EllipticCurvePointAdditionContext::from(p, a, integer_capacity),
-            side_channel_mitigation_point: EllipticCurvePoint::infinity(integer_capacity),
-            working_point: EllipticCurvePoint::infinity(integer_capacity),
-            bit_buffer: vec![0u8; n.digit_count()],
+            addition_context: EllipticCurvePointAdditionContext::from(integer_byte_capacity, p, a),
+            side_channel_mitigation_point: EllipticCurvePoint::infinity(integer_byte_capacity),
+            working_point: EllipticCurvePoint::infinity(integer_byte_capacity),
+            bit_buffer: vec![0; n.digit_count()],
             comparison_box: Box::from(None),
             i,
             b,
@@ -254,26 +258,31 @@ impl EllipticCurvePointMultiplicationContext {
                 .len()
                 .wrapping_sub(self.bit_buffer.len() - i);
 
-            let byte = if j >= multiplier_digits.len() {
+            let digit = if j >= multiplier_digits.len() {
                 self.bit_buffer[i]
             } else {
                 multiplier_digits[j]
             };
 
-            for j in 0..8 {
-                let bit = ((1 << 7 - j) & byte) != 0;
-                assert!(try_set_bit_at_index(i * 8 + j, bit, &mut self.bit_buffer));
+            for j in 0..BITS_PER_DIGIT {
+                assert!(try_set_bit_at_index(
+                    i * BITS_PER_DIGIT + j,
+                    try_get_bit_at_index(j, &[digit]).unwrap(),
+                    &mut self.bit_buffer
+                ));
             }
         }
 
         // Prepare a zero product (in an elliptic curve, 'infinity' is a neutral element where X + Infinity = X).
-        let mut product = EllipticCurvePoint::infinity(self.addition_context.p.digit_count());
+        let mut product = EllipticCurvePoint::infinity(
+            self.addition_context.p.digit_count() * size_of::<Digit>(),
+        );
 
         // Prepare our addend to equal the value we're multiplying.
         self.working_point.set_equal_to_unsigned(x, y);
 
         // Iterate over the bits in the multiplier from least to most significant.
-        for i in (0..self.bit_buffer.len() * 8).rev() {
+        for i in (0..self.bit_buffer.len() * BITS_PER_DIGIT).rev() {
             if try_get_bit_at_index(i, &self.bit_buffer).unwrap() {
                 // The bit at the current index is high; we should add to our product.
                 product.add(&self.working_point, &mut self.addition_context);

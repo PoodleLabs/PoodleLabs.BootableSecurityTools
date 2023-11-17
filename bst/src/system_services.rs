@@ -35,24 +35,6 @@ pub enum PowerAction {
     Reset,
 }
 
-#[allow(dead_code)]
-pub fn clock_cycle_count() -> u64 {
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        let mut v = 0u64;
-        core::arch::asm!("mrs {v}, cntpct_el0", v = inout(reg) v);
-        v
-    }
-    #[cfg(target_arch = "x86_64")]
-    unsafe {
-        core::arch::x86_64::_rdtsc()
-    }
-    #[cfg(target_arch = "x86")]
-    unsafe {
-        core::arch::x86::_rdtsc()
-    }
-}
-
 static mut CLIPBOARD: Option<Clipboard> = None;
 
 pub trait SystemServices: Clone + 'static {
@@ -117,10 +99,6 @@ pub trait SystemServices: Clone + 'static {
 
     fn free_call_count(&self) -> usize {
         unsafe { FREE_COUNT }
-    }
-
-    fn clock_cycle_count(&self) -> u64 {
-        clock_cycle_count()
     }
 }
 

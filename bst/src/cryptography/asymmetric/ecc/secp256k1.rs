@@ -35,9 +35,9 @@ static mut P: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
 static mut P_I: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     GlobalRuntimeImmutable::from(|| {
         let mut i = p().clone();
-        i.add_u8(1);
-        let mut r = 0u8;
-        i.divide_u8_with_remainder(4, &mut r);
+        i.add(&[1]);
+        let mut r = 0;
+        i.divide_by_single_digit_with_remainder(4, &mut r);
         i
     });
 
@@ -86,7 +86,7 @@ static mut N: GlobalRuntimeImmutable<BigUnsigned, fn() -> BigUnsigned> =
     });
 
 pub fn point_multiplication_context() -> EllipticCurvePointMultiplicationContext {
-    EllipticCurvePointMultiplicationContext::new(n(), p(), p_i(), a(), b(), 32)
+    EllipticCurvePointMultiplicationContext::new(64, n(), p(), p_i(), a(), b())
 }
 
 pub fn serialized_private_key_bytes(key: &[u8]) -> [u8; 33] {

@@ -21,7 +21,7 @@ use crate::{
         self, secp256k1, EllipticCurvePoint, EllipticCurvePointMultiplicationContext,
     },
     hashing::{Hasher, Sha512},
-    integers::BigUnsigned,
+    integers::{BigUnsigned, Digit},
     String16,
 };
 use core::cmp::Ordering;
@@ -87,7 +87,7 @@ impl Bip32DerivationPathPoint {
         let (parent_public_key, key_material): ([u8; 33], [u8; 33]) = match key_version.key_type() {
             Bip32KeyType::Private => {
                 // Write the private key to the private key buffer.
-                private_key_buffer.copy_digits_from(parent_key.key_material());
+                private_key_buffer.copy_be_bytes_from(parent_key.key_material());
 
                 // Derive the EC point for the public key.
                 let point = match multiplication_context.multiply_point(
@@ -118,21 +118,25 @@ impl Bip32DerivationPathPoint {
                     data[33..].copy_from_slice(&index.to_be_bytes());
                     hmac.write_hmac_to(&data, &mut hmac_buffer);
 
-                    let km = &hmac_buffer[..32];
-                    match Self::validate_key_material(km, &mut index) {
+                    let (km, _) = point_buffer.borrow_coordinates_mut();
+                    let km = km.borrow_unsigned_mut();
+                    km.copy_be_bytes_from(&hmac_buffer[..32]);
+
+                    match Self::validate_key_material(km.borrow_digits(), &mut index) {
                         IlValidationResult::Ok => {}
                         IlValidationResult::NextIteration => continue,
                         IlValidationResult::ReturnError(e) => return Err(e),
                     }
 
                     // Add parent private key and child private key material; ppk + cpk (mod n).
-                    private_key_buffer.add_be_bytes(&km);
+                    private_key_buffer.add_big_unsigned(&km);
                     private_key_buffer.modulo_big_unsigned(secp256k1::n());
 
                     // Copy the resulting key into a new key material buffer.
                     let mut key_material = [0u8; 33];
-                    key_material[33 - private_key_buffer.digit_count()..]
-                        .copy_from_slice(private_key_buffer.borrow_digits());
+                    assert!(private_key_buffer.try_copy_be_bytes_to(
+                        &mut key_material[33 - private_key_buffer.byte_count()..],
+                    ));
 
                     // Zero our private key buffer; we're done with it.
                     private_key_buffer.zero();
@@ -163,7 +167,7 @@ impl Bip32DerivationPathPoint {
 
                 let (x, y) = point_buffer.borrow_coordinates_mut();
                 // Write the X coordinate of the parent public key into the working point.
-                x.copy_digits_from(&parent_public_key[1..], false);
+                x.copy_be_bytes_from(&parent_public_key[1..], false);
 
                 // Ensure the working point's Y value is positive.
                 y.set_sign(false);
@@ -181,7 +185,7 @@ impl Bip32DerivationPathPoint {
                     hmac.write_hmac_to(&data, &mut hmac_buffer);
 
                     // Write the child key material to the private key buffer.
-                    private_key_buffer.copy_digits_from(&hmac_buffer[..32]);
+                    private_key_buffer.copy_be_bytes_from(&hmac_buffer[..32]);
                     match Self::validate_key_material(
                         private_key_buffer.borrow_digits(),
                         &mut index,
@@ -238,7 +242,7 @@ impl Bip32DerivationPathPoint {
         ))
     }
 
-    fn validate_key_material(key_material: &[u8], index: &mut u32) -> IlValidationResult {
+    fn validate_key_material(key_material: &[Digit], index: &mut u32) -> IlValidationResult {
         if key_material.iter().all(|c| *c == 0)
             || secp256k1::n().partial_cmp(key_material).unwrap() != Ordering::Greater
         {
@@ -269,9 +273,9 @@ pub struct Bip32CkdContext {
 impl Bip32CkdContext {
     pub fn new() -> Self {
         Self {
-            multiplication_context: secp256k1::point_multiplication_context(),
             point_buffer: EllipticCurvePoint::infinity(32),
-            private_key_buffer: BigUnsigned::with_capacity(32),
+            multiplication_context: secp256k1::point_multiplication_context(),
+            private_key_buffer: BigUnsigned::with_byte_capacity(32),
             hash160: Hash160::new(),
             sha512: Sha512::new(),
         }

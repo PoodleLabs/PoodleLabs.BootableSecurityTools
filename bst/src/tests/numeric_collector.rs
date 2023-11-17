@@ -53,8 +53,9 @@ fn numeric_collector_multiplies_by_base_and_adds_round() {
         }
 
         let mut byte_array = [0u8; 8];
-        let collected_numeric = numeric_collector.extract_trimmed_bytes();
-        byte_array[8 - collected_numeric.data().len()..].copy_from_slice(collected_numeric.data());
+        let bits = numeric_collector.bit_counter();
+        let number = numeric_collector.extract_big_unsigned();
+        assert!(number.try_copy_be_bytes_to(&mut byte_array[8 - number.byte_count()..]));
 
         let mut expected_bits = 0f64;
         let mut expected_value = 0u64;
@@ -71,14 +72,6 @@ fn numeric_collector_multiplies_by_base_and_adds_round() {
         }
 
         assert_eq!(u64::from_be_bytes(byte_array), expected_value);
-        assert_eq!(collected_numeric.bit_count(), expected_bits);
-        assert_eq!(
-            collected_numeric.trimmed_byte_count(),
-            ((expected_value as f64).log(256f64).ceil() as usize).max(1)
-        );
-        assert_eq!(
-            collected_numeric.padded_byte_count(),
-            (expected_bits / 8f64).ceil() as usize
-        );
+        assert_eq!(bits, expected_bits);
     }
 }

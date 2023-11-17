@@ -291,19 +291,11 @@ pub struct EllipticCurvePoint {
 }
 
 impl EllipticCurvePoint {
-    pub fn infinity(integer_capacity: usize) -> Self {
+    pub fn infinity(integer_byte_capacity: usize) -> Self {
         Self {
-            x: BigSigned::with_capacity(integer_capacity),
-            y: BigSigned::with_capacity(integer_capacity),
+            x: BigSigned::with_byte_capacity(integer_byte_capacity),
+            y: BigSigned::with_byte_capacity(integer_byte_capacity),
             is_infinity: true,
-        }
-    }
-
-    pub fn from(x: BigSigned, y: BigSigned) -> Self {
-        Self {
-            is_infinity: x.is_zero() && y.is_zero(),
-            x,
-            y,
         }
     }
 
@@ -311,7 +303,8 @@ impl EllipticCurvePoint {
         // We can compress a point on a prime finite field elliptic curve by representing it with only the X value,
         // and a single byte to indicate whether the Y value is odd or even, because there are two possible Y values
         // for any given X coordinate, and (mod p) results in one Y value always being even, and the other always being odd.
-        if self.x.digit_count() + 1 > N {
+        let byte_count = self.x.byte_count();
+        if byte_count + 1 > N {
             // We need to be able to fit X in the buffer, with one additional byte to spare. If we can't manage that, return None.
             return None;
         }
@@ -327,14 +320,8 @@ impl EllipticCurvePoint {
         };
 
         // Copy the bytes from the X coordinate to the end of the buffer.
-        self.x
-            .copy_digits_to(&mut buffer[N - self.x.digit_count()..]);
-
+        assert!(self.x.try_copy_be_bytes_to(&mut buffer[N - byte_count..]));
         Some(buffer)
-    }
-
-    pub fn y(&self) -> &BigSigned {
-        &self.y
     }
 
     pub fn add(
@@ -438,7 +425,7 @@ impl EllipticCurvePoint {
 
         // Y = Yp
         // Y *= 2
-        self.y.multiply_u8(2);
+        self.y.multiply_unsigned(&[2]);
 
         // Y mod inverse
         addition_context.mod_inverse(&mut self.y);
@@ -448,7 +435,7 @@ impl EllipticCurvePoint {
         self.x.multiply_big_signed(&addition_context.augend.x);
 
         // X *= 3
-        self.x.multiply_u8(3);
+        self.x.multiply_unsigned(&[3]);
 
         // X += a
         self.x.add_big_unsigned(addition_context.a);

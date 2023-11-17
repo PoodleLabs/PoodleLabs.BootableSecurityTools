@@ -14,42 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::ceil;
+use super::{ceil, Digit};
 use crate::integers::BigUnsigned;
-use alloc::boxed::Box;
+use core::mem::size_of;
 use macros::log2_range;
 
+const WHOLE_BYTE_MULTIPLIER: &[Digit] = if size_of::<Digit>() == 1 {
+    &[1, 0]
+} else {
+    &[255 + 1]
+};
+
 const BASE_BITS_PER_ROUND: [f64; 254] = log2_range!(256);
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct CollectedNumericData<T> {
-    trimmed_byte_count: usize,
-    padded_byte_count: usize,
-    bit_count: f64,
-    data: T,
-}
-
-impl<T> CollectedNumericData<T> {
-    pub const fn trimmed_byte_count(&self) -> usize {
-        self.trimmed_byte_count
-    }
-
-    pub const fn padded_byte_count(&self) -> usize {
-        self.padded_byte_count
-    }
-
-    pub const fn bit_count(&self) -> f64 {
-        self.bit_count
-    }
-
-    pub const fn data(&self) -> &T {
-        &self.data
-    }
-
-    pub fn take_data_ownership(self) -> T {
-        self.data
-    }
-}
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum NumericCollectorRoundBase {
@@ -72,36 +48,20 @@ pub struct NumericCollector {
 impl NumericCollector {
     pub fn with_byte_capacity(capacity: usize) -> Self {
         Self {
-            big_unsigned: BigUnsigned::with_capacity(capacity),
+            big_unsigned: BigUnsigned::with_byte_capacity(capacity),
             bit_counter: 0f64,
         }
     }
 
     pub fn new() -> Self {
         Self {
-            big_unsigned: BigUnsigned::with_capacity(8),
+            big_unsigned: BigUnsigned::with_byte_capacity(8),
             bit_counter: 0f64,
         }
     }
 
-    pub fn extract_trimmed_bytes(self) -> CollectedNumericData<Box<[u8]>> {
-        let trimmed_byte_count = self.trimmed_byte_count();
-        let padded_byte_count = self.padded_byte_count();
-        CollectedNumericData {
-            data: self.big_unsigned.extract_be_bytes().into(),
-            bit_count: self.bit_counter,
-            trimmed_byte_count,
-            padded_byte_count,
-        }
-    }
-
-    pub fn extract_big_unsigned(self) -> CollectedNumericData<BigUnsigned> {
-        CollectedNumericData {
-            trimmed_byte_count: self.trimmed_byte_count(),
-            padded_byte_count: self.padded_byte_count(),
-            bit_count: self.bit_counter,
-            data: self.big_unsigned,
-        }
+    pub fn extract_big_unsigned(self) -> BigUnsigned {
+        self.big_unsigned
     }
 
     pub const fn bit_counter(&self) -> f64 {
@@ -128,16 +88,16 @@ impl NumericCollector {
                     // Push a digit to the end of the unsigned integer.
                     let bits = BASE_BITS_PER_ROUND[(round_base - 2) as usize];
                     self.bit_counter += bits;
-                    self.big_unsigned.multiply_u8(round_base);
-                    self.big_unsigned.add_u8(round_value);
+                    self.big_unsigned.multiply(&[round_base as Digit]);
+                    self.big_unsigned.add(&[round_value as Digit]);
                     Ok((bits, self.bit_counter))
                 }
             }
             NumericCollectorRoundBase::WholeByte => {
                 // Push a digit to the end of the unsigned integer.
                 self.bit_counter += 8f64;
-                self.big_unsigned.multiply_u16(256);
-                self.big_unsigned.add_u8(round_value);
+                self.big_unsigned.multiply(WHOLE_BYTE_MULTIPLIER);
+                self.big_unsigned.add(&[round_value as Digit]);
                 Ok((8f64, self.bit_counter))
             }
         }
@@ -145,13 +105,15 @@ impl NumericCollector {
 
     pub fn copy_padded_bytes_to(&self, buffer: &mut [u8]) {
         let padding = self.padded_byte_count() - self.trimmed_byte_count();
-        self.big_unsigned.copy_digits_to(&mut buffer[padding..]);
+        assert!(self
+            .big_unsigned
+            .try_copy_be_bytes_to(&mut buffer[padding..]));
         // Make sure our leading zeroes are actually zeroes.
         buffer[..padding].fill(0);
     }
 
     pub fn trimmed_byte_count(&self) -> usize {
-        self.big_unsigned.digit_count()
+        self.big_unsigned.byte_count()
     }
 
     pub fn padded_byte_count(&self) -> usize {

@@ -22,7 +22,7 @@ use core::cmp::Ordering;
 use rand::{random, thread_rng, Rng};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-const RANDOM_ITERATIONS: usize = 16;
+const RANDOM_ITERATIONS: usize = 100;
 
 #[test]
 fn secp256k1_derive_pubkey_zero_privkey() {
@@ -32,7 +32,7 @@ fn secp256k1_derive_pubkey_zero_privkey() {
         context.multiply_point(
             crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
             crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
-            &BigUnsigned::with_capacity(0)
+            &BigUnsigned::with_byte_capacity(1)
         ),
         None
     );
@@ -56,8 +56,9 @@ fn secp256k1_derive_pubkey_n_privkey() {
 fn secp256k1_derive_pubkey_n_plus_one_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
-    let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.add_u8(1);
+    let n = crate::cryptography::asymmetric::ecc::secp256k1::n();
+    let mut n_plus_one = n.clone();
+    n_plus_one.add(&[1]);
 
     assert_eq!(
         context.multiply_point(
@@ -73,14 +74,15 @@ fn secp256k1_derive_pubkey_n_plus_one_privkey() {
 fn secp256k1_derive_pubkey_more_bytes_than_n_privkey() {
     let mut context =
         crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
-    let mut n_plus_one = crate::cryptography::asymmetric::ecc::secp256k1::n().clone();
-    n_plus_one.multiply_u64(u64::MAX);
+    let n = crate::cryptography::asymmetric::ecc::secp256k1::n();
+    let mut n_times_n = n.clone();
+    n_times_n.multiply_big_unsigned(n);
 
     assert_eq!(
         context.multiply_point(
             crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
             crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
-            &n_plus_one,
+            &n_times_n,
         ),
         None
     );
@@ -95,15 +97,14 @@ fn secp256k1_derive_pubkey_random_privkey() {
             RANDOM_ITERATIONS / PARALLELIZED_TEST_THREAD_COUNT
         };
 
-        let mut decompression_buffer_x = BigUnsigned::with_capacity(32);
-        let mut decompression_buffer_y = BigUnsigned::with_capacity(32);
-        let mut expected_decompressed_y_buffer = BigUnsigned::with_capacity(32);
-        let mut context =
-            crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+        let mut context = crate::cryptography::asymmetric::ecc::secp256k1::point_multiplication_context();
+        let mut expected_decompressed_y_buffer = BigUnsigned::with_byte_capacity(32);
+        let mut decompression_buffer_x = BigUnsigned::with_byte_capacity(32);
+        let mut decompression_buffer_y = BigUnsigned::with_byte_capacity(32);
         let secp_context = secp256k1::Secp256k1::new();
         let mut padded_private_key = [0u8; 32];
 
-        for j in 0..iterations {
+        for _ in 0..iterations {
             let private_key = BigUnsigned::from_be_bytes(
                 &(0..thread_rng().gen_range(1..33))
                     .into_iter()
@@ -111,7 +112,6 @@ fn secp256k1_derive_pubkey_random_privkey() {
                     .collect::<Vec<u8>>(),
             );
 
-            println!("{},{}P: {:?}", i, j, private_key.clone_be_bytes());
             match context.multiply_point(
                 crate::cryptography::asymmetric::ecc::secp256k1::g_x(),
                 crate::cryptography::asymmetric::ecc::secp256k1::g_y(),
@@ -119,32 +119,25 @@ fn secp256k1_derive_pubkey_random_privkey() {
             ) {
                 Some(p) => {
                     // secp256k1 library requires exactly 32 bytes.
-                    padded_private_key[..32 - private_key.digit_count()].fill(0);
-                    private_key.copy_digits_to(&mut padded_private_key[32 - private_key.digit_count()..]);
-                    let expected_serialized_key_bytes =
-                        secp256k1::SecretKey::from_slice(&padded_private_key)
-                            .unwrap()
-                            .public_key(&secp_context)
-                            .serialize();
+                    padded_private_key[..32 - private_key.byte_count()].fill(0);
+                    assert!(private_key.try_copy_be_bytes_to(&mut padded_private_key[32 - private_key.byte_count()..]));
+                    
+                    let expected_key = secp256k1::SecretKey::from_slice(&padded_private_key).unwrap().public_key(&secp_context);
+                    let expected_ser_bytes = expected_key.serialize();
 
-                    println!("{},{}P: {:?}", i, j, p);
-
-                    expected_decompressed_y_buffer.set_equal_to(&p.y().borrow_unsigned());
-                    let actual_serialized_key_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
-
-                    println!("{},{}E: {:?}", i, j, expected_serialized_key_bytes);
-                    println!("{},{}A: {:?}", i, j, actual_serialized_key_bytes);
+                    expected_decompressed_y_buffer.copy_be_bytes_from(&expected_key.serialize_uncompressed()[33..]);
+                    let actual_ser_bytes = crate::cryptography::asymmetric::ecc::secp256k1::serialized_public_key_bytes(p).unwrap();
 
                     // Assert public key is as expected.
                     assert_eq!(
-                        actual_serialized_key_bytes,
-                        expected_serialized_key_bytes
+                        actual_ser_bytes,
+                        expected_ser_bytes
                     );
 
                     // Decompress the point and assert the decompressed Y coordinate is the same as the original point.
-                    decompression_buffer_x.copy_digits_from(&expected_serialized_key_bytes[1..]);
+                    decompression_buffer_x.copy_be_bytes_from(&expected_ser_bytes[1..]);
                     context.calculate_y_from_x(
-                        expected_serialized_key_bytes[0] == COMPRESSED_Y_IS_EVEN_IDENTIFIER,
+                        expected_ser_bytes[0] == COMPRESSED_Y_IS_EVEN_IDENTIFIER,
                         &decompression_buffer_x,
                         &mut decompression_buffer_y);
 
@@ -154,12 +147,9 @@ fn secp256k1_derive_pubkey_random_privkey() {
                         )
                 }
                 None => {
-                    println!("{},{}: None", i, j);
                     assert!(private_key.is_zero() || private_key.cmp(crate::cryptography::asymmetric::ecc::secp256k1::n()) != Ordering::Less);
                 }
             };
-
-            println!("{},{} complete.", i, j);
         }
     });
 }
