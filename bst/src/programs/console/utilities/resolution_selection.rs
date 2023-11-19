@@ -86,6 +86,7 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
             };
 
             output();
+            console.new_line().new_line();
             let selected_resolution = list.prompt_for_selection(&self.system_services);
             match selected_resolution {
                 Some((r, _, _)) => {
@@ -93,7 +94,6 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                         .get_console_out()
                         .set_mode(*r.identifier());
                     output();
-
                     if !ConsoleUiConfirmationPrompt::from(&self.system_services)
                         .prompt_for_confirmation(s16!("Keep this resolution?"))
                     {
