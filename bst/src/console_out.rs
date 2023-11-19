@@ -114,7 +114,11 @@ impl ConsoleColours {
     }
 }
 
-pub trait ConsoleModeIdentifier: Copy + Clone + Eq {}
+pub trait ConsoleModeIdentifier: Copy + Clone + Eq {
+    fn from_be_bytes(bytes: &[u8]) -> Self;
+
+    fn to_be_bytes(&self) -> Box<[u8]>;
+}
 
 pub trait ConsoleOut: Clone {
     type TModeIdentifer: ConsoleModeIdentifier;

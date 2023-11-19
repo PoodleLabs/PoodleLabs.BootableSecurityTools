@@ -15,9 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::core_types::{
-    UefiGuid, UefiMemoryDescriptor, UefiResetType, UefiStatusCode, UefiString, UefiTableHeader,
-    UefiTime, UefiTimeCapabilities, UefiVariableAttributes,
+    UefiGuid, UefiMemoryDescriptor, UefiResetType, UefiStatusCode, UefiTableHeader, UefiTime,
+    UefiTimeCapabilities, UefiVariableAttributes,
 };
+use crate::String16;
 use alloc::boxed::Box;
 use core::{ffi::c_void, ptr};
 
@@ -53,7 +54,7 @@ pub(in crate::uefi) struct UefiRuntimeServices {
 
     // Variable Services
     get_variable: extern "efiapi" fn(
-        variable_name: UefiString,
+        variable_name: String16<'static>,
         vendor_guid: &UefiGuid,
         attributes: &mut UefiVariableAttributes, /* OUT */
         data_length: &mut usize,                 /* IN/OUT */
@@ -65,7 +66,7 @@ pub(in crate::uefi) struct UefiRuntimeServices {
         vendor_guid: &mut UefiGuid, /* IN/OUT */
     ) -> UefiStatusCode, /* EFI 1.0+ */
     set_variable: extern "efiapi" fn(
-        variable_name: UefiString,
+        variable_name: String16<'static>,
         vendor_guid: &UefiGuid,
         attributes: UefiVariableAttributes,
         data_length: usize,
@@ -101,5 +102,53 @@ impl UefiRuntimeServices {
             Some(b) => (self.reset_system)(reset_type, status_code, b.len(), b.as_ptr()),
             None => (self.reset_system)(reset_type, status_code, 0, ptr::null()),
         }
+    }
+
+    pub fn get_variable(
+        &self,
+        variable_name: String16<'static>,
+        vendor_guid: &UefiGuid,
+        buffer: Option<&mut Box<[u8]>>,
+    ) -> Result<UefiVariableAttributes, (UefiStatusCode, usize)> {
+        let mut attributes = UefiVariableAttributes::NONE;
+        let (mut buffer_length, buffer) = match buffer {
+            Some(b) => (b.len(), b.as_mut_ptr()),
+            None => (0, ptr::null_mut()),
+        };
+
+        let result = (self.get_variable)(
+            variable_name,
+            vendor_guid,
+            &mut attributes,
+            &mut buffer_length,
+            buffer,
+        );
+
+        if result.is_success() {
+            Ok(attributes)
+        } else {
+            Err((result, buffer_length))
+        }
+    }
+
+    pub fn set_variable(
+        &self,
+        variable_name: String16<'static>,
+        vendor_guid: &UefiGuid,
+        attributes: UefiVariableAttributes,
+        data: Option<Box<[u8]>>,
+    ) -> UefiStatusCode {
+        let (buffer_length, buffer) = match data {
+            Some(b) => (b.len(), b.as_ptr()),
+            None => (0, ptr::null()),
+        };
+
+        (self.set_variable)(
+            variable_name,
+            vendor_guid,
+            attributes,
+            buffer_length,
+            buffer,
+        )
     }
 }

@@ -26,14 +26,26 @@ mod system_services;
 mod system_table;
 
 use self::{
-    core_types::{UefiEventHandle, UefiHandle, UefiStatusCode},
+    core_types::{UefiEventHandle, UefiGuid, UefiHandle, UefiStatusCode},
     system_table::UefiSystemTable,
 };
-use crate::system_services::SystemServicesAllocator;
+use crate::{system_services::SystemServicesAllocator, String16};
 use core::panic::PanicInfo;
+use macros::s16;
 use system_services::UefiSystemServices;
 
 static mut SYSTEM_SERVICES: Option<UefiSystemServices> = None;
+
+const VENDOR_GUID: UefiGuid = UefiGuid::from(
+    0xf15c91ab,
+    0x4c55,
+    0x4a93,
+    0x9a,
+    0x0c,
+    [0x44, 0xaa, 0xf1, 0xa2, 0xe5, 0xd4],
+);
+
+const CONSOLE_RESOLUTION_VARIABLE: String16<'static> = s16!("CONSOLE_RESOLUTION");
 
 fn get_system_services() -> UefiSystemServices {
     match unsafe { SYSTEM_SERVICES } {

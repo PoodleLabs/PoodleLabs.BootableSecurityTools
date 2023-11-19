@@ -98,6 +98,7 @@ pub(in crate::uefi) enum UefiResetType {
 pub(in crate::uefi) struct UefiVariableAttributes(u32);
 
 impl UefiVariableAttributes {
+    pub const NONE: Self = Self(0x00000000);
     pub const NON_VOLATILE: Self = Self(0x00000001);
     pub const BOOTSERVICE_ACCESS: Self = Self(0x00000002);
     pub const RUNTIME_ACCESS: Self = Self(0x00000004);

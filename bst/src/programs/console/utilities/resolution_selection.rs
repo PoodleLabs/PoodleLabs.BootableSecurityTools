@@ -22,10 +22,10 @@ use crate::{
     system_services::SystemServices,
     ui::{
         console::{
-            ConsoleUiConfirmationPrompt, ConsoleUiLabel, ConsoleUiList, ConsoleUiTitle,
-            ConsoleWriteable,
+            ConsoleUiConfirmationPrompt, ConsoleUiContinuePrompt, ConsoleUiLabel, ConsoleUiList,
+            ConsoleUiTitle, ConsoleWriteable,
         },
-        ConfirmationPrompt,
+        ConfirmationPrompt, ContinuePrompt,
     },
     String16,
 };
@@ -100,7 +100,23 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                         console.set_mode(mode_identifier);
                     }
 
-                    // TODO: NVRAM
+                    if ConsoleUiConfirmationPrompt::from(&self.system_services)
+                        .prompt_for_confirmation(s16!("Save selection to NVRAM for future boots?"))
+                    {
+                        if !self.system_services.try_set_variable(
+                            TSystemServices::console_resolution_variable_name(),
+                            r.identifier().to_be_bytes(),
+                        ) {
+                            console.in_colours(constants::ERROR_COLOURS, |c| {
+                                c.line_start()
+                                    .new_line()
+                                    .output_utf16_line(s16!("Failed to set NVRAM variable."))
+                            });
+
+                            ConsoleUiContinuePrompt::from(&self.system_services)
+                                .prompt_for_continue();
+                        }
+                    }
                 }
                 None => {
                     if ConsoleUiConfirmationPrompt::from(&self.system_services)

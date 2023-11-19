@@ -24,6 +24,7 @@ use crate::{
     String16,
 };
 use alloc::{boxed::Box, vec, vec::Vec};
+use core::mem::size_of;
 use macros::{c16, s16};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -65,7 +66,22 @@ impl UefiConsoleOut {
 
 const NEW_LINE: String16<'static> = s16!("\r\n");
 
-impl ConsoleModeIdentifier for usize {}
+impl ConsoleModeIdentifier for usize {
+    fn from_be_bytes(bytes: &[u8]) -> Self {
+        let mut buffer = [0u8; size_of::<usize>()];
+        if bytes.len() < size_of::<usize>() {
+            buffer[size_of::<usize>() - bytes.len()..].copy_from_slice(bytes);
+        } else {
+            buffer.copy_from_slice(&bytes[bytes.len() - size_of::<usize>()..])
+        }
+
+        usize::from_be_bytes(buffer)
+    }
+
+    fn to_be_bytes(&self) -> Box<[u8]> {
+        usize::to_be_bytes(*self).into()
+    }
+}
 
 impl ConsoleOut for UefiConsoleOut {
     type TModeIdentifer = usize;

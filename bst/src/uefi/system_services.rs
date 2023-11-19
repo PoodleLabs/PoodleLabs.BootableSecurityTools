@@ -16,14 +16,16 @@
 
 use super::{
     console_out::UefiConsoleOut,
-    core_types::{UefiHandle, UefiMemoryType, UefiResetType},
+    core_types::{UefiGuid, UefiHandle, UefiMemoryType, UefiResetType, UefiVariableAttributes},
     keyboard_in::UefiKeyboardIn,
     system_table::UefiSystemTable,
+    CONSOLE_RESOLUTION_VARIABLE, VENDOR_GUID,
 };
 use crate::{
     console_out::ConsoleOut, constants, system_services::PowerAction,
     uefi::core_types::UefiStatusCode, ui::Point, String16, SystemServices,
 };
+use alloc::{boxed::Box, vec};
 use core::time::Duration;
 use macros::s16;
 
@@ -59,6 +61,7 @@ impl UefiSystemServices {
 }
 
 impl SystemServices for UefiSystemServices {
+    type TVariableIdentifier = (String16<'static>, &'static UefiGuid);
     type TKeyboardIn = UefiKeyboardIn;
     type TConsoleOut = UefiConsoleOut;
 
@@ -71,6 +74,53 @@ impl SystemServices for UefiSystemServices {
 
     unsafe fn free(&self, pointer: *mut u8) {
         self.system_table.boot_services().free_pool(pointer)
+    }
+
+    fn try_set_variable(
+        &self,
+        (variable_name, vendor_guid): Self::TVariableIdentifier,
+        data: Box<[u8]>,
+    ) -> bool {
+        self.system_table
+            .runtime_services()
+            .set_variable(
+                variable_name,
+                vendor_guid,
+                UefiVariableAttributes::BOOTSERVICE_ACCESS | UefiVariableAttributes::NON_VOLATILE,
+                Some(data),
+            )
+            .is_success()
+    }
+
+    fn try_get_variable(
+        &self,
+        (variable_name, vendor_guid): Self::TVariableIdentifier,
+    ) -> Option<Box<[u8]>> {
+        let buffer_size = match self.system_table.runtime_services().get_variable(
+            variable_name,
+            vendor_guid,
+            None,
+        ) {
+            Ok(_) => return Some([0u8; 0].into()),
+            Err((e, b)) => match e {
+                UefiStatusCode::BUFFER_TOO_SMALL => b,
+                _ => return None,
+            },
+        };
+
+        let mut buffer = vec![0u8; buffer_size].into();
+        match self.system_table.runtime_services().get_variable(
+            variable_name,
+            vendor_guid,
+            Some(&mut buffer),
+        ) {
+            Ok(_) => return Some(buffer),
+            Err(_) => None,
+        }
+    }
+
+    fn console_resolution_variable_name() -> Self::TVariableIdentifier {
+        (CONSOLE_RESOLUTION_VARIABLE, &VENDOR_GUID)
     }
 
     fn get_keyboard_in(&self) -> Self::TKeyboardIn {
