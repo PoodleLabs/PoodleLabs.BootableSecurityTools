@@ -16,7 +16,10 @@
 
 use super::protocols::{text::UefiSimpleTextOutput, UefiProtocolHandle};
 use crate::{
-    console_out::{ConsoleColours, ConsoleCursorState, ConsoleModeInformation, ConsoleOut},
+    console_out::{
+        ConsoleColours, ConsoleCursorState, ConsoleModeIdentifier, ConsoleModeInformation,
+        ConsoleOut,
+    },
     ui::Point,
     String16,
 };
@@ -61,6 +64,8 @@ impl UefiConsoleOut {
 }
 
 const NEW_LINE: String16<'static> = s16!("\r\n");
+
+impl ConsoleModeIdentifier for usize {}
 
 impl ConsoleOut for UefiConsoleOut {
     type TModeIdentifer = usize;

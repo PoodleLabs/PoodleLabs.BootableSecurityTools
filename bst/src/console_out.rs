@@ -18,12 +18,12 @@ use crate::{ui::Point, String16};
 use alloc::boxed::Box;
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct ConsoleModeInformation<TIdentifier: Clone> {
+pub struct ConsoleModeInformation<TIdentifier: ConsoleModeIdentifier> {
     identifier: TIdentifier,
     size: Point,
 }
 
-impl<TIdentifier: Clone> ConsoleModeInformation<TIdentifier> {
+impl<TIdentifier: ConsoleModeIdentifier> ConsoleModeInformation<TIdentifier> {
     pub const fn from(identifier: TIdentifier, size: Point) -> Self {
         Self { identifier, size }
     }
@@ -114,8 +114,10 @@ impl ConsoleColours {
     }
 }
 
+pub trait ConsoleModeIdentifier: Copy + Clone + Eq {}
+
 pub trait ConsoleOut: Clone {
-    type TModeIdentifer: Clone;
+    type TModeIdentifer: ConsoleModeIdentifier;
 
     fn in_colours<F: Fn(&Self) -> &Self>(&self, colours: ConsoleColours, closure: F) -> &Self {
         let original_colours = self.colours();
