@@ -65,15 +65,15 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                 .find(|r| r.identifier().eq(&mode_identifier));
 
             console.clear();
-            let output = || {
+            let output = |r: Option<&ConsoleModeInformation<_>>| {
                 title.write_to(&console);
                 console
                     .output_utf16_line(s16!(
                         "This program lists and allows the selection of available console resolutions, with the option to save the selection into NVRAM."
                     ));
 
-                ConsoleUiLabel::from(s16!("Current Resolution:")).write_to(&console);
-                match current_resolution {
+                ConsoleUiLabel::from(s16!("Current Resolution")).write_to(&console);
+                match r {
                     Some(r) => {
                         r.write_to(&console);
                     }
@@ -85,7 +85,7 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                 }
             };
 
-            output();
+            output(current_resolution);
             console.new_line().new_line();
             let selected_resolution = list.prompt_for_selection(&self.system_services);
             match selected_resolution {
@@ -93,11 +93,13 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                     self.system_services
                         .get_console_out()
                         .set_mode(*r.identifier());
-                    output();
+                    output(Some(&r));
+
                     if !ConsoleUiConfirmationPrompt::from(&self.system_services)
                         .prompt_for_confirmation(s16!("Keep this resolution?"))
                     {
                         console.set_mode(mode_identifier);
+                        continue;
                     }
 
                     if ConsoleUiConfirmationPrompt::from(&self.system_services)
@@ -115,8 +117,11 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
 
                             ConsoleUiContinuePrompt::from(&self.system_services)
                                 .prompt_for_continue();
+                            continue;
                         }
                     }
+
+                    return ProgramExitResult::Success;
                 }
                 None => {
                     if ConsoleUiConfirmationPrompt::from(&self.system_services)
