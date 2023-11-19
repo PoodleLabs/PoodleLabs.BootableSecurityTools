@@ -84,7 +84,7 @@ impl ConsoleModeIdentifier for usize {
 }
 
 impl ConsoleOut for UefiConsoleOut {
-    type TModeIdentifer = usize;
+    type TModeIdentifier = usize;
 
     fn set_colours(&self, colours: ConsoleColours) -> Result<(), ConsoleColours> {
         if self.colours() == colours {
@@ -94,11 +94,11 @@ impl ConsoleOut for UefiConsoleOut {
         self.protocol_handle.protocol().set_colours(colours)
     }
 
-    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifer>]> {
+    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifier>]> {
         self.protocol_handle.protocol().get_modes()
     }
 
-    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifer) -> bool {
+    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifier) -> bool {
         let result = self
             .protocol_handle
             .protocol()
@@ -121,7 +121,7 @@ impl ConsoleOut for UefiConsoleOut {
         ))
     }
 
-    fn current_mode_identifier(&self) -> Self::TModeIdentifer {
+    fn current_mode_identifier(&self) -> Self::TModeIdentifier {
         self.protocol_handle.protocol().mode()
     }
 

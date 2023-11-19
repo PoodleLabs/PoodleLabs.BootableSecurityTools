@@ -121,7 +121,7 @@ pub trait ConsoleModeIdentifier: Copy + Clone + Eq {
 }
 
 pub trait ConsoleOut: Clone {
-    type TModeIdentifer: ConsoleModeIdentifier;
+    type TModeIdentifier: ConsoleModeIdentifier;
 
     fn in_colours<F: Fn(&Self) -> &Self>(&self, colours: ConsoleColours, closure: F) -> &Self {
         let original_colours = self.colours();
@@ -160,13 +160,17 @@ pub trait ConsoleOut: Clone {
 
     fn set_colours(&self, colours: ConsoleColours) -> Result<(), ConsoleColours>;
 
-    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifer>]>;
+    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifier>]>;
 
-    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifer) -> bool;
+    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifier) -> bool;
+
+    fn set_mode_from_bytes(&mut self, mode_identifier: &[u8]) -> bool {
+        self.set_mode(Self::TModeIdentifier::from_be_bytes(mode_identifier))
+    }
 
     fn blank_up_to_line_end(&self, max_within_line: usize) -> &Self;
 
-    fn current_mode_identifier(&self) -> Self::TModeIdentifer;
+    fn current_mode_identifier(&self) -> Self::TModeIdentifier;
 
     fn output_utf16<'a>(&self, string: String16<'a>) -> &Self;
 
