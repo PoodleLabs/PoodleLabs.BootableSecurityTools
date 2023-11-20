@@ -64,8 +64,8 @@ fn initialize_console<T: SystemServices>(
         .set_colours(colours);
 
     match system_services.try_get_variable(T::console_resolution_variable_name()) {
-        Some((b, s)) => {
-            console.set_mode_from_bytes(&b[..s]);
+        Some(b) => {
+            console.set_mode_from_bytes(&b);
         }
         None => {
             let modes = console.get_modes();

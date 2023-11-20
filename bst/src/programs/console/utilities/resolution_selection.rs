@@ -107,7 +107,7 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                     {
                         if !self.system_services.try_set_variable(
                             TSystemServices::console_resolution_variable_name(),
-                            r.identifier().to_be_bytes(),
+                            &r.identifier().to_be_bytes(),
                         ) {
                             console.in_colours(constants::ERROR_COLOURS, |c| {
                                 c.line_start()

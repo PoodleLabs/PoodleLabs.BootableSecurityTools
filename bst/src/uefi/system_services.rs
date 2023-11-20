@@ -79,7 +79,7 @@ impl SystemServices for UefiSystemServices {
     fn try_set_variable(
         &self,
         (variable_name, vendor_guid): Self::TVariableIdentifier,
-        data: Box<[u8]>,
+        data: &[u8],
     ) -> bool {
         self.system_table
             .runtime_services()
@@ -89,7 +89,7 @@ impl SystemServices for UefiSystemServices {
                 UefiVariableAttributes::NON_VOLATILE
                     | UefiVariableAttributes::BOOTSERVICE_ACCESS
                     | UefiVariableAttributes::RUNTIME_ACCESS,
-                Some(data),
+                data,
             )
             .is_success()
     }
@@ -97,23 +97,29 @@ impl SystemServices for UefiSystemServices {
     fn try_get_variable(
         &self,
         (variable_name, vendor_guid): Self::TVariableIdentifier,
-    ) -> Option<(Box<[u8]>, usize)> {
-        let mut buffer = vec![0u8; 4].into();
+    ) -> Option<Box<[u8]>> {
+        let mut buffer = vec![0u8; 4];
         match self.system_table.runtime_services().get_variable(
             variable_name,
             vendor_guid,
-            Some(&mut buffer),
+            &mut buffer,
         ) {
-            Ok((_, s)) => Some((buffer, s)),
-            Err((e, b)) => match e {
+            Ok((_, s)) => {
+                buffer.truncate(s);
+                Some(buffer.into())
+            }
+            Err((e, s)) => match e {
                 UefiStatusCode::BUFFER_TOO_SMALL => {
-                    let mut buffer = vec![0u8; b].into();
+                    buffer.extend((0..s - buffer.len()).map(|_| 0));
                     match self.system_table.runtime_services().get_variable(
                         variable_name,
                         vendor_guid,
-                        Some(&mut buffer),
+                        &mut buffer,
                     ) {
-                        Ok((_, s)) => Some((buffer, s)),
+                        Ok((_, s)) => {
+                            buffer.truncate(s);
+                            Some(buffer.into())
+                        }
                         Err(_) => None,
                     }
                 }

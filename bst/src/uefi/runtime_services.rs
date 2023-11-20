@@ -108,20 +108,16 @@ impl UefiRuntimeServices {
         &self,
         variable_name: String16<'static>,
         vendor_guid: &UefiGuid,
-        buffer: Option<&mut Box<[u8]>>,
+        buffer: &mut [u8],
     ) -> Result<(UefiVariableAttributes, usize), (UefiStatusCode, usize)> {
         let mut attributes = UefiVariableAttributes::NONE;
-        let (mut buffer_length, buffer) = match buffer {
-            Some(b) => (b.len(), b.as_mut_ptr()),
-            None => (0, ptr::null_mut()),
-        };
-
+        let mut buffer_length = buffer.len();
         let result = (self.get_variable)(
             unsafe { variable_name.get_underlying_slice().as_ptr() },
             vendor_guid,
             &mut attributes,
             &mut buffer_length,
-            buffer,
+            buffer.as_mut_ptr(),
         );
 
         if result.is_success() {
@@ -136,19 +132,14 @@ impl UefiRuntimeServices {
         variable_name: String16<'static>,
         vendor_guid: &UefiGuid,
         attributes: UefiVariableAttributes,
-        data: Option<Box<[u8]>>,
+        data: &[u8],
     ) -> UefiStatusCode {
-        let (buffer_length, buffer) = match data {
-            Some(b) => (b.len(), b.as_ptr()),
-            None => (0, ptr::null()),
-        };
-
         (self.set_variable)(
             unsafe { variable_name.get_underlying_slice().as_ptr() },
             vendor_guid,
             attributes,
-            buffer_length,
-            buffer,
+            data.len(),
+            data.as_ptr(),
         )
     }
 }
