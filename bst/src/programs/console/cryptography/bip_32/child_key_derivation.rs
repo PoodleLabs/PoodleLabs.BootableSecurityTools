@@ -196,8 +196,9 @@ impl<TSystemServices: SystemServices> Program
                 };
 
                 // Check whether this point should be hardened.
-                let is_hardened = ConsoleUiConfirmationPrompt::from(&self.system_services)
-                    .prompt_for_confirmation(s16!("Harden this derivation path point?"));
+                let is_hardened = key_type != Bip32KeyType::Public
+                    && ConsoleUiConfirmationPrompt::from(&self.system_services)
+                        .prompt_for_confirmation(s16!("Harden this derivation path point?"));
 
                 // Add the point to the derivation path.
                 derivation_path_points.push(Bip32DerivationPathPoint::from(if is_hardened {
