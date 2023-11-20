@@ -35,6 +35,7 @@ Other hashing algorithms and 'attachment' schemes could be considered.
 - D100 - **DONE**
 - Externally Sourced Bytes - **DONE (With Von Neumann bias correction)**
 - CSPRNG - **NOT STARTED**
+- Deck of Cards - **NOT STARTED**
 
 ### Entropy Mnemonics
 
