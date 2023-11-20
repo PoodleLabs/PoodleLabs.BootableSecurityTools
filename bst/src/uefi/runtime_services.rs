@@ -15,9 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::core_types::{
-    UefiGuid, UefiMemoryDescriptor, UefiResetType, UefiStatusCode, UefiString, UefiTableHeader,
-    UefiTime, UefiTimeCapabilities, UefiVariableAttributes,
+    UefiGuid, UefiMemoryDescriptor, UefiResetType, UefiStatusCode, UefiTableHeader, UefiTime,
+    UefiTimeCapabilities, UefiVariableAttributes,
 };
+use crate::String16;
 use alloc::boxed::Box;
 use core::{ffi::c_void, ptr};
 
@@ -53,7 +54,7 @@ pub(in crate::uefi) struct UefiRuntimeServices {
 
     // Variable Services
     get_variable: extern "efiapi" fn(
-        variable_name: UefiString,
+        variable_name: *const u16,
         vendor_guid: &UefiGuid,
         attributes: &mut UefiVariableAttributes, /* OUT */
         data_length: &mut usize,                 /* IN/OUT */
@@ -65,7 +66,7 @@ pub(in crate::uefi) struct UefiRuntimeServices {
         vendor_guid: &mut UefiGuid, /* IN/OUT */
     ) -> UefiStatusCode, /* EFI 1.0+ */
     set_variable: extern "efiapi" fn(
-        variable_name: UefiString,
+        variable_name: *const u16,
         vendor_guid: &UefiGuid,
         attributes: UefiVariableAttributes,
         data_length: usize,
@@ -101,5 +102,59 @@ impl UefiRuntimeServices {
             Some(b) => (self.reset_system)(reset_type, status_code, b.len(), b.as_ptr()),
             None => (self.reset_system)(reset_type, status_code, 0, ptr::null()),
         }
+    }
+
+    pub fn get_variable(
+        &self,
+        variable_name: String16<'static>,
+        vendor_guid: &UefiGuid,
+        buffer: &mut [u8],
+    ) -> Result<(UefiVariableAttributes, usize), (UefiStatusCode, usize)> {
+        let mut attributes = UefiVariableAttributes::NONE;
+        let mut buffer_length = buffer.len();
+        let result = (self.get_variable)(
+            unsafe { variable_name.get_underlying_slice().as_ptr() },
+            vendor_guid,
+            &mut attributes,
+            &mut buffer_length,
+            buffer.as_mut_ptr(),
+        );
+
+        if result.is_success() {
+            Ok((attributes, buffer_length))
+        } else {
+            Err((result, buffer_length))
+        }
+    }
+
+    pub fn set_variable(
+        &self,
+        variable_name: String16<'static>,
+        vendor_guid: &UefiGuid,
+        attributes: UefiVariableAttributes,
+        data: &[u8],
+    ) -> UefiStatusCode {
+        (self.set_variable)(
+            unsafe { variable_name.get_underlying_slice().as_ptr() },
+            vendor_guid,
+            attributes,
+            data.len(),
+            data.as_ptr(),
+        )
+    }
+
+    pub fn set_variable_empty(
+        &self,
+        variable_name: String16<'static>,
+        vendor_guid: &UefiGuid,
+        attributes: UefiVariableAttributes,
+    ) -> UefiStatusCode {
+        (self.set_variable)(
+            unsafe { variable_name.get_underlying_slice().as_ptr() },
+            vendor_guid,
+            attributes,
+            0,
+            ptr::null(),
+        )
     }
 }

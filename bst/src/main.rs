@@ -63,13 +63,20 @@ fn initialize_console<T: SystemServices>(
         .set_cursor_position(Point::ZERO)
         .set_colours(colours);
 
-    let modes = console.get_modes();
-    let mut area = 0usize;
+    match system_services.try_get_variable(T::console_resolution_variable_name()) {
+        Some(b) => {
+            console.set_mode_from_bytes(&b);
+        }
+        None => {
+            let modes = console.get_modes();
+            let mut area = 0usize;
 
-    for mode in modes.iter() {
-        let a = mode.size().area();
-        if a > area && console.set_mode(mode.identifier().clone()) {
-            area = a;
+            for mode in modes.iter() {
+                let a = mode.size().area();
+                if a > area && console.set_mode(mode.identifier().clone()) {
+                    area = a;
+                }
+            }
         }
     }
 

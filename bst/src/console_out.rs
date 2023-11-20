@@ -18,12 +18,12 @@ use crate::{ui::Point, String16};
 use alloc::boxed::Box;
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct ConsoleModeInformation<TIdentifier: Clone> {
+pub struct ConsoleModeInformation<TIdentifier: ConsoleModeIdentifier> {
     identifier: TIdentifier,
     size: Point,
 }
 
-impl<TIdentifier: Clone> ConsoleModeInformation<TIdentifier> {
+impl<TIdentifier: ConsoleModeIdentifier> ConsoleModeInformation<TIdentifier> {
     pub const fn from(identifier: TIdentifier, size: Point) -> Self {
         Self { identifier, size }
     }
@@ -114,8 +114,14 @@ impl ConsoleColours {
     }
 }
 
+pub trait ConsoleModeIdentifier: Copy + Clone + Eq {
+    fn from_be_bytes(bytes: &[u8]) -> Self;
+
+    fn to_be_bytes(&self) -> Box<[u8]>;
+}
+
 pub trait ConsoleOut: Clone {
-    type TModeIdentifer: Clone;
+    type TModeIdentifier: ConsoleModeIdentifier;
 
     fn in_colours<F: Fn(&Self) -> &Self>(&self, colours: ConsoleColours, closure: F) -> &Self {
         let original_colours = self.colours();
@@ -154,13 +160,17 @@ pub trait ConsoleOut: Clone {
 
     fn set_colours(&self, colours: ConsoleColours) -> Result<(), ConsoleColours>;
 
-    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifer>]>;
+    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifier>]>;
 
-    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifer) -> bool;
+    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifier) -> bool;
+
+    fn set_mode_from_bytes(&mut self, mode_identifier: &[u8]) -> bool {
+        self.set_mode(Self::TModeIdentifier::from_be_bytes(mode_identifier))
+    }
 
     fn blank_up_to_line_end(&self, max_within_line: usize) -> &Self;
 
-    fn current_mode_identifier(&self) -> Self::TModeIdentifer;
+    fn current_mode_identifier(&self) -> Self::TModeIdentifier;
 
     fn output_utf16<'a>(&self, string: String16<'a>) -> &Self;
 

@@ -16,6 +16,7 @@
 
 mod checksums;
 mod clipboard_manager;
+mod resolution_selection;
 mod value_comparer;
 
 use crate::{
@@ -39,7 +40,7 @@ pub fn get_utility_programs_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 3] = [
+    let programs: [Arc<dyn Program>; 4] = [
         Arc::from(clipboard_manager::ConsoleClipboardManagerProgram::from(
             system_services.clone(),
         )),
@@ -50,6 +51,9 @@ pub fn get_utility_programs_list<
             system_services,
             program_selector,
             exit_result_handler,
+        )),
+        Arc::from(resolution_selection::ResolutionSelectionProgram::from(
+            system_services.clone(),
         )),
     ];
     ProgramList::from(Arc::from(programs), s16!("Utility Programs"))

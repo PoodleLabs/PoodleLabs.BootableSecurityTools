@@ -38,12 +38,21 @@ pub enum PowerAction {
 static mut CLIPBOARD: Option<Clipboard> = None;
 
 pub trait SystemServices: Clone + 'static {
+    type TVariableIdentifier: Copy;
     type TConsoleOut: ConsoleOut + Clone;
     type TKeyboardIn: KeyboardIn + Clone;
 
     unsafe fn allocate(&self, byte_count: usize) -> *mut u8;
 
     unsafe fn free(&self, pointer: *mut u8);
+
+    fn try_get_variable(&self, identifier: Self::TVariableIdentifier) -> Option<Box<[u8]>>;
+
+    fn try_set_variable(&self, identifier: Self::TVariableIdentifier, data: &[u8]) -> bool;
+
+    fn try_clear_variable(&self, identifier: Self::TVariableIdentifier) -> bool;
+
+    fn console_resolution_variable_name() -> Self::TVariableIdentifier;
 
     fn execute_power_action(&self, power_action: PowerAction);
 

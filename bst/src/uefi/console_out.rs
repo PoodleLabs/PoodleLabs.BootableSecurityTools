@@ -16,11 +16,15 @@
 
 use super::protocols::{text::UefiSimpleTextOutput, UefiProtocolHandle};
 use crate::{
-    console_out::{ConsoleColours, ConsoleCursorState, ConsoleModeInformation, ConsoleOut},
+    console_out::{
+        ConsoleColours, ConsoleCursorState, ConsoleModeIdentifier, ConsoleModeInformation,
+        ConsoleOut,
+    },
     ui::Point,
     String16,
 };
 use alloc::{boxed::Box, vec, vec::Vec};
+use core::mem::size_of;
 use macros::{c16, s16};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -62,8 +66,25 @@ impl UefiConsoleOut {
 
 const NEW_LINE: String16<'static> = s16!("\r\n");
 
+impl ConsoleModeIdentifier for usize {
+    fn from_be_bytes(bytes: &[u8]) -> Self {
+        let mut buffer = [0u8; size_of::<usize>()];
+        if bytes.len() < size_of::<usize>() {
+            buffer[size_of::<usize>() - bytes.len()..].copy_from_slice(bytes);
+        } else {
+            buffer.copy_from_slice(&bytes[bytes.len() - size_of::<usize>()..])
+        }
+
+        usize::from_be_bytes(buffer)
+    }
+
+    fn to_be_bytes(&self) -> Box<[u8]> {
+        usize::to_be_bytes(*self).into()
+    }
+}
+
 impl ConsoleOut for UefiConsoleOut {
-    type TModeIdentifer = usize;
+    type TModeIdentifier = usize;
 
     fn set_colours(&self, colours: ConsoleColours) -> Result<(), ConsoleColours> {
         if self.colours() == colours {
@@ -73,11 +94,11 @@ impl ConsoleOut for UefiConsoleOut {
         self.protocol_handle.protocol().set_colours(colours)
     }
 
-    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifer>]> {
+    fn get_modes(&self) -> Box<[ConsoleModeInformation<Self::TModeIdentifier>]> {
         self.protocol_handle.protocol().get_modes()
     }
 
-    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifer) -> bool {
+    fn set_mode(&mut self, mode_identifier: Self::TModeIdentifier) -> bool {
         let result = self
             .protocol_handle
             .protocol()
@@ -100,7 +121,7 @@ impl ConsoleOut for UefiConsoleOut {
         ))
     }
 
-    fn current_mode_identifier(&self) -> Self::TModeIdentifer {
+    fn current_mode_identifier(&self) -> Self::TModeIdentifier {
         self.protocol_handle.protocol().mode()
     }
 

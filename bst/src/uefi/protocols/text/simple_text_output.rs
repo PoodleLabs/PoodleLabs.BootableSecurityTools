@@ -245,7 +245,7 @@ impl UefiSimpleTextOutput {
 
     pub fn get_modes(&self) -> Box<[ConsoleModeInformation<usize>]> {
         let mut vec = Vec::with_capacity(self.details.max_mode as usize);
-        for i in 0..self.details.max_mode as usize {
+        for i in 0..(self.details.max_mode as usize) + 1 {
             match self.query_mode(i) {
                 Some(p) => {
                     if p.area() > 0 {
