@@ -22,8 +22,8 @@ pub(in crate::uefi) struct UefiStatusCode(usize);
 
 impl UefiStatusCode {
     pub const SUCCESS: Self = Self(0);
-    pub const ABORTED: Self = Self(21 & Self::ERROR_BIT);
-    pub const BUFFER_TOO_SMALL: Self = Self(5 & Self::ERROR_BIT);
+    pub const ABORTED: Self = Self(21 | Self::ERROR_BIT);
+    pub const BUFFER_TOO_SMALL: Self = Self(5 | Self::ERROR_BIT);
 
     const ERROR_BIT: usize = 1usize << ((size_of::<usize>() * 8) - 1);
 

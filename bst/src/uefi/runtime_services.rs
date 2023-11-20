@@ -54,7 +54,7 @@ pub(in crate::uefi) struct UefiRuntimeServices {
 
     // Variable Services
     get_variable: extern "efiapi" fn(
-        variable_name: String16<'static>,
+        variable_name: *const u16,
         vendor_guid: &UefiGuid,
         attributes: &mut UefiVariableAttributes, /* OUT */
         data_length: &mut usize,                 /* IN/OUT */
@@ -66,7 +66,7 @@ pub(in crate::uefi) struct UefiRuntimeServices {
         vendor_guid: &mut UefiGuid, /* IN/OUT */
     ) -> UefiStatusCode, /* EFI 1.0+ */
     set_variable: extern "efiapi" fn(
-        variable_name: String16<'static>,
+        variable_name: *const u16,
         vendor_guid: &UefiGuid,
         attributes: UefiVariableAttributes,
         data_length: usize,
@@ -109,7 +109,7 @@ impl UefiRuntimeServices {
         variable_name: String16<'static>,
         vendor_guid: &UefiGuid,
         buffer: Option<&mut Box<[u8]>>,
-    ) -> Result<UefiVariableAttributes, (UefiStatusCode, usize)> {
+    ) -> Result<(UefiVariableAttributes, usize), (UefiStatusCode, usize)> {
         let mut attributes = UefiVariableAttributes::NONE;
         let (mut buffer_length, buffer) = match buffer {
             Some(b) => (b.len(), b.as_mut_ptr()),
@@ -117,7 +117,7 @@ impl UefiRuntimeServices {
         };
 
         let result = (self.get_variable)(
-            variable_name,
+            unsafe { variable_name.get_underlying_slice().as_ptr() },
             vendor_guid,
             &mut attributes,
             &mut buffer_length,
@@ -125,7 +125,7 @@ impl UefiRuntimeServices {
         );
 
         if result.is_success() {
-            Ok(attributes)
+            Ok((attributes, buffer_length))
         } else {
             Err((result, buffer_length))
         }
@@ -144,7 +144,7 @@ impl UefiRuntimeServices {
         };
 
         (self.set_variable)(
-            variable_name,
+            unsafe { variable_name.get_underlying_slice().as_ptr() },
             vendor_guid,
             attributes,
             buffer_length,

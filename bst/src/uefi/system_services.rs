@@ -86,7 +86,9 @@ impl SystemServices for UefiSystemServices {
             .set_variable(
                 variable_name,
                 vendor_guid,
-                UefiVariableAttributes::BOOTSERVICE_ACCESS | UefiVariableAttributes::NON_VOLATILE,
+                UefiVariableAttributes::NON_VOLATILE
+                    | UefiVariableAttributes::BOOTSERVICE_ACCESS
+                    | UefiVariableAttributes::RUNTIME_ACCESS,
                 Some(data),
             )
             .is_success()
@@ -95,27 +97,28 @@ impl SystemServices for UefiSystemServices {
     fn try_get_variable(
         &self,
         (variable_name, vendor_guid): Self::TVariableIdentifier,
-    ) -> Option<Box<[u8]>> {
-        let buffer_size = match self.system_table.runtime_services().get_variable(
-            variable_name,
-            vendor_guid,
-            None,
-        ) {
-            Ok(_) => return Some([0u8; 0].into()),
-            Err((e, b)) => match e {
-                UefiStatusCode::BUFFER_TOO_SMALL => b,
-                _ => return None,
-            },
-        };
-
-        let mut buffer = vec![0u8; buffer_size].into();
+    ) -> Option<(Box<[u8]>, usize)> {
+        let mut buffer = vec![0u8; 4].into();
         match self.system_table.runtime_services().get_variable(
             variable_name,
             vendor_guid,
             Some(&mut buffer),
         ) {
-            Ok(_) => return Some(buffer),
-            Err(_) => None,
+            Ok((_, s)) => Some((buffer, s)),
+            Err((e, b)) => match e {
+                UefiStatusCode::BUFFER_TOO_SMALL => {
+                    let mut buffer = vec![0u8; b].into();
+                    match self.system_table.runtime_services().get_variable(
+                        variable_name,
+                        vendor_guid,
+                        Some(&mut buffer),
+                    ) {
+                        Ok((_, s)) => Some((buffer, s)),
+                        Err(_) => None,
+                    }
+                }
+                _ => None,
+            },
         }
     }
 

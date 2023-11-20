@@ -46,9 +46,10 @@ pub trait SystemServices: Clone + 'static {
 
     unsafe fn free(&self, pointer: *mut u8);
 
-    fn try_set_variable(&self, identifier: Self::TVariableIdentifier, data: Box<[u8]>) -> bool;
+    fn try_get_variable(&self, identifier: Self::TVariableIdentifier)
+        -> Option<(Box<[u8]>, usize)>;
 
-    fn try_get_variable(&self, identifier: Self::TVariableIdentifier) -> Option<Box<[u8]>>;
+    fn try_set_variable(&self, identifier: Self::TVariableIdentifier, data: Box<[u8]>) -> bool;
 
     fn console_resolution_variable_name() -> Self::TVariableIdentifier;
 
