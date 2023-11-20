@@ -50,6 +50,8 @@ pub trait SystemServices: Clone + 'static {
 
     fn try_set_variable(&self, identifier: Self::TVariableIdentifier, data: &[u8]) -> bool;
 
+    fn try_clear_variable(&self, identifier: Self::TVariableIdentifier) -> bool;
+
     fn console_resolution_variable_name() -> Self::TVariableIdentifier;
 
     fn execute_power_action(&self, power_action: PowerAction);

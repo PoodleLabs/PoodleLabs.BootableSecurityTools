@@ -128,6 +128,13 @@ impl SystemServices for UefiSystemServices {
         }
     }
 
+    fn try_clear_variable(&self, (variable_name, vendor_guid): Self::TVariableIdentifier) -> bool {
+        self.system_table
+            .runtime_services()
+            .set_variable_empty(variable_name, vendor_guid, UefiVariableAttributes::NONE)
+            .is_success()
+    }
+
     fn console_resolution_variable_name() -> Self::TVariableIdentifier {
         (CONSOLE_RESOLUTION_VARIABLE, &VENDOR_GUID)
     }

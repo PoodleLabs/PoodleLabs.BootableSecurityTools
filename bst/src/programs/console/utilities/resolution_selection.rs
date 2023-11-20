@@ -105,6 +105,10 @@ impl<TSystemServices: SystemServices> Program for ResolutionSelectionProgram<TSy
                     if ConsoleUiConfirmationPrompt::from(&self.system_services)
                         .prompt_for_confirmation(s16!("Save selection to NVRAM for future boots?"))
                     {
+                        self.system_services.try_clear_variable(
+                            TSystemServices::console_resolution_variable_name(),
+                        );
+
                         if !self.system_services.try_set_variable(
                             TSystemServices::console_resolution_variable_name(),
                             &r.identifier().to_be_bytes(),

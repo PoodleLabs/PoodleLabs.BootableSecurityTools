@@ -142,4 +142,19 @@ impl UefiRuntimeServices {
             data.as_ptr(),
         )
     }
+
+    pub fn set_variable_empty(
+        &self,
+        variable_name: String16<'static>,
+        vendor_guid: &UefiGuid,
+        attributes: UefiVariableAttributes,
+    ) -> UefiStatusCode {
+        (self.set_variable)(
+            unsafe { variable_name.get_underlying_slice().as_ptr() },
+            vendor_guid,
+            attributes,
+            0,
+            ptr::null(),
+        )
+    }
 }
