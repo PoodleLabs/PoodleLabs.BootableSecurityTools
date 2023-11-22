@@ -14,6 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod exfat;
-mod fat;
-mod ntfs;
+const JUMP_BOOT: [u8; 3] = [0xEB, 0x76, 0x90];
+const FILE_SYSTEM_NAME: &[u8; 8] = b"EXFAT \0\0";
+const BLANK: [u8; 53] = [0u8; 53];
+
+#[repr(packed)]
+struct BiosParameterBlockExfat {
+    jump_boot: [u8; 3],
+    file_system_name: [u8; 8],
+    blank: [u8; 53],
+}
