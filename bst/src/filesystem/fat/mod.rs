@@ -16,13 +16,90 @@
 
 mod bios_parameters_blocks;
 
-pub(in crate::filesystem) use bios_parameters_blocks::{
-    BiosParameterBlockExtendedBootSignature, BiosParameterBlockFlags,
+pub(in crate::filesystem) use bios_parameters_blocks::BiosParameterBlockFlags;
+
+use self::bios_parameters_blocks::{
+    Fat32BiosParameterBlock, FatBiosParameterBlock, FatBiosParameterBlockCommonFields,
 };
+use super::BootSectorExtendedBootSignature;
 
 #[repr(packed)]
-struct FatBootSector<TBiosParametersBlock> {
+struct Fat32BootSector {
+    start: FatBootSectorStart<Fat32BiosParameterBlock>,
+    tail: FatBootSectorExtendedTail<420>,
+}
+
+#[repr(packed)]
+struct SmallFatNonExtendedBootSector {
+    start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
+    tail: FatBootCode<471>,
+}
+
+#[repr(packed)]
+struct SmallFatExtendedBootSector {
+    start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
+    tail: FatBootSectorExtendedTail<448>,
+}
+
+#[repr(packed)]
+struct FatBootSectorStart<TBiosParametersBlock: FatBiosParameterBlock> {
     jump_boot: [u8; 3],
     oem_name: [u8; 8],
     bios_paramaters_block: TBiosParametersBlock,
+    drive_number: u8,
+    reserved: u8,
+    extended_boot_signature: BootSectorExtendedBootSignature,
+}
+
+#[repr(packed)]
+struct FatBootSectorExtendedTail<const N: usize> {
+    extended_boot_signature: FatExtendedBootSignature,
+    boot_code: FatBootCode<N>,
+}
+
+#[repr(packed)]
+struct FatExtendedBootSignature {
+    volume_id: [u8; 4],
+    volume_label: [u8; 11],
+    file_system_type: [u8; 8],
+}
+
+impl FatExtendedBootSignature {
+    pub const NONDESCRIPT_FAT_FILE_SYSTEM_TYPE: &[u8; 8] = b"FAT     ";
+    pub const FAT_12_FILE_SYSTEM_TYPE: &[u8; 8] = b"FAT12   ";
+    pub const FAT_16_FILE_SYSTEM_TYPE: &[u8; 8] = b"FAT16   ";
+    pub const FAT_32_FILE_SYSTEM_TYPE: &[u8; 8] = b"FAT32   ";
+    pub const VOLUME_DEFAULT_LABEL: &[u8; 11] = b"NO NAME    ";
+
+    pub fn file_system_type(&self) -> &[u8; 8] {
+        &self.file_system_type
+    }
+
+    pub fn volume_label(&self) -> &[u8; 11] {
+        &self.volume_label
+    }
+
+    pub fn volume_id(&self) -> &[u8; 4] {
+        &self.volume_id
+    }
+}
+
+#[repr(packed)]
+struct FatBootCode<const N: usize> {
+    boot_code: [u8; N],
+    boot_sign: [u8; 2],
+}
+
+impl<const N: usize> FatBootCode<N> {
+    pub fn boot_sign_is_valid(&self) -> bool {
+        self.boot_sign() == 0xAA55
+    }
+
+    pub fn clone_boot_code(&self) -> [u8; N] {
+        self.boot_code
+    }
+
+    pub fn boot_sign(&self) -> u16 {
+        u16::from_le_bytes(self.boot_sign)
+    }
 }

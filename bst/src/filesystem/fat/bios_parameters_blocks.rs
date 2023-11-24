@@ -18,13 +18,6 @@ pub struct BiosParameterBlockFlags(u8);
 
 pub struct BiosParameterBlockExtendedFlags(u16);
 
-#[repr(u8)]
-pub enum BiosParameterBlockExtendedBootSignature {
-    V4_0 = 0x28,
-    V4_1 = 0x29,
-    V8_0 = 0x80,
-}
-
 pub trait FatBiosParameterBlock {
     fn root_directory_entry_count(&self) -> u16;
 

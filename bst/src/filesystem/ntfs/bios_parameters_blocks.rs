@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::filesystem::fat::{BiosParameterBlockExtendedBootSignature, BiosParameterBlockFlags};
+use crate::filesystem::{fat::BiosParameterBlockFlags, BootSectorExtendedBootSignature};
 
 // NOTE: Integers are stored in little-endian format on disk under NTFS. If we support big-endian processors
 // (we don't currently), we will need to support endianness conversion.
@@ -51,8 +51,15 @@ pub struct NtfsBiosParametersBlock {
 
     physical_drive_number: u8,
     flags: BiosParameterBlockFlags,
+}
+
+#[repr(packed)]
+struct NtfsBootSector {
+    jump_boot: [u8; 3],
+    oem_name: [u8; 8],
+    bios_paramaters_block: NtfsBiosParametersBlock,
     // Must be V8_0
-    extended_boot_signature: BiosParameterBlockExtendedBootSignature,
+    extended_boot_signature: BootSectorExtendedBootSignature,
     reserved: u8,
     sectors_in_volume: u64,
     mft_first_cluster_number: u64,
@@ -61,11 +68,4 @@ pub struct NtfsBiosParametersBlock {
     index_block_size: u32,
     volume_serial_number: u64,
     checksum: u32,
-}
-
-#[repr(packed)]
-struct NtfsBootSector {
-    jump_boot: [u8; 3],
-    oem_name: [u8; 8],
-    bios_paramaters_block: NtfsBiosParametersBlock,
 }

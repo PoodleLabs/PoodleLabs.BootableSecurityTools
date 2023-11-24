@@ -17,3 +17,10 @@
 mod exfat;
 mod fat;
 mod ntfs;
+
+#[repr(u8)]
+enum BootSectorExtendedBootSignature {
+    V4_0 = 0x28,
+    V4_1 = 0x29,
+    V8_0 = 0x80,
+}
