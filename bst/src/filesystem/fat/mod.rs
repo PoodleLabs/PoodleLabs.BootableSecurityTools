@@ -23,21 +23,27 @@ use self::bios_parameters_blocks::{
 };
 use super::BootSectorExtendedBootSignature;
 
+#[repr(transparent)]
+struct Fat32BootSectorStart(FatBootSectorStart<Fat32BiosParameterBlock>);
+
 #[repr(packed)]
 struct Fat32BootSector {
-    start: FatBootSectorStart<Fat32BiosParameterBlock>,
+    start: Fat32BootSectorStart,
     tail: FatBootSectorExtendedTail<420>,
 }
 
+#[repr(transparent)]
+struct SmallFatBootSectorStart(FatBootSectorStart<FatBiosParameterBlockCommonFields>);
+
 #[repr(packed)]
 struct SmallFatNonExtendedBootSector {
-    start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
+    start: SmallFatBootSectorStart,
     tail: FatBootCode<471>,
 }
 
 #[repr(packed)]
 struct SmallFatExtendedBootSector {
-    start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
+    start: SmallFatBootSectorStart,
     tail: FatBootSectorExtendedTail<448>,
 }
 
