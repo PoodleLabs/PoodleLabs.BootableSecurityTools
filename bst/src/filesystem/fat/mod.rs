@@ -17,6 +17,12 @@
 mod bios_parameters_blocks;
 
 pub(in crate::filesystem) use bios_parameters_blocks::{
-    BiosParameterBlockD3_31, BiosParameterBlockExtendedBootSignature, BiosParameterBlockFlags,
-    BiosParameterBlockMediaDescriptor, BiosParameterMirrorFlags,
+    BiosParameterBlockExtendedBootSignature, BiosParameterBlockFlags,
 };
+
+#[repr(packed)]
+struct FatBootSector<TBiosParametersBlock> {
+    jump_boot: [u8; 3],
+    oem_name: [u8; 8],
+    bios_paramaters_block: TBiosParametersBlock,
+}

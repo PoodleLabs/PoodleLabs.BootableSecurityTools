@@ -14,13 +14,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::filesystem::fat::{
-    BiosParameterBlockD3_31, BiosParameterBlockExtendedBootSignature, BiosParameterBlockFlags,
-};
+use crate::filesystem::fat::{BiosParameterBlockExtendedBootSignature, BiosParameterBlockFlags};
+
+// NOTE: Integers are stored in little-endian format on disk under NTFS. If we support big-endian processors
+// (we don't currently), we will need to support endianness conversion.
 
 #[repr(packed)]
-pub struct BiosParametersBlockNtfs {
-    parent: BiosParameterBlockD3_31,
+pub struct NtfsBiosParametersBlock {
+    // The number of bytes per logical sector. Must be > 0 and, realistically speaking, pow2 meeting criteria:
+    // 32 <= sector_size <= 32768 for practically useful values
+    bytes_per_sector: u16,
+    // Must be pow2; a cluster is FAT's minimum allocation unit.
+    sectors_per_cluster: u8,
+    // Must be > 0 given the BSB containing this value.
+    reserved_sector_count: u16,
+    // >=1 technically valid, but 2 is STRONGLY recommended.
+    // 1 is acceptable for non-disk memory, with a cost of reduced compatibility.
+    fat_count: u8,
+    // FAT12/16 root directory entry count; always 0 for NTFS.
+    zero1: u16,
+    // FAT12/16 sector size; always 0 for NTFS.
+    zero2: u16,
+    // Obsolete flag for identifying media type; don't need to support it. The first byte of the file access tables
+    // should match this value.
+    media_type: u8,
+    // FAT12/16 FAT sector count; always 0 for NTFS.
+    zero3: u16,
+    // The number of sectors per track on media with tracks. We don't need to support this.
+    sectors_per_track: u16,
+    // The number of heads on media with tracks. We don't need to support this.
+    number_of_heads: u16,
+    // The number of hidden sectors preceding the FAT volume. For unpartitioned media, this should be 0.
+    hidden_sector_count: u32,
+    // The total number of sectors.
+    total_sector_count: u32,
+
     physical_drive_number: u8,
     flags: BiosParameterBlockFlags,
     // Must be V8_0
@@ -33,4 +61,11 @@ pub struct BiosParametersBlockNtfs {
     index_block_size: u32,
     volume_serial_number: u64,
     checksum: u32,
+}
+
+#[repr(packed)]
+struct NtfsBootSector {
+    jump_boot: [u8; 3],
+    oem_name: [u8; 8],
+    bios_paramaters_block: NtfsBiosParametersBlock,
 }

@@ -16,7 +16,7 @@
 
 pub struct BiosParameterBlockFlags(u8);
 
-pub struct BiosParameterMirrorFlags(u16);
+pub struct BiosParameterBlockExtendedFlags(u16);
 
 #[repr(u8)]
 pub enum BiosParameterBlockExtendedBootSignature {
@@ -25,91 +25,203 @@ pub enum BiosParameterBlockExtendedBootSignature {
     V8_0 = 0x80,
 }
 
-#[repr(u8)]
-pub enum BiosParameterBlockMediaDescriptor {
-    PLACEHOLDER,
+pub trait FatBiosParameterBlock {
+    fn root_directory_entry_count(&self) -> u16;
+
+    fn reserved_sector_count(&self) -> u16;
+
+    fn hidden_sector_count(&self) -> u32;
+
+    fn sectors_per_cluster(&self) -> u8;
+
+    fn total_sector_count(&self) -> u32;
+
+    fn sectors_per_track(&self) -> u16;
+
+    fn bytes_per_sector(&self) -> u16;
+
+    fn sectors_per_fat(&self) -> u32;
+
+    fn number_of_heads(&self) -> u16;
+
+    fn media_type(&self) -> u8;
+
+    fn fat_count(&self) -> u8;
 }
 
 #[repr(packed)]
-pub struct BiosParameterBlockD2_0 {
-    // The number of bytes per logical sector. Must be  > 0,
-    // but realistically a power of two which matches the criteria:
+pub struct FatBiosParameterBlockCommonFields {
+    // The number of bytes per logical sector. Must be > 0, and, realistically speaking pow2 meeting criteria:
     // 32 <= sector_size <= 32768 for practically useful values
     // 128 <= sector_size <= 8192 for wide DOS compatibility
-    sector_size: u16,
+    // Default should be 512 for maximum compatibility.
+    bytes_per_sector: [u8; 2],
+    // Must be pow2; a cluster is FAT's minimum allocation unit.
+    // For maximum compatibility, sectors_per_cluster * bytes_per_sector should be <=32KB.
     sectors_per_cluster: u8,
-    reserved_sector_count: u16,
+    // Must be > 0 given the BSB containing this value.
+    // For maximum compatibility, 1.
+    reserved_sector_count: [u8; 2],
+    // >=1 technically valid, but 2 is STRONGLY recommended.
+    // 1 is acceptable for non-disk memory, with a cost of reduced compatibility.
     fat_count: u8,
-    root_directory_entries: u16,
-    logical_sector_count: u16,
-    media_descriptor: BiosParameterBlockMediaDescriptor,
-    sectors_per_fat: u16,
+    // For FAT12/16 filesystems, the root directory is stored separately in a block of 32 byte entries of this length.
+    // The value should be set so that root_directory_entry_count * 32 % bytes_per_sector % 2 == 0.
+    // For maximum compatibility, 512 for FAT12/16.
+    // For FAT32, this MUST be 0.
+    root_directory_entry_count: [u8; 2],
+    // The total number of sectors in the volume for FAT12/16. When the total number of sectors is >= 0x10000,
+    // this should be set to an invalid value of 0. For FAT32, this MUST be 0.
+    total_sector_count: [u8; 2],
+    // Obsolete flag for identifying media type; don't need to support it. The first byte of the file access tables
+    // should match this value.
+    media_type: u8,
+    // The number of sectors occupied by each FAT, for FAT12/16. The length of the file access tables block becomes
+    // sectors_per_fat * fat_count. For FAT32, this MUST be 0.
+    sectors_per_fat: [u8; 2],
+    // The number of sectors per track on media with tracks. We don't need to support this.
+    sectors_per_track: [u8; 2],
+    // The number of heads on media with tracks. We don't need to support this.
+    number_of_heads: [u8; 2],
+    // The number of hidden sectors preceding the FAT volume. For unpartitioned media, this should be 0.
+    hidden_sector_count: [u8; 4],
+    // The total number of sectors for FAT32, or FAT12/16 where the number of sectors is >= 0x10000.
+    // This value will be used when total_sector_count == 0.
+    large_total_sector_count: [u8; 4],
+}
+
+impl FatBiosParameterBlock for FatBiosParameterBlockCommonFields {
+    fn root_directory_entry_count(&self) -> u16 {
+        u16::from_le_bytes(self.root_directory_entry_count)
+    }
+
+    fn reserved_sector_count(&self) -> u16 {
+        u16::from_le_bytes(self.reserved_sector_count)
+    }
+
+    fn hidden_sector_count(&self) -> u32 {
+        u32::from_le_bytes(self.hidden_sector_count)
+    }
+
+    fn sectors_per_cluster(&self) -> u8 {
+        self.sectors_per_cluster
+    }
+
+    fn total_sector_count(&self) -> u32 {
+        let small = u16::from_le_bytes(self.total_sector_count);
+        match small {
+            0 => u32::from_be_bytes(self.large_total_sector_count),
+            _ => small as u32,
+        }
+    }
+
+    fn sectors_per_track(&self) -> u16 {
+        u16::from_le_bytes(self.sectors_per_track)
+    }
+
+    fn bytes_per_sector(&self) -> u16 {
+        u16::from_le_bytes(self.bytes_per_sector)
+    }
+
+    fn sectors_per_fat(&self) -> u32 {
+        u16::from_le_bytes(self.sectors_per_fat) as u32
+    }
+
+    fn number_of_heads(&self) -> u16 {
+        u16::from_le_bytes(self.number_of_heads)
+    }
+
+    fn media_type(&self) -> u8 {
+        self.media_type
+    }
+
+    fn fat_count(&self) -> u8 {
+        self.fat_count
+    }
 }
 
 #[repr(packed)]
-pub struct BiosParameterBlockD3_0 {
-    parent: BiosParameterBlockD2_0,
-    sectors_per_track: u16,
-    head_count: u16,
-    hidden_sector_count: u16,
+pub struct Fat32BiosParameterBlock {
+    common_fields: FatBiosParameterBlockCommonFields,
+    // The number of sectors occupied by each FAT.
+    sectors_per_fat: [u8; 4],
+    extended_flags: [u8; 2], // TODO
+    // Upper byte is major version, lower byte is minor version. Expect 0.
+    file_system_version: [u8; 2],
+    // The first cluster for the root directory, usually, but not always, 2.
+    root_cluter: [u8; 4],
+    // The sector number for the start of the filesystem info structutre. Usually 1.
+    file_system_info_sector: [u8; 2],
+    // The sector number for the start of the backup boot sector. Strongly recommend 6.
+    backup_boot_sector: [u8; 2],
+    // Reserved bytes.
+    reserved: [u8; 12],
 }
 
-#[repr(packed)]
-pub struct BiosParameterBlockD3_2 {
-    parent: BiosParameterBlockD3_0,
-    sector_count: u16,
+impl Fat32BiosParameterBlock {
+    pub fn extended_flags(&self) -> BiosParameterBlockExtendedFlags {
+        BiosParameterBlockExtendedFlags(u16::from_le_bytes(self.extended_flags))
+    }
+
+    pub fn file_system_version(&self) -> u16 {
+        u16::from_le_bytes(self.file_system_version)
+    }
+
+    pub fn root_cluster(&self) -> u32 {
+        u32::from_le_bytes(self.root_cluter)
+    }
+
+    pub fn file_system_info_sector(&self) -> u16 {
+        u16::from_le_bytes(self.file_system_info_sector)
+    }
+
+    pub fn backup_boot_sector(&self) -> u16 {
+        u16::from_le_bytes(self.backup_boot_sector)
+    }
 }
 
-#[repr(packed)]
-pub struct BiosParameterBlockD3_31 {
-    parent: BiosParameterBlockD2_0,
-    sectors_per_track: u16,
-    head_count: u16,
-    hidden_sector_count: u32,
-    // The total number of logical sectors (superceding the u16 value in parent).
-    total_sectors: u32,
-}
+impl FatBiosParameterBlock for Fat32BiosParameterBlock {
+    fn root_directory_entry_count(&self) -> u16 {
+        self.common_fields.root_directory_entry_count()
+    }
 
-#[repr(packed)]
-pub struct BiosParametersBlockD3_4 {
-    parent: BiosParameterBlockD3_31,
-    physical_drive_number: u8,
-    flags: BiosParameterBlockFlags,
-    extended_boot_signature: BiosParameterBlockExtendedBootSignature,
-    volume_serial_number: u32,
-}
+    fn reserved_sector_count(&self) -> u16 {
+        self.common_fields.reserved_sector_count()
+    }
 
-#[repr(packed)]
-pub struct BiosParametersBlockD4_0 {
-    parent: BiosParameterBlockD3_31,
-    physical_drive_number: u8,
-    flags: BiosParameterBlockFlags,
-    extended_boot_signature: BiosParameterBlockExtendedBootSignature,
-    volume_serial_number: u32,
-    volume_label: [u8; 11],
-    file_system_type: [u8; 8],
-}
+    fn hidden_sector_count(&self) -> u32 {
+        self.common_fields.hidden_sector_count()
+    }
 
-#[repr(packed)]
-pub struct BiosParametersBlockD7_1 {
-    parent: BiosParameterBlockD3_31,
-    // The number of logical sectors per file acess table (superceding the u16 value in parent).
-    logical_sectors_per_fat: u32,
-    mirroring_flags: BiosParameterMirrorFlags,
-    version: u16,
-    root_directory_cluster: u32,
-    fs_information_sector_location: u16,
-    backup_sectors_location: u16,
-    boot_file_name: [u8; 12],
-    physical_drive_number: u8,
-    flags: BiosParameterBlockFlags,
-    extended_boot_signature: BiosParameterBlockExtendedBootSignature,
-    volume_serial_number: u32,
-}
+    fn sectors_per_cluster(&self) -> u8 {
+        self.common_fields.sectors_per_cluster()
+    }
 
-#[repr(packed)]
-pub struct BiosParametersBlockD7_1_EBS_4_1 {
-    parent: BiosParametersBlockD7_1,
-    volume_label: [u8; 11],
-    file_system_type: [u8; 8],
+    fn total_sector_count(&self) -> u32 {
+        self.common_fields.total_sector_count()
+    }
+
+    fn sectors_per_track(&self) -> u16 {
+        self.common_fields.sectors_per_track()
+    }
+
+    fn bytes_per_sector(&self) -> u16 {
+        self.common_fields.bytes_per_sector()
+    }
+
+    fn sectors_per_fat(&self) -> u32 {
+        u32::from_le_bytes(self.sectors_per_fat)
+    }
+
+    fn number_of_heads(&self) -> u16 {
+        self.common_fields.number_of_heads()
+    }
+
+    fn media_type(&self) -> u8 {
+        self.common_fields.media_type()
+    }
+
+    fn fat_count(&self) -> u8 {
+        self.common_fields.fat_count()
+    }
 }
