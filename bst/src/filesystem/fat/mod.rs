@@ -22,6 +22,7 @@ use self::bios_parameters_blocks::{
     Fat32BiosParameterBlock, FatBiosParameterBlock, FatBiosParameterBlockCommonFields,
 };
 use super::BootSectorExtendedBootSignature;
+use core::mem::size_of;
 
 pub trait FatBootSector<const N: usize, T: FatBiosParameterBlock> {
     fn boot_sector_body(&self) -> &FatBootSectorStart<T>;
@@ -35,7 +36,6 @@ pub trait FatExtendedBootSector<const N: usize, T: FatBiosParameterBlock>:
     fn extended_boot_signature(&self) -> &FatExtendedBootSignature;
 }
 
-#[repr(packed)]
 struct Fat32BootSector {
     start: FatBootSectorStart<Fat32BiosParameterBlock>,
     tail: FatBootSectorExtendedTail<420>,
@@ -57,7 +57,6 @@ impl FatExtendedBootSector<420, Fat32BiosParameterBlock> for Fat32BootSector {
     }
 }
 
-#[repr(packed)]
 struct SmallFatNonExtendedBootSector {
     start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
     tail: FatBootCode<471>,
@@ -73,7 +72,6 @@ impl FatBootSector<471, FatBiosParameterBlockCommonFields> for SmallFatNonExtend
     }
 }
 
-#[repr(packed)]
 struct SmallFatExtendedBootSector {
     start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
     tail: FatBootSectorExtendedTail<448>,
@@ -95,7 +93,6 @@ impl FatExtendedBootSector<448, FatBiosParameterBlockCommonFields> for SmallFatE
     }
 }
 
-#[repr(packed)]
 pub struct FatBootSectorStart<TBiosParametersBlock: FatBiosParameterBlock> {
     jump_boot: [u8; 3],
     oem_name: [u8; 8],
@@ -105,13 +102,11 @@ pub struct FatBootSectorStart<TBiosParametersBlock: FatBiosParameterBlock> {
     extended_boot_signature: BootSectorExtendedBootSignature,
 }
 
-#[repr(packed)]
 struct FatBootSectorExtendedTail<const N: usize> {
     extended_boot_signature: FatExtendedBootSignature,
     boot_code: FatBootCode<N>,
 }
 
-#[repr(packed)]
 pub struct FatExtendedBootSignature {
     volume_id: [u8; 4],
     volume_label: [u8; 11],
@@ -138,22 +133,21 @@ impl FatExtendedBootSignature {
     }
 }
 
-#[repr(packed)]
 pub struct FatBootCode<const N: usize> {
     boot_code: [u8; N],
     boot_sign: [u8; 2],
 }
 
 impl<const N: usize> FatBootCode<N> {
-    pub fn boot_sign_is_valid(&self) -> bool {
+    fn boot_sign_is_valid(&self) -> bool {
         self.boot_sign() == 0xAA55
     }
 
-    pub fn clone_boot_code(&self) -> [u8; N] {
+    fn clone_boot_code(&self) -> [u8; N] {
         self.boot_code
     }
 
-    pub fn boot_sign(&self) -> u16 {
+    fn boot_sign(&self) -> u16 {
         u16::from_le_bytes(self.boot_sign)
     }
 }
@@ -163,4 +157,48 @@ pub enum FatType {
     Fat12,
     Fat16,
     Fat32,
+}
+
+fn get_fat_entry_byte_offset_and_sector<TEntry: Sized>(
+    sector_size: usize,
+    entry_index: usize,
+) -> (usize, usize) {
+    let entries_per_sector = sector_size / size_of::<TEntry>();
+    let sector = entry_index / entries_per_sector;
+    let offset = entry_index % entries_per_sector;
+    ((sector_size * sector) + offset, sector)
+}
+
+fn try_read_fat_entry<TEntry: Sized + Clone + Copy, FPointerReader: Fn(usize) -> TEntry>(
+    byte_reader: FPointerReader,
+    fat_sector_count: usize,
+    sector_size: usize,
+    index: usize,
+) -> Option<TEntry> {
+    let (entry_byte_offset, sector) =
+        get_fat_entry_byte_offset_and_sector::<TEntry>(sector_size, index);
+
+    if sector >= fat_sector_count {
+        None
+    } else {
+        Some((byte_reader)(entry_byte_offset))
+    }
+}
+
+fn try_write_fat_entry<TEntry: Sized + Clone + Copy, FPointerWriter: Fn(usize, TEntry)>(
+    byte_writer: FPointerWriter,
+    fat_sector_count: usize,
+    sector_size: usize,
+    value: TEntry,
+    index: usize,
+) -> bool {
+    let (entry_byte_offset, sector) =
+        get_fat_entry_byte_offset_and_sector::<TEntry>(sector_size, index);
+
+    if sector >= fat_sector_count {
+        false
+    } else {
+        (byte_writer)(entry_byte_offset, value);
+        true
+    }
 }

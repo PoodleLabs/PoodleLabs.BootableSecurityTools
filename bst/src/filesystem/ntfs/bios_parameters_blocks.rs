@@ -19,7 +19,6 @@ use crate::filesystem::{fat::BiosParameterBlockFlags, BootSectorExtendedBootSign
 // NOTE: Integers are stored in little-endian format on disk under NTFS. If we support big-endian processors
 // (we don't currently), we will need to support endianness conversion.
 
-#[repr(packed)]
 pub struct NtfsBiosParametersBlock {
     // The number of bytes per logical sector. Must be > 0 and, realistically speaking, pow2 meeting criteria:
     // 32 <= sector_size <= 32768 for practically useful values
@@ -53,7 +52,6 @@ pub struct NtfsBiosParametersBlock {
     flags: BiosParameterBlockFlags,
 }
 
-#[repr(packed)]
 struct NtfsBootSector {
     jump_boot: [u8; 3],
     oem_name: [u8; 8],

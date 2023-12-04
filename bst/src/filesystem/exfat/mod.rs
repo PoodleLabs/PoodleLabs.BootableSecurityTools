@@ -18,7 +18,6 @@ const JUMP_BOOT: [u8; 3] = [0xEB, 0x76, 0x90];
 const FILE_SYSTEM_NAME: &[u8; 8] = b"EXFAT \0\0";
 const BLANK: [u8; 53] = [0u8; 53];
 
-#[repr(packed)]
 struct ExfatBootSector {
     jump_boot: [u8; 3],
     file_system_name: [u8; 8],

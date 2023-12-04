@@ -20,7 +20,7 @@ use super::FatType;
 
 pub struct BiosParameterBlockFlags(u8);
 
-pub struct BiosParameterBlockExtendedFlags(u16);
+struct BiosParameterBlockExtendedFlags(u16);
 
 pub trait FatBiosParameterBlock {
     fn root_directory_entry_count(&self) -> u16;
@@ -86,7 +86,6 @@ pub trait FatBiosParameterBlock {
     }
 }
 
-#[repr(packed)]
 pub struct FatBiosParameterBlockCommonFields {
     // The number of bytes per logical sector. Must be > 0, and, realistically speaking pow2 meeting criteria:
     // 32 <= sector_size <= 32768 for practically useful values
@@ -177,7 +176,6 @@ impl FatBiosParameterBlock for FatBiosParameterBlockCommonFields {
     }
 }
 
-#[repr(packed)]
 pub struct Fat32BiosParameterBlock {
     common_fields: FatBiosParameterBlockCommonFields,
     // The number of sectors occupied by each FAT.
@@ -196,23 +194,23 @@ pub struct Fat32BiosParameterBlock {
 }
 
 impl Fat32BiosParameterBlock {
-    pub fn extended_flags(&self) -> BiosParameterBlockExtendedFlags {
+    fn extended_flags(&self) -> BiosParameterBlockExtendedFlags {
         BiosParameterBlockExtendedFlags(u16::from_le_bytes(self.extended_flags))
     }
 
-    pub fn file_system_version(&self) -> u16 {
+    fn file_system_version(&self) -> u16 {
         u16::from_le_bytes(self.file_system_version)
     }
 
-    pub fn root_cluster(&self) -> u32 {
+    fn root_cluster(&self) -> u32 {
         u32::from_le_bytes(self.root_cluter)
     }
 
-    pub fn file_system_info_sector(&self) -> u16 {
+    fn file_system_info_sector(&self) -> u16 {
         u16::from_le_bytes(self.file_system_info_sector)
     }
 
-    pub fn backup_boot_sector(&self) -> u16 {
+    fn backup_boot_sector(&self) -> u16 {
         u16::from_le_bytes(self.backup_boot_sector)
     }
 }
