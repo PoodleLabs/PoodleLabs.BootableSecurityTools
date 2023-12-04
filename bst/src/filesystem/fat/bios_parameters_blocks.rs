@@ -16,6 +16,8 @@
 
 // This FAT implementation was written based on the FatFs documentation at: http://elm-chan.org/fsw/ff/00index_e.html.
 
+use super::FatType;
+
 pub struct BiosParameterBlockFlags(u8);
 
 pub struct BiosParameterBlockExtendedFlags(u16);
@@ -66,6 +68,21 @@ pub trait FatBiosParameterBlock {
 
     fn data_sector_count(&self) -> u32 {
         self.total_sector_count() - self.data_start_sector()
+    }
+
+    fn cluster_count(&self) -> u32 {
+        self.data_sector_count() / self.sectors_per_cluster() as u32
+    }
+
+    fn fat_type(&self) -> FatType {
+        let cluster_count = self.cluster_count();
+        if cluster_count <= 4085 {
+            FatType::Fat12
+        } else if cluster_count <= 65525 {
+            FatType::Fat16
+        } else {
+            FatType::Fat32
+        }
     }
 }
 

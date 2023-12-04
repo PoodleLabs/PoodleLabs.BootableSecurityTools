@@ -109,3 +109,10 @@ impl<const N: usize> FatBootCode<N> {
         u16::from_le_bytes(self.boot_sign)
     }
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FatType {
+    Fat12,
+    Fat16,
+    Fat32,
+}
