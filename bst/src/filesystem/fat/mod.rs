@@ -159,46 +159,239 @@ pub enum FatType {
     Fat32,
 }
 
-fn get_fat_entry_byte_offset_and_sector<TEntry: Sized>(
+trait FatEntry: Sized + Copy + TryFrom<u32> + Into<u32> {
+    fn bit_mask() -> u32;
+
+    fn try_read_from(
+        index: usize,
+        pointer: *const u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> Option<Self>;
+
+    fn try_write_to(
+        &self,
+        index: usize,
+        pointer: *mut u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> bool;
+}
+
+fn get_byte_aligned_fat_entry_byte_offset_and_sector<TEntry: Sized>(
     sector_size: usize,
     entry_index: usize,
 ) -> (usize, usize) {
     let entries_per_sector = sector_size / size_of::<TEntry>();
     let sector = entry_index / entries_per_sector;
     let offset = entry_index % entries_per_sector;
-    ((sector_size * sector) + offset, sector)
+    (
+        (sector_size * sector) + (offset * size_of::<TEntry>()),
+        sector,
+    )
 }
 
-fn try_read_fat_entry<TEntry: Sized + Clone + Copy, FPointerReader: Fn(usize) -> TEntry>(
-    byte_reader: FPointerReader,
+fn try_read_byte_aligned_fat_entry<TEntry: Sized + Clone + Copy>(
     fat_sector_count: usize,
     sector_size: usize,
+    pointer: *const u8,
     index: usize,
 ) -> Option<TEntry> {
     let (entry_byte_offset, sector) =
-        get_fat_entry_byte_offset_and_sector::<TEntry>(sector_size, index);
+        get_byte_aligned_fat_entry_byte_offset_and_sector::<TEntry>(sector_size, index);
 
     if sector >= fat_sector_count {
         None
     } else {
-        Some((byte_reader)(entry_byte_offset))
+        Some(unsafe { *(pointer.add(entry_byte_offset) as *const TEntry) })
     }
 }
 
-fn try_write_fat_entry<TEntry: Sized + Clone + Copy, FPointerWriter: Fn(usize, TEntry)>(
-    byte_writer: FPointerWriter,
+fn try_write_byte_aligned_fat_entry<TEntry: Sized + Clone + Copy>(
     fat_sector_count: usize,
     sector_size: usize,
+    pointer: *mut u8,
     value: TEntry,
     index: usize,
 ) -> bool {
     let (entry_byte_offset, sector) =
-        get_fat_entry_byte_offset_and_sector::<TEntry>(sector_size, index);
+        get_byte_aligned_fat_entry_byte_offset_and_sector::<TEntry>(sector_size, index);
 
     if sector >= fat_sector_count {
         false
     } else {
-        (byte_writer)(entry_byte_offset, value);
+        unsafe { *(pointer.add(entry_byte_offset) as *mut TEntry) = value };
         true
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Fat12Entry(u16);
+
+#[derive(Debug, Copy, Clone)]
+struct FatEntryOutOfRangeError {
+    value: u32,
+    max: u32,
+}
+
+impl TryFrom<u32> for Fat12Entry {
+    type Error = FatEntryOutOfRangeError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value > Self::bit_mask() {
+            Err(FatEntryOutOfRangeError {
+                max: Self::bit_mask(),
+                value,
+            })
+        } else {
+            Ok(Self(value as u16))
+        }
+    }
+}
+
+impl Into<u32> for Fat12Entry {
+    fn into(self) -> u32 {
+        self.0 as u32
+    }
+}
+
+impl FatEntry for Fat12Entry {
+    fn bit_mask() -> u32 {
+        0b111111111111
+    }
+
+    fn try_read_from(
+        index: usize,
+        pointer: *const u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> Option<Self> {
+        todo!()
+    }
+
+    fn try_write_to(
+        &self,
+        index: usize,
+        pointer: *mut u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> bool {
+        todo!()
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Fat16Entry(u16);
+
+impl TryFrom<u32> for Fat16Entry {
+    type Error = FatEntryOutOfRangeError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value > Self::bit_mask() {
+            Err(FatEntryOutOfRangeError {
+                max: Self::bit_mask(),
+                value,
+            })
+        } else {
+            Ok(Self(value as u16))
+        }
+    }
+}
+
+impl Into<u32> for Fat16Entry {
+    fn into(self) -> u32 {
+        self.0 as u32
+    }
+}
+
+impl FatEntry for Fat16Entry {
+    fn bit_mask() -> u32 {
+        0b1111111111111111
+    }
+
+    fn try_read_from(
+        index: usize,
+        pointer: *const u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> Option<Self> {
+        match try_read_byte_aligned_fat_entry::<u16>(sector_count, sector_size, pointer, index) {
+            Some(v) => Some(Self(u16::from_le(v) & Self::bit_mask() as u16)),
+            None => None,
+        }
+    }
+
+    fn try_write_to(
+        &self,
+        index: usize,
+        pointer: *mut u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> bool {
+        try_write_byte_aligned_fat_entry::<u16>(
+            sector_count,
+            sector_size,
+            pointer,
+            self.0.to_le() & Self::bit_mask() as u16,
+            index,
+        )
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Fat32Entry(u32);
+
+impl TryFrom<u32> for Fat32Entry {
+    type Error = FatEntryOutOfRangeError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value > Self::bit_mask() {
+            Err(FatEntryOutOfRangeError {
+                max: Self::bit_mask(),
+                value,
+            })
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl Into<u32> for Fat32Entry {
+    fn into(self) -> u32 {
+        self.0 as u32
+    }
+}
+
+impl FatEntry for Fat32Entry {
+    fn bit_mask() -> u32 {
+        0b1111111111111111111111111111
+    }
+
+    fn try_read_from(
+        index: usize,
+        pointer: *const u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> Option<Self> {
+        match try_read_byte_aligned_fat_entry::<u32>(sector_count, sector_size, pointer, index) {
+            Some(v) => Some(Self(u32::from_le(v) & Self::bit_mask())),
+            None => None,
+        }
+    }
+
+    fn try_write_to(
+        &self,
+        index: usize,
+        pointer: *mut u8,
+        sector_size: usize,
+        sector_count: usize,
+    ) -> bool {
+        try_write_byte_aligned_fat_entry::<u32>(
+            sector_count,
+            sector_size,
+            pointer,
+            self.0.to_le() & Self::bit_mask(),
+            index,
+        )
     }
 }
