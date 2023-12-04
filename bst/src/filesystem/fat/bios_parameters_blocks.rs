@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+// This FAT implementation was written based on the FatFs documentation at: http://elm-chan.org/fsw/ff/00index_e.html.
+
 pub struct BiosParameterBlockFlags(u8);
 
 pub struct BiosParameterBlockExtendedFlags(u16);
@@ -40,6 +42,31 @@ pub trait FatBiosParameterBlock {
     fn media_type(&self) -> u8;
 
     fn fat_count(&self) -> u8;
+
+    fn fat_start_sector(&self) -> u32 {
+        self.reserved_sector_count() as u32
+    }
+
+    fn fat_sector_count(&self) -> u32 {
+        self.sectors_per_fat() * self.fat_count() as u32
+    }
+
+    fn root_directory_start_sector(&self) -> u32 {
+        self.fat_start_sector() + self.fat_sector_count()
+    }
+
+    fn root_directory_sector_count(&self) -> u32 {
+        ((32 * self.root_directory_entry_count() as u32) + self.bytes_per_sector() as u32 - 1)
+            / self.bytes_per_sector() as u32
+    }
+
+    fn data_start_sector(&self) -> u32 {
+        self.root_directory_start_sector() + self.root_directory_sector_count()
+    }
+
+    fn data_sector_count(&self) -> u32 {
+        self.total_sector_count() - self.data_start_sector()
+    }
 }
 
 #[repr(packed)]
