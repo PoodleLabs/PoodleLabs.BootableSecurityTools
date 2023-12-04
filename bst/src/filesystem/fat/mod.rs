@@ -23,32 +23,80 @@ use self::bios_parameters_blocks::{
 };
 use super::BootSectorExtendedBootSignature;
 
-#[repr(transparent)]
-struct Fat32BootSectorStart(FatBootSectorStart<Fat32BiosParameterBlock>);
+pub trait FatBootSector<const N: usize, T: FatBiosParameterBlock> {
+    fn boot_sector_body(&self) -> &FatBootSectorStart<T>;
+
+    fn boot_code(&self) -> &FatBootCode<N>;
+}
+
+pub trait FatExtendedBootSector<const N: usize, T: FatBiosParameterBlock>:
+    FatBootSector<N, T>
+{
+    fn extended_boot_signature(&self) -> &FatExtendedBootSignature;
+}
 
 #[repr(packed)]
 struct Fat32BootSector {
-    start: Fat32BootSectorStart,
+    start: FatBootSectorStart<Fat32BiosParameterBlock>,
     tail: FatBootSectorExtendedTail<420>,
 }
 
-#[repr(transparent)]
-struct SmallFatBootSectorStart(FatBootSectorStart<FatBiosParameterBlockCommonFields>);
+impl FatBootSector<420, Fat32BiosParameterBlock> for Fat32BootSector {
+    fn boot_sector_body(&self) -> &FatBootSectorStart<Fat32BiosParameterBlock> {
+        &self.start
+    }
+
+    fn boot_code(&self) -> &FatBootCode<420> {
+        &self.tail.boot_code
+    }
+}
+
+impl FatExtendedBootSector<420, Fat32BiosParameterBlock> for Fat32BootSector {
+    fn extended_boot_signature(&self) -> &FatExtendedBootSignature {
+        &self.tail.extended_boot_signature
+    }
+}
 
 #[repr(packed)]
 struct SmallFatNonExtendedBootSector {
-    start: SmallFatBootSectorStart,
+    start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
     tail: FatBootCode<471>,
+}
+
+impl FatBootSector<471, FatBiosParameterBlockCommonFields> for SmallFatNonExtendedBootSector {
+    fn boot_sector_body(&self) -> &FatBootSectorStart<FatBiosParameterBlockCommonFields> {
+        &self.start
+    }
+
+    fn boot_code(&self) -> &FatBootCode<471> {
+        &self.tail
+    }
 }
 
 #[repr(packed)]
 struct SmallFatExtendedBootSector {
-    start: SmallFatBootSectorStart,
+    start: FatBootSectorStart<FatBiosParameterBlockCommonFields>,
     tail: FatBootSectorExtendedTail<448>,
 }
 
+impl FatBootSector<448, FatBiosParameterBlockCommonFields> for SmallFatExtendedBootSector {
+    fn boot_sector_body(&self) -> &FatBootSectorStart<FatBiosParameterBlockCommonFields> {
+        &self.start
+    }
+
+    fn boot_code(&self) -> &FatBootCode<448> {
+        &self.tail.boot_code
+    }
+}
+
+impl FatExtendedBootSector<448, FatBiosParameterBlockCommonFields> for SmallFatExtendedBootSector {
+    fn extended_boot_signature(&self) -> &FatExtendedBootSignature {
+        &self.tail.extended_boot_signature
+    }
+}
+
 #[repr(packed)]
-struct FatBootSectorStart<TBiosParametersBlock: FatBiosParameterBlock> {
+pub struct FatBootSectorStart<TBiosParametersBlock: FatBiosParameterBlock> {
     jump_boot: [u8; 3],
     oem_name: [u8; 8],
     bios_paramaters_block: TBiosParametersBlock,
@@ -64,7 +112,7 @@ struct FatBootSectorExtendedTail<const N: usize> {
 }
 
 #[repr(packed)]
-struct FatExtendedBootSignature {
+pub struct FatExtendedBootSignature {
     volume_id: [u8; 4],
     volume_label: [u8; 11],
     file_system_type: [u8; 8],
@@ -91,7 +139,7 @@ impl FatExtendedBootSignature {
 }
 
 #[repr(packed)]
-struct FatBootCode<const N: usize> {
+pub struct FatBootCode<const N: usize> {
     boot_code: [u8; N],
     boot_sign: [u8; 2],
 }
