@@ -1,0 +1,90 @@
+// Poodle Labs' Bootable Security Tools (BST)
+// Copyright (C) 2023 Isaac Beizsley (isaac@poodlelabs.com)
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+use super::{
+    get_byte_aligned_fat_entry_byte_offset_and_sector, read_byte_aligned_fat_entry, FatEntry,
+    FatEntryOutOfRangeError,
+};
+use crate::filesystem::fat::{
+    bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector,
+};
+
+#[derive(Debug, Copy, Clone)]
+pub struct Fat16Entry(u16);
+
+impl Fat16Entry {
+    const BIT_MASK: u32 = 0b1111111111111111;
+}
+
+impl TryFrom<u32> for Fat16Entry {
+    type Error = FatEntryOutOfRangeError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value > Self::BIT_MASK {
+            Err(FatEntryOutOfRangeError::from(Self::BIT_MASK, value))
+        } else {
+            Ok(Self(value as u16))
+        }
+    }
+}
+
+impl Into<u32> for Fat16Entry {
+    fn into(self) -> u32 {
+        self.0 as u32
+    }
+}
+
+impl FatEntry for Fat16Entry {
+    fn try_read_from<
+        const N: usize,
+        TBiosParametersBlock: FatBiosParameterBlock,
+        TBootSector: FatBootSector<N, TBiosParametersBlock>,
+    >(
+        index: usize,
+        pointer: *const u8,
+        boot_sector: &TBootSector,
+    ) -> Option<Self> {
+        match read_byte_aligned_fat_entry(index, pointer, boot_sector) {
+            Some(e) => Some(e),
+            None => None,
+        }
+    }
+
+    fn try_write_to<
+        const N: usize,
+        TBiosParametersBlock: FatBiosParameterBlock,
+        TBootSector: FatBootSector<N, TBiosParametersBlock>,
+    >(
+        &self,
+        index: usize,
+        pointer: *mut u8,
+        boot_sector: &TBootSector,
+    ) -> bool {
+        let bpb = boot_sector.boot_sector_body().bios_parameters_block();
+        let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<u16>(
+            bpb.bytes_per_sector() as usize,
+            index,
+        );
+
+        if sector >= bpb.sectors_per_fat() as usize {
+            return false;
+        }
+
+        let byte_offset = byte_offset + bpb.fat_start_sector() as usize;
+        unsafe { *(pointer.add(byte_offset) as *mut u16) = self.0 }
+        true
+    }
+}

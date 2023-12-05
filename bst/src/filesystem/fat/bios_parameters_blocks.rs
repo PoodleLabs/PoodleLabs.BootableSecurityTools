@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// This FAT implementation was written based on the FatFs documentation at: http://elm-chan.org/fsw/ff/00index_e.html.
-
 use super::FatType;
 
+#[repr(C)]
 pub struct BiosParameterBlockFlags(u8);
 
+#[repr(C)]
 struct BiosParameterBlockExtendedFlags(u16);
 
 pub trait FatBiosParameterBlock {
@@ -86,6 +86,7 @@ pub trait FatBiosParameterBlock {
     }
 }
 
+#[repr(C)]
 pub struct FatBiosParameterBlockCommonFields {
     // The number of bytes per logical sector. Must be > 0, and, realistically speaking pow2 meeting criteria:
     // 32 <= sector_size <= 32768 for practically useful values
@@ -176,6 +177,7 @@ impl FatBiosParameterBlock for FatBiosParameterBlockCommonFields {
     }
 }
 
+#[repr(C)]
 pub struct Fat32BiosParameterBlock {
     common_fields: FatBiosParameterBlockCommonFields,
     // The number of sectors occupied by each FAT.
