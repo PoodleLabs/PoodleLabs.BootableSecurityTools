@@ -23,6 +23,8 @@ pub trait BitTarget: Sized + Eq + Copy {
 
     fn right_shift(self, by: usize) -> Self;
 
+    fn left_shift(self, by: usize) -> Self;
+
     fn and(self, value: Self) -> Self;
 
     fn or(self, value: Self) -> Self;
@@ -32,6 +34,8 @@ pub trait BitTarget: Sized + Eq + Copy {
     fn shift_start() -> Self;
 
     fn zero() -> Self;
+
+    fn one() -> Self;
 }
 
 macro_rules! bit_target_integer {
@@ -40,6 +44,10 @@ macro_rules! bit_target_integer {
             impl BitTarget for $integer {
                 fn right_shift(self, by: usize) -> Self {
                     self >> by
+                }
+
+                fn left_shift(self, by: usize) -> Self {
+                    self << by
                 }
 
                 fn and(self, value: Self) -> Self {
@@ -60,6 +68,10 @@ macro_rules! bit_target_integer {
 
                 fn zero() -> Self {
                     0
+                }
+
+                fn one() -> Self {
+                    1
                 }
             }
 
