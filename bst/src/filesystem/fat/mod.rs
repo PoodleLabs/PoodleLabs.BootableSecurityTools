@@ -28,3 +28,13 @@ pub enum FatType {
     Fat16,
     Fat32,
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FatErrors {
+    None,
+    VolumeDirty,
+    HardError,
+    InvalidErrorFatEntry,
+    InvalidMediaFatEntry,
+    Unreadable,
+}

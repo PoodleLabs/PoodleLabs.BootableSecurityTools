@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::FatType;
+use super::{fat_entry_reading::FatEntry, FatErrors, FatType};
 
 #[repr(C)]
 pub struct BiosParameterBlockFlags(u8);
@@ -99,6 +99,27 @@ pub trait FatBiosParameterBlock {
                 Some(start_sector * (self.bytes_per_sector() as usize))
             }
         }
+    }
+
+    fn error_check<TFatEntry: FatEntry>(&self, pointer: *const u8) -> FatErrors
+    where
+        Self: Sized,
+    {
+        let first_entry = match TFatEntry::try_read_from(0, pointer, self) {
+            Some(e) => e,
+            None => return FatErrors::Unreadable,
+        };
+
+        let second_entry = match TFatEntry::try_read_from(1, pointer, self) {
+            Some(e) => e,
+            None => return FatErrors::Unreadable,
+        };
+
+        if !first_entry.check_media_bits(self.media_type()) {
+            return FatErrors::InvalidMediaFatEntry;
+        }
+
+        return second_entry.check_error_bits();
     }
 }
 

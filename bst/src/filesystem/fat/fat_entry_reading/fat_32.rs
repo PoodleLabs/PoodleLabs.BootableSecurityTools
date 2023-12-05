@@ -18,9 +18,7 @@ use super::{
     get_byte_aligned_fat_entry_byte_offset_and_sector, read_byte_aligned_fat_entry, FatEntry,
     FatEntryOutOfRangeError,
 };
-use crate::filesystem::fat::{
-    bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector,
-};
+use crate::filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Fat32Entry(u32);
@@ -60,6 +58,26 @@ impl FatEntry for Fat32Entry {
         Self(0)
     }
 
+    fn check_media_bits(&self, media_bits: u8) -> bool {
+        self.0 == (media_bits as u32 | 0xFFFFFF00)
+    }
+
+    fn check_error_bits(&self) -> FatErrors {
+        if (self.0 & 0b11111111111111111111111111111100) != 0b11111111111111111111111111111100 {
+            FatErrors::InvalidErrorFatEntry
+        } else if (self.0 & 0b00000000000000000000000000000010)
+            != 0b00000000000000000000000000000010
+        {
+            FatErrors::HardError
+        } else if (self.0 & 0b00000000000000000000000000000001)
+            != 0b00000000000000000000000000000001
+        {
+            FatErrors::VolumeDirty
+        } else {
+            FatErrors::None
+        }
+    }
+
     fn is_end_of_chain(&self) -> bool {
         self.0 >= 0x0FFFFFF8
     }
@@ -68,42 +86,33 @@ impl FatEntry for Fat32Entry {
         self.0 == 0x0FFFFFF7
     }
 
-    fn try_read_from<
-        const N: usize,
-        TBiosParametersBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    >(
+    fn try_read_from<T: FatBiosParameterBlock>(
         index: usize,
         pointer: *const u8,
-        boot_sector: &TBootSector,
+        parameters: &T,
     ) -> Option<Self> {
-        match read_byte_aligned_fat_entry::<N, _, _, u32>(index, pointer, boot_sector) {
+        match read_byte_aligned_fat_entry::<_, u32>(index, pointer, parameters) {
             Some(e) => Some(Self(e & Self::BIT_MASK)),
             None => None,
         }
     }
 
-    fn try_write_to<
-        const N: usize,
-        TBiosParametersBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    >(
+    fn try_write_to<T: FatBiosParameterBlock>(
         &self,
         index: usize,
         pointer: *mut u8,
-        boot_sector: &TBootSector,
+        parameters: &T,
     ) -> bool {
-        let bpb = boot_sector.body().bios_parameters_block();
         let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<u32>(
-            bpb.bytes_per_sector() as usize,
+            parameters.bytes_per_sector() as usize,
             index,
         );
 
-        if sector >= bpb.sectors_per_fat() as usize {
+        if sector >= parameters.sectors_per_fat() as usize {
             return false;
         }
 
-        let byte_offset = byte_offset + bpb.fat_start_sector() as usize;
+        let byte_offset = byte_offset + parameters.fat_start_sector() as usize;
         let ptr = unsafe { (pointer.add(byte_offset) as *mut u32).as_mut() }.unwrap();
         *ptr = (*ptr & !Self::BIT_MASK) | (self.0 & Self::BIT_MASK);
         true

@@ -22,7 +22,7 @@ pub use fat_12::Fat12Entry;
 pub use fat_16::Fat16Entry;
 pub use fat_32::Fat32Entry;
 
-use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
+use super::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
 use core::mem::size_of;
 
 #[derive(Debug, Copy, Clone)]
@@ -47,6 +47,10 @@ pub trait FatEntry: Sized + Copy + TryFrom<u32> + Into<u32> + PartialEq + Eq {
 
     fn zero() -> Self;
 
+    fn check_media_bits(&self, media_bits: u8) -> bool;
+
+    fn check_error_bits(&self) -> FatErrors;
+
     fn is_end_of_chain(&self) -> bool;
 
     fn is_bad_cluster(&self) -> bool;
@@ -55,25 +59,17 @@ pub trait FatEntry: Sized + Copy + TryFrom<u32> + Into<u32> + PartialEq + Eq {
         self.eq(&Self::zero())
     }
 
-    fn try_read_from<
-        const N: usize,
-        TBiosParametersBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    >(
+    fn try_read_from<T: FatBiosParameterBlock>(
         index: usize,
         pointer: *const u8,
-        boot_sector: &TBootSector,
+        parameters: &T,
     ) -> Option<Self>;
 
-    fn try_write_to<
-        const N: usize,
-        TBiosParametersBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    >(
+    fn try_write_to<T: FatBiosParameterBlock>(
         &self,
         index: usize,
         pointer: *mut u8,
-        boot_sector: &TBootSector,
+        parameters: &T,
     ) -> bool;
 }
 
@@ -90,26 +86,20 @@ fn get_byte_aligned_fat_entry_byte_offset_and_sector<TEntry: Sized>(
     )
 }
 
-fn read_byte_aligned_fat_entry<
-    const N: usize,
-    TBiosParametersBlock: FatBiosParameterBlock,
-    TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    TEntry: Sized + Copy,
->(
+fn read_byte_aligned_fat_entry<T: FatBiosParameterBlock, TEntry: Sized + Copy>(
     index: usize,
     pointer: *const u8,
-    boot_sector: &TBootSector,
+    parameters: &T,
 ) -> Option<TEntry> {
-    let bpb = boot_sector.body().bios_parameters_block();
     let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<TEntry>(
-        bpb.bytes_per_sector() as usize,
+        parameters.bytes_per_sector() as usize,
         index,
     );
 
-    if sector >= bpb.sectors_per_fat() as usize {
+    if sector >= parameters.sectors_per_fat() as usize {
         return None;
     }
 
-    let byte_offset = byte_offset + bpb.fat_start_sector() as usize;
+    let byte_offset = byte_offset + parameters.fat_start_sector() as usize;
     Some(unsafe { *(pointer.add(byte_offset) as *const TEntry) })
 }

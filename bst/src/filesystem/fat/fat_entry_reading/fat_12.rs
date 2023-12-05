@@ -17,7 +17,7 @@
 use super::{FatEntry, FatEntryOutOfRangeError};
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
-    filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector},
+    filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors},
 };
 use core::slice;
 
@@ -46,15 +46,9 @@ impl Into<u32> for Fat12Entry {
     }
 }
 
-fn unaligned_fat_entry_counts<
-    const N: usize,
-    TBiosParametersBlock: FatBiosParameterBlock,
-    TBootSector: FatBootSector<N, TBiosParametersBlock>,
->(
-    boot_sector: &TBootSector,
-) -> (usize, usize) {
-    let bpb = boot_sector.body().bios_parameters_block();
-    let fat_byte_count = bpb.sectors_per_fat() as usize * bpb.bytes_per_sector() as usize;
+fn unaligned_fat_entry_counts<T: FatBiosParameterBlock>(parameters: &T) -> (usize, usize) {
+    let fat_byte_count =
+        parameters.sectors_per_fat() as usize * parameters.bytes_per_sector() as usize;
     let fat_bit_count = fat_byte_count * 8;
     (fat_byte_count, fat_bit_count / 12)
 }
@@ -72,6 +66,22 @@ impl FatEntry for Fat12Entry {
         Self(0)
     }
 
+    fn check_media_bits(&self, media_bits: u8) -> bool {
+        self.0 == (media_bits as u16 | 0x0F00)
+    }
+
+    fn check_error_bits(&self) -> FatErrors {
+        if (self.0 & 0b111111111100) != 0b111111111100 {
+            FatErrors::InvalidErrorFatEntry
+        } else if (self.0 & 0b000000000010) != 0b000000000010 {
+            FatErrors::HardError
+        } else if (self.0 & 0b000000000001) != 0b000000000001 {
+            FatErrors::VolumeDirty
+        } else {
+            FatErrors::None
+        }
+    }
+
     fn is_end_of_chain(&self) -> bool {
         self.0 >= 0xFF8
     }
@@ -80,16 +90,12 @@ impl FatEntry for Fat12Entry {
         self.0 == 0xFF7
     }
 
-    fn try_read_from<
-        const N: usize,
-        TBiosParametersBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    >(
+    fn try_read_from<T: FatBiosParameterBlock>(
         index: usize,
         pointer: *const u8,
-        boot_sector: &TBootSector,
+        parameters: &T,
     ) -> Option<Self> {
-        let (fat_bytes, fat_entries) = unaligned_fat_entry_counts(boot_sector);
+        let (fat_bytes, fat_entries) = unaligned_fat_entry_counts(parameters);
         if index >= fat_entries {
             return None;
         }
@@ -107,17 +113,13 @@ impl FatEntry for Fat12Entry {
         Some(Self(aggregate))
     }
 
-    fn try_write_to<
-        const N: usize,
-        TBiosParametersBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParametersBlock>,
-    >(
+    fn try_write_to<T: FatBiosParameterBlock>(
         &self,
         index: usize,
         pointer: *mut u8,
-        boot_sector: &TBootSector,
+        parameters: &T,
     ) -> bool {
-        let (fat_bytes, fat_entries) = unaligned_fat_entry_counts(boot_sector);
+        let (fat_bytes, fat_entries) = unaligned_fat_entry_counts(parameters);
         if index >= fat_entries {
             return false;
         }

@@ -67,17 +67,17 @@ impl FatExtendedBootSignature {
 }
 
 #[repr(C)]
-pub struct FatBootSectorStart<TBiosParametersBlock: FatBiosParameterBlock> {
+pub struct FatBootSectorStart<T: FatBiosParameterBlock> {
     jump_boot: [u8; 3],
     oem_name: [u8; 8],
-    bios_parameters_block: TBiosParametersBlock,
+    bios_parameters_block: T,
     drive_number: u8,
     reserved: u8,
     extended_boot_signature: BootSectorExtendedBootSignature,
 }
 
-impl<TBiosParametersBlock: FatBiosParameterBlock> FatBootSectorStart<TBiosParametersBlock> {
-    pub const fn bios_parameters_block(&self) -> &TBiosParametersBlock {
+impl<T: FatBiosParameterBlock> FatBootSectorStart<T> {
+    pub const fn bios_parameters_block(&self) -> &T {
         &self.bios_parameters_block
     }
 }
