@@ -141,6 +141,8 @@ The EFI images are loaded into memory, so you should be fine to remove the boot 
 If I had to recommend something more concrete, I would recommend an old Thinkpad. Something with a socketed CPU, which can be Corebooted and have the Intel ME disabled.
 
 ## External References
+With the exception of the Rust core and alloc crates, the below external references are documentation and examples upon which the implementations contained in this repository were based, not dependencies/pulled in code.
+
 - [Electrum](https://github.com/spesmilo/electrum) or, more specifically [Electrum Seed Version System](https://electrum.readthedocs.io/en/latest/seedphrase.html)
 - [Rust Lang Repository](https://github.com/rust-lang/rust/)
 - [UEFI Specificatoins](https://uefi.org/specifications)
