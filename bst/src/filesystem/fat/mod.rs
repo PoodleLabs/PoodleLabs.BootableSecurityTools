@@ -16,6 +16,7 @@
 
 mod bios_parameters_blocks;
 mod boot_sectors;
+mod directory_entries;
 mod fat_entry_reading;
 
 // This FAT implementation was written based on the FatFs documentation,

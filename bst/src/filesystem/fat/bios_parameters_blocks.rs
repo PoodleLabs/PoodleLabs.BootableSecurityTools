@@ -84,6 +84,22 @@ pub trait FatBiosParameterBlock {
             FatType::Fat32
         }
     }
+
+    fn get_byte_offset_for_cluster(&self, cluster: usize) -> Option<usize> {
+        if cluster < 2 {
+            None
+        } else {
+            let start_sector = (self.data_start_sector() as usize)
+                + ((cluster - 2) * (self.sectors_per_cluster() as usize));
+            let end_sector =
+                (self.data_start_sector() as usize) + (self.data_sector_count() as usize);
+            if start_sector >= end_sector {
+                None
+            } else {
+                Some(start_sector * (self.bytes_per_sector() as usize))
+            }
+        }
+    }
 }
 
 #[repr(C)]

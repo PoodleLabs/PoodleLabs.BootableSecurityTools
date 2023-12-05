@@ -73,7 +73,7 @@ impl FatEntry for Fat32Entry {
         pointer: *mut u8,
         boot_sector: &TBootSector,
     ) -> bool {
-        let bpb = boot_sector.boot_sector_body().bios_parameters_block();
+        let bpb = boot_sector.body().bios_parameters_block();
         let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<u32>(
             bpb.bytes_per_sector() as usize,
             index,

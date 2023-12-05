@@ -89,7 +89,7 @@ pub struct FatBootSectorExtendedTail<const N: usize> {
 }
 
 pub trait FatBootSector<const N: usize, T: FatBiosParameterBlock> {
-    fn boot_sector_body(&self) -> &FatBootSectorStart<T>;
+    fn body(&self) -> &FatBootSectorStart<T>;
 
     fn boot_code(&self) -> &FatBootCode<N>;
 }
@@ -107,7 +107,7 @@ pub struct Fat32BootSector {
 }
 
 impl FatBootSector<420, Fat32BiosParameterBlock> for Fat32BootSector {
-    fn boot_sector_body(&self) -> &FatBootSectorStart<Fat32BiosParameterBlock> {
+    fn body(&self) -> &FatBootSectorStart<Fat32BiosParameterBlock> {
         &self.start
     }
 
@@ -129,7 +129,7 @@ pub struct SmallFatNonExtendedBootSector {
 }
 
 impl FatBootSector<471, FatBiosParameterBlockCommonFields> for SmallFatNonExtendedBootSector {
-    fn boot_sector_body(&self) -> &FatBootSectorStart<FatBiosParameterBlockCommonFields> {
+    fn body(&self) -> &FatBootSectorStart<FatBiosParameterBlockCommonFields> {
         &self.start
     }
 
@@ -145,7 +145,7 @@ pub struct SmallFatExtendedBootSector {
 }
 
 impl FatBootSector<448, FatBiosParameterBlockCommonFields> for SmallFatExtendedBootSector {
-    fn boot_sector_body(&self) -> &FatBootSectorStart<FatBiosParameterBlockCommonFields> {
+    fn body(&self) -> &FatBootSectorStart<FatBiosParameterBlockCommonFields> {
         &self.start
     }
 

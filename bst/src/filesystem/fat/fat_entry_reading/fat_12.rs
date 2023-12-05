@@ -53,7 +53,7 @@ fn unaligned_fat_entry_counts<
 >(
     boot_sector: &TBootSector,
 ) -> (usize, usize) {
-    let bpb = boot_sector.boot_sector_body().bios_parameters_block();
+    let bpb = boot_sector.body().bios_parameters_block();
     let fat_byte_count = bpb.sectors_per_fat() as usize * bpb.bytes_per_sector() as usize;
     let fat_bit_count = fat_byte_count * 8;
     (fat_byte_count, fat_bit_count / 12)

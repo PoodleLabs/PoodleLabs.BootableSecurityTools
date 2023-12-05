@@ -86,7 +86,7 @@ fn read_byte_aligned_fat_entry<
     pointer: *const u8,
     boot_sector: &TBootSector,
 ) -> Option<TEntry> {
-    let bpb = boot_sector.boot_sector_body().bios_parameters_block();
+    let bpb = boot_sector.body().bios_parameters_block();
     let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<TEntry>(
         bpb.bytes_per_sector() as usize,
         index,
