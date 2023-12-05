@@ -25,6 +25,15 @@ pub use fat_32::Fat32Entry;
 use super::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
 use core::mem::size_of;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FatEntryStatus {
+    Free,
+    Reserved,
+    Link,
+    BadCluster,
+    EndOfChain,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct FatEntryOutOfRangeError {
     _value: u32,
@@ -45,19 +54,15 @@ pub trait FatEntry: Sized + Copy + TryFrom<u32> + Into<u32> + PartialEq + Eq {
 
     fn bad_cluster() -> Self;
 
-    fn zero() -> Self;
+    fn reserved() -> Self;
+
+    fn free() -> Self;
 
     fn check_media_bits(&self, media_bits: u8) -> bool;
 
     fn check_error_bits(&self) -> FatErrors;
 
-    fn is_end_of_chain(&self) -> bool;
-
-    fn is_bad_cluster(&self) -> bool;
-
-    fn is_free(&self) -> bool {
-        self.eq(&Self::zero())
-    }
+    fn get_status(&self) -> FatEntryStatus;
 
     fn try_read_from<T: FatBiosParameterBlock>(
         index: usize,
@@ -103,3 +108,24 @@ fn read_byte_aligned_fat_entry<T: FatBiosParameterBlock, TEntry: Sized + Copy>(
     let byte_offset = byte_offset + parameters.fat_start_sector() as usize;
     Some(unsafe { *(pointer.add(byte_offset) as *const TEntry) })
 }
+
+macro_rules! get_status {
+    () => {
+        fn get_status(&self) -> FatEntryStatus {
+            match self.0 {
+                Self::FREE => FatEntryStatus::Free,
+                Self::RESERVED => FatEntryStatus::Reserved,
+                Self::BAD_CLUSTER => FatEntryStatus::BadCluster,
+                _ => {
+                    if self.0 > Self::BAD_CLUSTER {
+                        FatEntryStatus::EndOfChain
+                    } else {
+                        FatEntryStatus::Link
+                    }
+                }
+            }
+        }
+    };
+}
+
+pub(self) use get_status;

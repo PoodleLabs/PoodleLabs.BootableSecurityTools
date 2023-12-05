@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{fat_entry_reading::FatEntry, FatErrors, FatType};
+use super::{fat_entries::FatEntry, FatErrors, FatType};
 
 #[repr(C)]
 pub struct BiosParameterBlockFlags(u8);

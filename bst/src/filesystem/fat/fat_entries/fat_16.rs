@@ -15,8 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    get_byte_aligned_fat_entry_byte_offset_and_sector, read_byte_aligned_fat_entry, FatEntry,
-    FatEntryOutOfRangeError,
+    get_byte_aligned_fat_entry_byte_offset_and_sector, get_status, read_byte_aligned_fat_entry,
+    FatEntry, FatEntryOutOfRangeError, FatEntryStatus,
 };
 use crate::filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
 
@@ -25,6 +25,10 @@ pub struct Fat16Entry(u16);
 
 impl Fat16Entry {
     const BIT_MASK: u32 = 0b1111111111111111;
+    const END_OF_CHAIN: u16 = 0xFFFF;
+    const BAD_CLUSTER: u16 = 0xFFF7;
+    const RESERVED: u16 = 1;
+    const FREE: u16 = 0;
 }
 
 impl TryFrom<u32> for Fat16Entry {
@@ -47,15 +51,19 @@ impl Into<u32> for Fat16Entry {
 
 impl FatEntry for Fat16Entry {
     fn end_of_chain() -> Self {
-        Self(0xFFFF)
+        Self(Self::END_OF_CHAIN)
     }
 
     fn bad_cluster() -> Self {
-        Self(0xFFF7)
+        Self(Self::BAD_CLUSTER)
     }
 
-    fn zero() -> Self {
-        Self(0)
+    fn reserved() -> Self {
+        Self(Self::RESERVED)
+    }
+
+    fn free() -> Self {
+        Self(Self::FREE)
     }
 
     fn check_media_bits(&self, media_bits: u8) -> bool {
@@ -74,13 +82,7 @@ impl FatEntry for Fat16Entry {
         }
     }
 
-    fn is_end_of_chain(&self) -> bool {
-        self.0 >= 0xFFF8
-    }
-
-    fn is_bad_cluster(&self) -> bool {
-        self.0 == 0xFFF7
-    }
+    get_status!();
 
     fn try_read_from<T: FatBiosParameterBlock>(
         index: usize,
