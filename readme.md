@@ -145,3 +145,4 @@ If I had to recommend something more concrete, I would recommend an old Thinkpad
 - [Rust Lang Repository](https://github.com/rust-lang/rust/)
 - [UEFI Specificatoins](https://uefi.org/specifications)
 - [Bitcoin BIPS](https://github.com/bitcoin/bips)
+- [FatFs](http://elm-chan.org/docs/fat_e.html)
