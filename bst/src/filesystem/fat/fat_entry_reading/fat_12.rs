@@ -21,7 +21,7 @@ use crate::{
 };
 use core::slice;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Fat12Entry(u16);
 
 impl Fat12Entry {
@@ -66,6 +66,10 @@ impl FatEntry for Fat12Entry {
 
     fn bad_cluster() -> Self {
         Self(0xFF7)
+    }
+
+    fn zero() -> Self {
+        Self(0)
     }
 
     fn is_end_of_chain(&self) -> bool {

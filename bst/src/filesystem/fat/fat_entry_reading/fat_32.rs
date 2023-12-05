@@ -22,7 +22,7 @@ use crate::filesystem::fat::{
     bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector,
 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Fat32Entry(u32);
 
 impl Fat32Entry {
@@ -54,6 +54,10 @@ impl FatEntry for Fat32Entry {
 
     fn bad_cluster() -> Self {
         Self(0x0FFFFFF7)
+    }
+
+    fn zero() -> Self {
+        Self(0)
     }
 
     fn is_end_of_chain(&self) -> bool {
