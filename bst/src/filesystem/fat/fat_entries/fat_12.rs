@@ -19,7 +19,10 @@ use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
     filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors},
 };
-use core::slice;
+use core::{
+    ops::{BitAnd, BitOr, Not},
+    slice,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Fat12Entry(u16);
@@ -57,7 +60,39 @@ fn unaligned_fat_entry_counts<T: FatBiosParameterBlock>(parameters: &T) -> (usiz
     (fat_byte_count, fat_bit_count / 12)
 }
 
+impl Not for Fat12Entry {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self((!self.0) & (Self::BIT_MASK as u16))
+    }
+}
+
+impl BitOr for Fat12Entry {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitAnd for Fat12Entry {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
 impl FatEntry for Fat12Entry {
+    fn volume_dirty_flag() -> Self {
+        Self(1)
+    }
+
+    fn hard_error_flag() -> Self {
+        Self(2)
+    }
+
     fn end_of_chain() -> Self {
         Self(Self::END_OF_CHAIN)
     }

@@ -19,6 +19,7 @@ use super::{
     FatEntry, FatEntryOutOfRangeError, FatEntryStatus,
 };
 use crate::filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
+use core::ops::{BitAnd, BitOr, Not};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Fat32Entry(u32);
@@ -49,7 +50,39 @@ impl Into<u32> for Fat32Entry {
     }
 }
 
+impl Not for Fat32Entry {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self((!self.0) & Self::BIT_MASK)
+    }
+}
+
+impl BitOr for Fat32Entry {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitAnd for Fat32Entry {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
 impl FatEntry for Fat32Entry {
+    fn volume_dirty_flag() -> Self {
+        Self(1)
+    }
+
+    fn hard_error_flag() -> Self {
+        Self(2)
+    }
+
     fn end_of_chain() -> Self {
         Self(Self::END_OF_CHAIN)
     }

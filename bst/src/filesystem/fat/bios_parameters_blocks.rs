@@ -22,7 +22,7 @@ pub struct BiosParameterBlockFlags(u8);
 #[repr(C)]
 struct BiosParameterBlockExtendedFlags(u16);
 
-pub trait FatBiosParameterBlock {
+pub trait FatBiosParameterBlock: Sized {
     fn root_directory_entry_count(&self) -> u16;
 
     fn reserved_sector_count(&self) -> u16;
@@ -101,10 +101,7 @@ pub trait FatBiosParameterBlock {
         }
     }
 
-    fn error_check<TFatEntry: FatEntry>(&self, pointer: *const u8) -> FatErrors
-    where
-        Self: Sized,
-    {
+    fn error_check<TFatEntry: FatEntry>(&self, pointer: *const u8) -> FatErrors {
         let first_entry = match TFatEntry::try_read_from(0, pointer, self) {
             Some(e) => e,
             None => return FatErrors::Unreadable,
@@ -121,6 +118,48 @@ pub trait FatBiosParameterBlock {
 
         return second_entry.check_error_bits();
     }
+
+    fn try_clear_volume_dirty<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+        try_set_flag_high(self, pointer, TFatEntry::volume_dirty_flag())
+    }
+
+    fn try_set_volume_dirty<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+        try_set_flag_low(self, pointer, TFatEntry::volume_dirty_flag())
+    }
+
+    fn try_clear_hard_error<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+        try_set_flag_high(self, pointer, TFatEntry::hard_error_flag())
+    }
+
+    fn try_set_hard_error<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+        try_set_flag_low(self, pointer, TFatEntry::hard_error_flag())
+    }
+}
+
+fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
+    parameters: &TFatBiosParameterBlock,
+    pointer: *mut u8,
+    flag: TFatEntry,
+) -> bool {
+    let current_value = match TFatEntry::try_read_from(1, pointer, parameters) {
+        Some(e) => e,
+        None => return false,
+    };
+
+    (current_value | flag).try_write_to(1, pointer, parameters)
+}
+
+fn try_set_flag_low<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
+    parameters: &TFatBiosParameterBlock,
+    pointer: *mut u8,
+    flag: TFatEntry,
+) -> bool {
+    let current_value = match TFatEntry::try_read_from(1, pointer, parameters) {
+        Some(e) => e,
+        None => return false,
+    };
+
+    (current_value & (!flag)).try_write_to(1, pointer, parameters)
 }
 
 #[repr(C)]

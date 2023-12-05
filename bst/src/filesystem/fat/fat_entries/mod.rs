@@ -23,7 +23,10 @@ pub use fat_16::Fat16Entry;
 pub use fat_32::Fat32Entry;
 
 use super::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
-use core::mem::size_of;
+use core::{
+    mem::size_of,
+    ops::{BitAnd, BitOr, Not},
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FatEntryStatus {
@@ -49,7 +52,21 @@ impl FatEntryOutOfRangeError {
     }
 }
 
-pub trait FatEntry: Sized + Copy + TryFrom<u32> + Into<u32> + PartialEq + Eq {
+pub trait FatEntry:
+    Sized
+    + Copy
+    + TryFrom<u32>
+    + Into<u32>
+    + PartialEq
+    + Eq
+    + BitOr<Self, Output = Self>
+    + BitAnd<Self, Output = Self>
+    + Not<Output = Self>
+{
+    fn volume_dirty_flag() -> Self;
+
+    fn hard_error_flag() -> Self;
+
     fn end_of_chain() -> Self;
 
     fn bad_cluster() -> Self;
