@@ -64,8 +64,16 @@ impl FatEntry for Fat12Entry {
         Self(0xFFF)
     }
 
+    fn bad_cluster() -> Self {
+        Self(0xFF7)
+    }
+
     fn is_end_of_chain(&self) -> bool {
         self.0 >= 0xFF8
+    }
+
+    fn is_bad_cluster(&self) -> bool {
+        self.0 == 0xFF7
     }
 
     fn try_read_from<

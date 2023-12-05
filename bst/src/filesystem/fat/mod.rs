@@ -22,8 +22,6 @@ mod fat_entry_reading;
 // This FAT implementation was written based on the FatFs documentation,
 // which can be found at: http://elm-chan.org/fsw/ff/00index_e.html.
 
-pub(in crate::filesystem) use bios_parameters_blocks::BiosParameterBlockFlags;
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FatType {
     Fat12,

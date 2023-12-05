@@ -43,7 +43,11 @@ impl FatEntryOutOfRangeError {
 pub trait FatEntry: Sized + Copy + TryFrom<u32> + Into<u32> {
     fn end_of_chain() -> Self;
 
+    fn bad_cluster() -> Self;
+
     fn is_end_of_chain(&self) -> bool;
+
+    fn is_bad_cluster(&self) -> bool;
 
     fn try_read_from<
         const N: usize,
