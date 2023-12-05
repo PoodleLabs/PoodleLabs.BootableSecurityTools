@@ -105,6 +105,8 @@ If you didn't run the powershell script, the `.efi` files can be found at `targe
 
 You should then be able to boot from that media.
 
+**NOTE: DO NOT ATTEMPT TO WRITE TO ANY REWRITABLE MEDIA (eg: USB sticks, hard drives) WHICH CONTAIN IMPORTANT FILES WHILE USING BST; THE INCLUDED FILESYSTEM IMPLEMENTATIONS MAY CONTAIN BUGS CAPABLE OF CORRUPTING DATA.**
+
 ### Some tips & tricks.
 
 - To navigate, use the arrow keys and `ENTER`, or press `0-9` to select the corresponding list entry.
