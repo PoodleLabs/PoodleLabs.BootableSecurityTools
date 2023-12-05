@@ -60,6 +60,14 @@ fn unaligned_fat_entry_counts<
 }
 
 impl FatEntry for Fat12Entry {
+    fn end_of_chain() -> Self {
+        Self(0xFFF)
+    }
+
+    fn is_end_of_chain(&self) -> bool {
+        self.0 >= 0xFF8
+    }
+
     fn try_read_from<
         const N: usize,
         TBiosParametersBlock: FatBiosParameterBlock,

@@ -48,6 +48,14 @@ impl Into<u32> for Fat32Entry {
 }
 
 impl FatEntry for Fat32Entry {
+    fn end_of_chain() -> Self {
+        Self(0x0FFFFFFF)
+    }
+
+    fn is_end_of_chain(&self) -> bool {
+        self.0 >= 0x0FFFFFF8
+    }
+
     fn try_read_from<
         const N: usize,
         TBiosParametersBlock: FatBiosParameterBlock,
