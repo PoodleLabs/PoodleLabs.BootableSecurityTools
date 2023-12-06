@@ -16,12 +16,6 @@
 
 use super::{fat_entries::FatEntry, FatErrors, FatType};
 
-#[repr(C)]
-pub struct BiosParameterBlockFlags(u8);
-
-#[repr(C)]
-struct BiosParameterBlockExtendedFlags(u16);
-
 pub trait FatBiosParameterBlock: Sized {
     fn root_directory_entry_count(&self) -> u16;
 
@@ -271,9 +265,26 @@ pub struct Fat32BiosParameterBlock {
     reserved: [u8; 12],
 }
 
+#[repr(C)]
+pub struct Fat32Mirroring(u16);
+
+impl Fat32Mirroring {
+    pub const fn all_fats_active_and_mirrored(&self) -> bool {
+        (self.0 & (1 << 7)) == 0
+    }
+
+    pub const fn active_fat(&self) -> Option<u8> {
+        if self.all_fats_active_and_mirrored() {
+            None
+        } else {
+            Some((self.0 as u8) & 0b1111)
+        }
+    }
+}
+
 impl Fat32BiosParameterBlock {
-    fn extended_flags(&self) -> BiosParameterBlockExtendedFlags {
-        BiosParameterBlockExtendedFlags(u16::from_le_bytes(self.extended_flags))
+    fn mirroring(&self) -> Fat32Mirroring {
+        Fat32Mirroring(u16::from_le_bytes(self.extended_flags))
     }
 
     fn file_system_version(&self) -> u16 {
