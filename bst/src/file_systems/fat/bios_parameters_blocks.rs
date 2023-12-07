@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{fat_entries::FatEntry, file_system_info::FileSystemInfo, FatErrors, FatType};
+use super::{
+    boot_sectors::Fat32BootSector, fat_entries::FatEntry, file_system_info::FileSystemInfo,
+    FatErrors, FatType,
+};
 
 pub trait FatBiosParameterBlock: Sized {
     fn root_directory_entry_count(&self) -> u16;
@@ -295,17 +298,14 @@ impl Fat32BiosParameterBlock {
         u32::from_le_bytes(self.root_cluter)
     }
 
-    pub fn backup_boot_sector(&self) -> u16 {
-        u16::from_le_bytes(self.backup_boot_sector)
-    }
-
     pub fn file_system_info(&self, pointer: *const u8) -> Option<&FileSystemInfo> {
         let sector = self.file_system_info_sector();
-        if sector >= self.reserved_sector_count() {
+        let bytes_per_sector = self.bytes_per_sector();
+        if sector >= self.reserved_sector_count() || bytes_per_sector < 512 {
             return None;
         }
 
-        let offset = (sector as usize) * (self.bytes_per_sector() as usize);
+        let offset = (sector as usize) * (bytes_per_sector as usize);
         let fs_info = match unsafe { (pointer.add(offset) as *const FileSystemInfo).as_ref() } {
             Some(fs_info) => fs_info,
             None => {
@@ -320,8 +320,25 @@ impl Fat32BiosParameterBlock {
         }
     }
 
+    pub fn mirrored_boot_sector(&self, pointer: *const u8) -> Option<&Fat32BootSector> {
+        let sector = self.backup_boot_sector();
+        if sector >= self.reserved_sector_count() {
+            return None;
+        }
+
+        let offset = (sector as usize) * (self.bytes_per_sector() as usize);
+        match unsafe { (pointer.add(offset) as *const Fat32BootSector).as_ref() } {
+            Some(fs_info) => Some(fs_info),
+            None => None,
+        }
+    }
+
     fn file_system_info_sector(&self) -> u16 {
         u16::from_le_bytes(self.file_system_info_sector)
+    }
+
+    fn backup_boot_sector(&self) -> u16 {
+        u16::from_le_bytes(self.backup_boot_sector)
     }
 }
 
