@@ -99,7 +99,7 @@ You'll need to install Rustup, with the following targets installed:
 
 The `build.ps1` powershell script can be used to run the tests, build all three targets, and dump them into the `out` folder. You can run the commands manually yourself and, of course, if you don't want to build all the targets, you don't have to.
 
-Then you need to format a USB stick (or any other bootable media) with a FAT32 filesystem, and dump the `.efi` files in the directory `[MEDIA ROOT]/EFI/BOOT/*.efi`. You can just copy the `EFI` directory from `out` if you ran the powershell script.
+Then you need to format a USB stick (or any other bootable media) with a FAT32 file system, and dump the `.efi` files in the directory `[MEDIA ROOT]/EFI/BOOT/*.efi`. You can just copy the `EFI` directory from `out` if you ran the powershell script.
 
 If you didn't run the powershell script, the `.efi` files can be found at `target/[target]/release/bst.efi` after building the relevant target. You'll need to rename the EFI file; refer to the powershell script for the correct names for each target.
 

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub struct FilesystemInfo {
+pub struct FileSystemInfo {
     lead_signature: u32,
     reserved_1: [u8; 480],
     struct_signature: u32,
@@ -24,7 +24,7 @@ pub struct FilesystemInfo {
     tail_signature: u32,
 }
 
-impl FilesystemInfo {
+impl FileSystemInfo {
     const VALID_STRUCT_SIGNATURE: u32 = 0x61417272;
     const VALID_LEAD_SIGNATURE: u32 = 0x41615252;
     const VALID_TAIL_SIGNATURE: u32 = 0xAA550000;

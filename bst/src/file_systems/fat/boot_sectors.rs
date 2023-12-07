@@ -17,7 +17,7 @@
 use super::bios_parameters_blocks::{
     Fat32BiosParameterBlock, FatBiosParameterBlock, FatBiosParameterBlockCommonFields,
 };
-use crate::filesystem::BootSectorExtendedBootSignature;
+use crate::file_systems::BootSectorExtendedBootSignature;
 
 #[repr(C)]
 pub struct FatBootCode<const N: usize> {

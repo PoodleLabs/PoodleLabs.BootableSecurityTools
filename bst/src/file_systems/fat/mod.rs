@@ -18,7 +18,7 @@ mod bios_parameters_blocks;
 mod boot_sectors;
 mod directory_entries;
 mod fat_entries;
-mod filesystem_info;
+mod file_system_info;
 
 // This FAT implementation was written based on the FatFs documentation,
 // which can be found at: http://elm-chan.org/fsw/ff/00index_e.html.

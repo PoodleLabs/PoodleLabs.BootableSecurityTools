@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{fat_entries::FatEntry, FatErrors, FatType};
+use super::{fat_entries::FatEntry, file_system_info::FileSystemInfo, FatErrors, FatType};
 
 pub trait FatBiosParameterBlock: Sized {
     fn root_directory_entry_count(&self) -> u16;
@@ -167,12 +167,12 @@ pub struct FatBiosParameterBlockCommonFields {
     // For maximum compatibility, sectors_per_cluster * bytes_per_sector should be <=32KB.
     sectors_per_cluster: u8,
     // Must be > 0 given the BSB containing this value.
-    // For maximum compatibility, 1.
+    // For maximum compatibility, 1 for FAT12/16, or 2 for FAT32.
     reserved_sector_count: [u8; 2],
     // >=1 technically valid, but 2 is STRONGLY recommended.
     // 1 is acceptable for non-disk memory, with a cost of reduced compatibility.
     fat_count: u8,
-    // For FAT12/16 filesystems, the root directory is stored separately in a block of 32 byte entries of this length.
+    // For FAT12/16 file systems, the root directory is stored separately in a block of 32 byte entries of this length.
     // The value should be set so that root_directory_entry_count * 32 % bytes_per_sector % 2 == 0.
     // For maximum compatibility, 512 for FAT12/16.
     // For FAT32, this MUST be 0.
@@ -257,7 +257,7 @@ pub struct Fat32BiosParameterBlock {
     file_system_version: [u8; 2],
     // The first cluster for the root directory, usually, but not always, 2.
     root_cluter: [u8; 4],
-    // The sector number for the start of the filesystem info structutre. Usually 1.
+    // The sector number for the start of the file system info structutre. Usually 1.
     file_system_info_sector: [u8; 2],
     // The sector number for the start of the backup boot sector. Strongly recommend 6.
     backup_boot_sector: [u8; 2],
@@ -283,24 +283,45 @@ impl Fat32Mirroring {
 }
 
 impl Fat32BiosParameterBlock {
-    fn mirroring(&self) -> Fat32Mirroring {
+    pub fn mirroring(&self) -> Fat32Mirroring {
         Fat32Mirroring(u16::from_le_bytes(self.extended_flags))
     }
 
-    fn file_system_version(&self) -> u16 {
+    pub fn file_system_version(&self) -> u16 {
         u16::from_le_bytes(self.file_system_version)
     }
 
-    fn root_cluster(&self) -> u32 {
+    pub fn root_cluster(&self) -> u32 {
         u32::from_le_bytes(self.root_cluter)
+    }
+
+    pub fn backup_boot_sector(&self) -> u16 {
+        u16::from_le_bytes(self.backup_boot_sector)
+    }
+
+    pub fn file_system_info(&self, pointer: *const u8) -> Option<&FileSystemInfo> {
+        let sector = self.file_system_info_sector();
+        if sector >= self.reserved_sector_count() {
+            return None;
+        }
+
+        let offset = (sector as usize) * (self.bytes_per_sector() as usize);
+        let fs_info = match unsafe { (pointer.add(offset) as *const FileSystemInfo).as_ref() } {
+            Some(fs_info) => fs_info,
+            None => {
+                return None;
+            }
+        };
+
+        if fs_info.signature_is_valid() {
+            Some(fs_info)
+        } else {
+            None
+        }
     }
 
     fn file_system_info_sector(&self) -> u16 {
         u16::from_le_bytes(self.file_system_info_sector)
-    }
-
-    fn backup_boot_sector(&self) -> u16 {
-        u16::from_le_bytes(self.backup_boot_sector)
     }
 }
 

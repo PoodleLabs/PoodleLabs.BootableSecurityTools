@@ -18,47 +18,47 @@ use super::{
     get_byte_aligned_fat_entry_byte_offset_and_sector, get_status, read_byte_aligned_fat_entry,
     FatEntry, FatEntryOutOfRangeError, FatEntryStatus,
 };
-use crate::filesystem::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
+use crate::file_systems::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
 use core::ops::{BitAnd, BitOr, Not};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Fat32Entry(u32);
+pub struct Fat16Entry(u16);
 
-impl Fat32Entry {
-    const BIT_MASK: u32 = 0b1111111111111111111111111111;
-    const END_OF_CHAIN: u32 = 0xFFFFFFFF;
-    const BAD_CLUSTER: u32 = 0xFFFFFFF7;
-    const RESERVED: u32 = 1;
-    const FREE: u32 = 0;
+impl Fat16Entry {
+    const BIT_MASK: u32 = 0b1111111111111111;
+    const END_OF_CHAIN: u16 = 0xFFFF;
+    const BAD_CLUSTER: u16 = 0xFFF7;
+    const RESERVED: u16 = 1;
+    const FREE: u16 = 0;
 }
 
-impl TryFrom<u32> for Fat32Entry {
+impl TryFrom<u32> for Fat16Entry {
     type Error = FatEntryOutOfRangeError;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         if value > Self::BIT_MASK {
             Err(FatEntryOutOfRangeError::from(Self::BIT_MASK, value))
         } else {
-            Ok(Self(value))
+            Ok(Self(value as u16))
         }
     }
 }
 
-impl Into<u32> for Fat32Entry {
+impl Into<u32> for Fat16Entry {
     fn into(self) -> u32 {
         self.0 as u32
     }
 }
 
-impl Not for Fat32Entry {
+impl Not for Fat16Entry {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self((!self.0) & Self::BIT_MASK)
+        Self((!self.0) & (Self::BIT_MASK as u16))
     }
 }
 
-impl BitOr for Fat32Entry {
+impl BitOr for Fat16Entry {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -66,7 +66,7 @@ impl BitOr for Fat32Entry {
     }
 }
 
-impl BitAnd for Fat32Entry {
+impl BitAnd for Fat16Entry {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -74,7 +74,7 @@ impl BitAnd for Fat32Entry {
     }
 }
 
-impl FatEntry for Fat32Entry {
+impl FatEntry for Fat16Entry {
     fn volume_dirty_flag() -> Self {
         Self(1)
     }
@@ -100,19 +100,15 @@ impl FatEntry for Fat32Entry {
     }
 
     fn check_media_bits(&self, media_bits: u8) -> bool {
-        self.0 == (media_bits as u32 | 0xFFFFFF00)
+        self.0 == (media_bits as u16 | 0xFF00)
     }
 
     fn check_error_bits(&self) -> FatErrors {
-        if (self.0 & 0b11111111111111111111111111111100) != 0b11111111111111111111111111111100 {
+        if (self.0 & 0b1111111111111100) != 0b1111111111111100 {
             FatErrors::InvalidErrorFatEntry
-        } else if (self.0 & 0b00000000000000000000000000000010)
-            != 0b00000000000000000000000000000010
-        {
+        } else if (self.0 & 0b0000000000000010) != 0b0000000000000010 {
             FatErrors::HardError
-        } else if (self.0 & 0b00000000000000000000000000000001)
-            != 0b00000000000000000000000000000001
-        {
+        } else if (self.0 & 0b0000000000000001) != 0b0000000000000001 {
             FatErrors::VolumeDirty
         } else {
             FatErrors::None
@@ -126,8 +122,8 @@ impl FatEntry for Fat32Entry {
         pointer: *const u8,
         parameters: &T,
     ) -> Option<Self> {
-        match read_byte_aligned_fat_entry::<_, u32>(index, pointer, parameters) {
-            Some(e) => Some(Self(e & Self::BIT_MASK)),
+        match read_byte_aligned_fat_entry(index, pointer, parameters) {
+            Some(e) => Some(e),
             None => None,
         }
     }
@@ -138,7 +134,7 @@ impl FatEntry for Fat32Entry {
         pointer: *mut u8,
         parameters: &T,
     ) -> bool {
-        let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<u32>(
+        let (byte_offset, sector) = get_byte_aligned_fat_entry_byte_offset_and_sector::<u16>(
             parameters.bytes_per_sector() as usize,
             index,
         );
@@ -148,8 +144,7 @@ impl FatEntry for Fat32Entry {
         }
 
         let byte_offset = byte_offset + parameters.fat_start_sector() as usize;
-        let ptr = unsafe { (pointer.add(byte_offset) as *mut u32).as_mut() }.unwrap();
-        *ptr = (*ptr & !Self::BIT_MASK) | (self.0 & Self::BIT_MASK);
+        unsafe { *(pointer.add(byte_offset) as *mut u16) = self.0 }
         true
     }
 }
