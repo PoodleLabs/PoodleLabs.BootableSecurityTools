@@ -36,13 +36,21 @@ pub struct FatTime {
 
 #[repr(C)]
 pub struct DirectoryEntryAttributes(u8);
-// 0x01: Read Only
-// 0x02: Hidden
-// 0x04: System
-// 0x08: Volume label - An entry with this attribute is the volume label. Only one entry can have this flag, in the root directory. Cluster and filesize values must all be set to zero.
-// 0x10: Directory
-// 0x20: Archive - A flag for backup utilities to detect changes. Should be set to 1 on any change, 0 by the backup utility on backup.
-// 0x0F: Long File Name Entry - Indicates the entry is part of a long file name.
+
+impl DirectoryEntryAttributes {
+    pub const LONG_FILE_NAME_ENTRY: Self = Self(0x0F);
+
+    pub const fn is_long_file_name_entry(&self) -> bool {
+        self.0 == Self::LONG_FILE_NAME_ENTRY.0
+    }
+    // 0x01: Read Only
+    // 0x02: Hidden
+    // 0x04: System
+    // 0x08: Volume label - An entry with this attribute is the volume label. Only one entry can have this flag, in the root directory. Cluster and filesize values must all be set to zero.
+    // 0x10: Directory
+    // 0x20: Archive - A flag for backup utilities to detect changes. Should be set to 1 on any change, 0 by the backup utility on backup.
+    // 0x0F: Long File Name Entry - Indicates the entry is part of a long file name.
+}
 
 #[repr(C)]
 pub struct DirectoryEntryNameCaseFlags(u8);
@@ -114,6 +122,66 @@ impl DirectoryEntry {
                 .body()
                 .bios_parameters_block()
                 .get_byte_offset_for_cluster(self.first_cluster() as usize)
+        }
+    }
+}
+
+#[repr(C)]
+pub struct LongFileNameOrdering(u8);
+// Bit 0x40 indicated end of LFN when high.
+// Bits 0-4 represent the ordering index from (1-20).
+
+#[repr(C)]
+pub struct LongFileNamePart1([u8; 10]); // Five UTF-16 characters.
+
+#[repr(C)]
+pub struct LongFileNamePart2([u8; 12]); // Six UTF-16 characters.
+
+#[repr(C)]
+pub struct LongFileNamePart3([u8; 4]); // Two UTF-16 characters.
+
+#[repr(C)]
+pub struct LongFileNameDirectoryEntry {
+    ordering: LongFileNameOrdering,
+    part_1: LongFileNamePart1,
+    attribute: DirectoryEntryAttributes, // Always 0x0F: Long File Name Entry.
+    entry_type: u8,                      // Always 0.
+    sfn_checksum: u8,                    // Checksum of associated SFN entry.
+    part_2: LongFileNamePart2,
+    cluster_low: [u8; 2], // Always 0
+    part_3: LongFileNamePart3,
+}
+
+impl LongFileNameDirectoryEntry {
+    pub const fn is_valid(&self) -> bool {
+        // TODO: Checksum?
+        self.attribute.is_long_file_name_entry()
+            && self.entry_type == 0
+            && u16::from_le_bytes(self.cluster_low) == 0
+    }
+
+    pub const fn ordering(&self) -> &LongFileNameOrdering {
+        &self.ordering
+    }
+
+    pub fn characters(&self) -> [u16; 13] {
+        let mut characters = [0u16; 13];
+        Self::extract_chars_from_part(&mut characters, &self.part_1.0, 0);
+        Self::extract_chars_from_part(&mut characters, &self.part_2.0, 5);
+        Self::extract_chars_from_part(&mut characters, &self.part_3.0, 11);
+        characters
+    }
+
+    fn extract_chars_from_part<const N: usize>(
+        characters: &mut [u16; 13],
+        part: &[u8; N],
+        offset: usize,
+    ) {
+        let mut single_character_buffer = [0u8; 2];
+        for i in 0..N {
+            single_character_buffer[0] = part[i * 2];
+            single_character_buffer[1] = part[(i * 2) + 1];
+            characters[i + offset] = u16::from_le_bytes(single_character_buffer);
         }
     }
 }
