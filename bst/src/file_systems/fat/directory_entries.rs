@@ -172,6 +172,13 @@ impl LongFileNameDirectoryEntry {
         characters
     }
 
+    pub fn content_slice(characters: &[u16; 13]) -> &[u16] {
+        match characters.iter().enumerate().find(|(_, c)| **c == 0) {
+            Some((i, _)) => &characters[..i],
+            None => &characters[..],
+        }
+    }
+
     fn extract_chars_from_part<const N: usize>(
         characters: &mut [u16; 13],
         part: &[u8; N],
