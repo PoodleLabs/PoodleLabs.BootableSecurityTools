@@ -171,7 +171,6 @@ pub struct FatBiosParameterBlockCommonFields {
     // For maximum compatibility, sectors_per_cluster * bytes_per_sector should be <=32KB.
     sectors_per_cluster: u8,
     // Must be > 0 given the BSB containing this value.
-    // For maximum compatibility, 1 for FAT12/16, or 2 for FAT32.
     reserved_sector_count: [u8; 2],
     // >=1 technically valid, but 2 is STRONGLY recommended.
     // 1 is acceptable for non-disk memory, with a cost of reduced compatibility.
@@ -256,11 +255,11 @@ pub struct Fat32BiosParameterBlock {
     common_fields: FatBiosParameterBlockCommonFields,
     // The number of sectors occupied by each FAT.
     sectors_per_fat: [u8; 4],
-    extended_flags: [u8; 2], // TODO
+    extended_flags: [u8; 2],
     // Upper byte is major version, lower byte is minor version. Expect 0.
     file_system_version: [u8; 2],
     // The first cluster for the root directory, usually, but not always, 2.
-    root_cluter: [u8; 4],
+    root_cluster: [u8; 4],
     // The sector number for the start of the file system info structutre. Usually 1.
     file_system_info_sector: [u8; 2],
     // The sector number for the start of the backup boot sector. Strongly recommend 6.
@@ -296,7 +295,7 @@ impl Fat32BiosParameterBlock {
     }
 
     pub fn root_cluster(&self) -> u32 {
-        u32::from_le_bytes(self.root_cluter)
+        u32::from_le_bytes(self.root_cluster)
     }
 
     pub fn file_system_info(&self, pointer: *const u8) -> Option<&FileSystemInfo> {
@@ -347,7 +346,6 @@ impl Fat32BiosParameterBlock {
             total_sector_count += 1;
         }
 
-        // TODO: Root cluster?
         if start_sector + total_sector_count > (self.reserved_sector_count() as usize) {
             return false;
         }
@@ -367,7 +365,6 @@ impl Fat32BiosParameterBlock {
             None => {}
         }
 
-        // TODO: Root cluster?
         true
     }
 
