@@ -16,6 +16,7 @@
 
 mod exfat;
 mod fat;
+mod master_boot_record;
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
