@@ -17,33 +17,86 @@
 use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
 
 #[repr(C)]
+pub struct FatDate([u8; 2]);
+// Bit 15-9: Year 0-127 (1980-2107)
+// Bit 8-5: Month 1-12
+// Bit 4-0: Day 1-31
+
+#[repr(C)]
+pub struct FatTime2sResolution([u8; 2]);
+// Bit 15-11: Hour 0-23
+// Bit 10-5: Minute 0-59
+// Bit 4-0: 2 second increment 0-29 (equalling 0-58s)
+
+#[repr(C)]
+pub struct FatTime {
+    sub_2s: u8, // Resolution of 10 milliseconds, 0-199 where 0 = 0, and 199 = 1.99s.
+    main: FatTime2sResolution,
+}
+
+#[repr(C)]
+pub struct DirectoryEntryAttributes(u8);
+// 0x01: Read Only
+// 0x02: Hidden
+// 0x04: System
+// 0x08: Volume label - An entry with this attribute is the volume label. Only one entry can have this flag, in the root directory. Cluster and filesize values must all be set to zero.
+// 0x10: Directory
+// 0x20: Archive - A flag for backup utilities to detect changes. Should be set to 1 on any change, 0 by the backup utility on backup.
+// 0x0F: Long File Name Entry - Indicates the entry is part of a long file name.
+
+#[repr(C)]
+pub struct DirectoryEntryNameCaseFlags(u8);
+// 0x10: File extension part is all lowercase
+// 0x08: File name part is all lowercase
+
+#[repr(C)]
+pub struct ShortFileName([u8; 11]);
+// First byte:
+// 0xE5: Free
+// 0x00: Free, and all following directory entries are free
+// First 8 bytes are file name
+// Last 3 bytes are extension
+// Pad with spaces (0x20)
+// Allowable characters are 0-9 A-Z ! # $ % & ' ( ) - @ ^ _ ` { } ~
+// No spaces besides automatic padding are allowed.
+
+#[repr(C)]
 pub struct DirectoryEntry {
-    // TODO: Correct this structure
-    file_name: [u8; 20],
+    name: ShortFileName,
+    attributes: DirectoryEntryAttributes,
+    name_case_flags: DirectoryEntryNameCaseFlags,
+    creation_time: FatTime,
+    creation_date: FatDate,
+    last_access_date: FatDate,
+    cluster_high: [u8; 2], // Upper bytes of the cluster number, always 0x00, 0x00 on FAT12/16
+    last_write_time: FatTime2sResolution,
+    last_write_date: FatDate,
+    cluster_low: [u8; 2], // Lower bytes of the cluster number.
     file_size: [u8; 4],
-    timestamp: [u8; 4],
-    first_cluster: [u8; 4],
 }
 
 impl DirectoryEntry {
-    pub const fn is_empty_file(&self) -> bool {
-        self.file_size() == 0 && self.first_cluster() == 0
-    }
-
-    pub const fn is_invalid(&self) -> bool {
-        ((self.file_size() == 0) != (self.first_cluster() == 0)) || (self.first_cluster() == 1)
-    }
-
-    pub const fn first_cluster(&self) -> u32 {
-        u32::from_le_bytes(self.first_cluster)
+    pub const fn file_name(&self) -> &ShortFileName {
+        &self.name
     }
 
     pub const fn file_size(&self) -> u32 {
         u32::from_le_bytes(self.file_size)
     }
 
-    pub const fn timestamp(&self) -> u32 {
-        u32::from_le_bytes(self.timestamp)
+    pub fn is_empty_file(&self) -> bool {
+        self.file_size() == 0 && self.first_cluster() == 0
+    }
+
+    pub fn first_cluster(&self) -> u32 {
+        let mut bytes = [0u8; 4];
+        bytes[..2].copy_from_slice(&self.cluster_high);
+        bytes[2..].copy_from_slice(&self.cluster_low);
+        u32::from_le_bytes(bytes)
+    }
+
+    pub fn is_invalid(&self) -> bool {
+        ((self.file_size() == 0) != (self.first_cluster() == 0)) || (self.first_cluster() == 1)
     }
 
     pub fn try_get_start_byte_offset<
