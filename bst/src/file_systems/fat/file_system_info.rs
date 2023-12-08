@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#[derive(Clone)]
 pub struct FileSystemInfo {
     lead_signature: u32,
     reserved_1: [u8; 480],

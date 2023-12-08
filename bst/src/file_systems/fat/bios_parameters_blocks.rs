@@ -18,6 +18,7 @@ use super::{
     boot_sectors::Fat32BootSector, fat_entries::FatEntry, file_system_info::FileSystemInfo,
     FatErrors, FatType,
 };
+use core::{mem::size_of, slice};
 
 pub trait FatBiosParameterBlock: Sized {
     fn root_directory_entry_count(&self) -> u16;
@@ -320,8 +321,8 @@ impl Fat32BiosParameterBlock {
         }
     }
 
-    pub fn mirrored_boot_sector(&self, pointer: *const u8) -> Option<&Fat32BootSector> {
-        let sector = self.backup_boot_sector();
+    pub fn backup_boot_sector(&self, pointer: *const u8) -> Option<&Fat32BootSector> {
+        let sector = self.backup_boot_sector_start();
         if sector >= self.reserved_sector_count() {
             return None;
         }
@@ -333,11 +334,48 @@ impl Fat32BiosParameterBlock {
         }
     }
 
+    pub fn update_reserved_sector_backups(&mut self, pointer: *mut u8) -> bool {
+        let bytes_per_sector = self.bytes_per_sector() as usize;
+        let start_sector = self.backup_boot_sector_start() as usize;
+        let boot_sector_count =
+            (size_of::<Fat32BootSector>() + bytes_per_sector - 1) / bytes_per_sector;
+
+        let mut total_sector_count = boot_sector_count;
+        let filesystem_info = self.file_system_info(pointer);
+        if filesystem_info.is_none() {
+            // FS Info requires a sector size >= 512, and the structure size is 512, so if present, it needs exactly one sector.
+            total_sector_count += 1;
+        }
+
+        // TODO: Root cluster?
+        if start_sector + total_sector_count > (self.reserved_sector_count() as usize) {
+            return false;
+        }
+
+        let backup_start_byte = start_sector * bytes_per_sector;
+        let boot_sector_bytes = boot_sector_count * bytes_per_sector;
+        let boot_sector_source = unsafe { slice::from_raw_parts(pointer, boot_sector_bytes) };
+        let boot_sector_destination =
+            unsafe { slice::from_raw_parts_mut(pointer.add(backup_start_byte), boot_sector_bytes) };
+
+        boot_sector_destination.copy_from_slice(boot_sector_source);
+        match filesystem_info {
+            Some(v) => unsafe {
+                *(pointer.add(backup_start_byte + boot_sector_bytes) as *mut FileSystemInfo) =
+                    v.clone();
+            },
+            None => {}
+        }
+
+        // TODO: Root cluster?
+        true
+    }
+
     fn file_system_info_sector(&self) -> u16 {
         u16::from_le_bytes(self.file_system_info_sector)
     }
 
-    fn backup_boot_sector(&self) -> u16 {
+    fn backup_boot_sector_start(&self) -> u16 {
         u16::from_le_bytes(self.backup_boot_sector)
     }
 }
