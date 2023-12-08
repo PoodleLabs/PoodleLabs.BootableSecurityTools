@@ -15,7 +15,66 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #[repr(C)]
-pub struct MbrPartitionTableEntry([u8; 16]);
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MbrPartitionBootIndicator(u8);
+
+impl MbrPartitionBootIndicator {
+    pub const NON_BOOTABLE: Self = Self(Self::NON_BOOTABLE_VALUE);
+    pub const BOOTABLE: Self = Self(Self::BOOTABLE_VALUE);
+
+    const NON_BOOTABLE_VALUE: u8 = 0x00;
+    const BOOTABLE_VALUE: u8 = 0x80;
+
+    pub const fn is_bootable(&self) -> bool {
+        self.0 == Self::BOOTABLE_VALUE
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MbrPartitionTypeValue(u8);
+
+impl MbrPartitionTypeValue {
+    pub const BLANK: Self = Self(0x00);
+    pub const FAT12_MIXED: Self = Self(0x01); // < 65536 Sectors, CHS/LBA
+    pub const FAT16_MIXED: Self = Self(0x04); // < 65536 Sectors, CHS/LBA
+    pub const EXTENDED_MIXED: Self = Self(0x05); // CHS/LBA
+    pub const SMALL_FAT_MIXED: Self = Self(0x06); // FAT12/16 >= 65536 Sectors, CHS/LBA
+    pub const EXTENDED_FAT: Self = Self(0x07); // HPFS/NTFS/exFAT, CHS/LBA
+    pub const FAT32_MIXED: Self = Self(0x0B); // FAT32, CHS/LBA
+    pub const FAT32: Self = Self(0x0C); // FAT32, LBA
+    pub const SMALL_FAT: Self = Self(0x0E); // FAT12/16, LBA
+    pub const EXTENDED: Self = Self(0x0F); // LBA
+}
+
+#[repr(C)]
+pub struct MbrPartitionTableEntry {
+    boot_indicator: MbrPartitionBootIndicator,
+    start_head: u8,          // Head number (0-254) of starting sector in CHS format.
+    start_cylinder: [u8; 2], // Cylinder number (bits 0-9, value 0-1023) | Sector number (bits 10-15, value 0-63) of starting sector in CHS format.
+    partition_type: MbrPartitionTypeValue,
+    end_head: u8,          // Head number (0-254) of end sector in CHS format.
+    end_cylinder: [u8; 2], // Cylinder number (bits 0-9, value 0-1023) | Sector number (bits 10-15, value 0-63) of end sector in CHS format.
+    lba_offset: [u8; 4],   // The start sector (>=1) of the partition in LBA format.
+    lba_size: [u8; 4],     // The size in sectors (>=1) of the partition in LBA format.
+}
+
+impl MbrPartitionTableEntry {
+    pub const EMPTY: Self = Self {
+        boot_indicator: MbrPartitionBootIndicator::NON_BOOTABLE,
+        start_head: 0,
+        start_cylinder: [0, 0],
+        partition_type: MbrPartitionTypeValue::BLANK,
+        end_head: 0,
+        end_cylinder: [0, 0],
+        lba_offset: [0, 0, 0, 0],
+        lba_size: [0, 0, 0, 0],
+    };
+
+    pub const fn is_empty(&self) -> bool {
+        self.partition_type.0 == MbrPartitionTypeValue::BLANK.0
+    }
+}
 
 #[repr(C)]
 pub struct MasterBootRecord {
