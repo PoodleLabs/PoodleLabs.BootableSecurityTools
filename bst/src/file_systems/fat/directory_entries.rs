@@ -18,19 +18,32 @@ use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBoot
 
 #[repr(C)]
 pub struct DirectoryEntry {
+    // TODO: Correct this structure
     file_name: [u8; 20],
-    file_size: u32,
-    timestamp: u32,
-    first_cluster: u32,
+    file_size: [u8; 4],
+    timestamp: [u8; 4],
+    first_cluster: [u8; 4],
 }
 
 impl DirectoryEntry {
     pub const fn is_empty_file(&self) -> bool {
-        self.file_size == 0 && self.first_cluster == 0
+        self.file_size() == 0 && self.first_cluster() == 0
     }
 
     pub const fn is_invalid(&self) -> bool {
-        ((self.file_size == 0) != (self.first_cluster == 0)) || (self.first_cluster == 1)
+        ((self.file_size() == 0) != (self.first_cluster() == 0)) || (self.first_cluster() == 1)
+    }
+
+    pub const fn first_cluster(&self) -> u32 {
+        u32::from_le_bytes(self.first_cluster)
+    }
+
+    pub const fn file_size(&self) -> u32 {
+        u32::from_le_bytes(self.file_size)
+    }
+
+    pub const fn timestamp(&self) -> u32 {
+        u32::from_le_bytes(self.timestamp)
     }
 
     pub fn try_get_start_byte_offset<
@@ -47,7 +60,7 @@ impl DirectoryEntry {
             boot_sector
                 .body()
                 .bios_parameters_block()
-                .get_byte_offset_for_cluster(self.first_cluster as usize)
+                .get_byte_offset_for_cluster(self.first_cluster() as usize)
         }
     }
 }
