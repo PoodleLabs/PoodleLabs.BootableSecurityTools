@@ -27,6 +27,8 @@ pub trait FatBiosParameterBlock: Sized {
 
     fn hidden_sector_count(&self) -> u32;
 
+    fn should_mirror_fats(&self) -> bool;
+
     fn sectors_per_cluster(&self) -> u8;
 
     fn total_sector_count(&self) -> u32;
@@ -117,20 +119,40 @@ pub trait FatBiosParameterBlock: Sized {
         return second_entry.check_error_bits();
     }
 
-    fn try_clear_volume_dirty<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+    fn try_clear_volume_dirty<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
         try_set_flag_high(self, pointer, TFatEntry::volume_dirty_flag())
     }
 
-    fn try_set_volume_dirty<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+    fn try_set_volume_dirty<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
         try_set_flag_low(self, pointer, TFatEntry::volume_dirty_flag())
     }
 
-    fn try_clear_hard_error<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+    fn try_clear_hard_error<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
         try_set_flag_high(self, pointer, TFatEntry::hard_error_flag())
     }
 
-    fn try_set_hard_error<TFatEntry: FatEntry>(&self, pointer: *mut u8) -> bool {
+    fn try_set_hard_error<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
         try_set_flag_low(self, pointer, TFatEntry::hard_error_flag())
+    }
+
+    fn update_mirrored_fats(&mut self, pointer: *mut u8) -> bool {
+        let fat_count = self.fat_count() as usize;
+        if !self.should_mirror_fats() || fat_count < 2 {
+            return false;
+        }
+
+        let bytes_per_sector = self.bytes_per_sector() as usize;
+        let fat_size = (self.sectors_per_fat() as usize) * bytes_per_sector;
+        let start_offset = (self.fat_start_sector() as usize) * bytes_per_sector;
+        let source = unsafe { slice::from_raw_parts(pointer.add(start_offset), fat_size) };
+        for i in 1..fat_count {
+            unsafe {
+                slice::from_raw_parts_mut(pointer.add(start_offset + (i * fat_size)), fat_size)
+            }
+            .copy_from_slice(source)
+        }
+
+        true
     }
 }
 
@@ -211,6 +233,10 @@ impl FatBiosParameterBlock for FatBiosParameterBlockCommonFields {
 
     fn hidden_sector_count(&self) -> u32 {
         u32::from_le_bytes(self.hidden_sector_count)
+    }
+
+    fn should_mirror_fats(&self) -> bool {
+        todo!()
     }
 
     fn sectors_per_cluster(&self) -> u8 {
@@ -388,6 +414,10 @@ impl FatBiosParameterBlock for Fat32BiosParameterBlock {
 
     fn hidden_sector_count(&self) -> u32 {
         self.common_fields.hidden_sector_count()
+    }
+
+    fn should_mirror_fats(&self) -> bool {
+        self.fat_count() > 1 && self.mirroring().all_fats_active_and_mirrored()
     }
 
     fn sectors_per_cluster(&self) -> u8 {
