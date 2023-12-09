@@ -19,7 +19,6 @@ pub(in crate::uefi) mod text;
 
 use super::core_types::{UefiGuid, UefiHandle};
 use crate::bits::bit_field;
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 pub(in crate::uefi) trait UefiProtocol {
     fn guid() -> &'static UefiGuid;

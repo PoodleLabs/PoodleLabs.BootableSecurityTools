@@ -16,7 +16,7 @@
 
 use crate::{
     characters::Character,
-    keyboard_in::{BehaviourKey, DigitKey, Key, KeyPress, ModifierKeys, ToggleKeys},
+    input::keyboard::{BehaviourKey, DigitKey, Key, KeyPress, ModifierKeys, ToggleKeys},
     uefi::{
         core_types::{UefiEventHandle, UefiGuid, UefiStatusCode},
         protocols::UefiProtocol,

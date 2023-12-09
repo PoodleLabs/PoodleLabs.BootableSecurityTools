@@ -19,7 +19,7 @@ use super::{
     protocols::{text::UefiSimpleTextInputExtended, UefiProtocolAttributes},
     system_table::UefiSystemTable,
 };
-use crate::keyboard_in::{KeyPress, KeyboardIn, ModifierKeys, ToggleKeys};
+use crate::input::keyboard::{KeyPress, KeyboardIn, ModifierKeys, ToggleKeys};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(in crate::uefi) struct UefiKeyboardIn {

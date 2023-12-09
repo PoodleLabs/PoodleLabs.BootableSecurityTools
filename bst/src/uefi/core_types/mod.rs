@@ -34,10 +34,7 @@ pub(in crate::uefi) use time::{UefiTime, UefiTimeCapabilities};
 
 use crate::bits::bit_field;
 use alloc::sync::Arc;
-use core::{
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign},
-    slice,
-};
+use core::slice;
 use macros::c16;
 
 #[repr(C)]

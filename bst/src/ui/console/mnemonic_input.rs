@@ -19,7 +19,7 @@ use crate::{
     bitcoin::mnemonics::MnemonicParser,
     console_out::ConsoleOut,
     constants,
-    keyboard_in::{BehaviourKey, Key, KeyboardIn},
+    input::keyboard::{BehaviourKey, Key, KeyboardIn},
     system_services::SystemServices,
     ui::Point,
     String16,

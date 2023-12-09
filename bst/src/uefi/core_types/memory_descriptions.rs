@@ -15,7 +15,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::bits::bit_field;
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]

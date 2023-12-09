@@ -16,7 +16,6 @@
 
 use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
 use crate::bits::bit_field;
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 #[repr(C)]
 pub struct FatDate([u8; 2]);

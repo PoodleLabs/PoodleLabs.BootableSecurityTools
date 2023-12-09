@@ -16,7 +16,7 @@
 
 use crate::{
     clipboard::Clipboard, console_out::ConsoleOut, constants, initialize_console,
-    keyboard_in::KeyboardIn, string16::String16,
+    input::keyboard::KeyboardIn, string16::String16,
 };
 use alloc::{boxed::Box, format};
 use core::{

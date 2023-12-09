@@ -17,7 +17,7 @@
 use super::{ConsoleUiTitle, ConsoleWriteable};
 use crate::{
     console_out::{ConsoleColours, ConsoleOut},
-    keyboard_in::{BehaviourKey, Key, KeyboardIn, ModifierKeys},
+    input::keyboard::{BehaviourKey, Key, KeyboardIn, ModifierKeys},
     system_services::SystemServices,
     ui::{list::UiList, Point, UiListType},
 };

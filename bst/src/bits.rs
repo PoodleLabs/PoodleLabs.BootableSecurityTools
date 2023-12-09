@@ -151,6 +151,7 @@ pub fn first_high_bit_index<T: BitTarget>(digit: T) -> usize {
 
 macro_rules! bit_field {
     ($t:ident) => {
+        use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
         impl $t {
             #[allow(dead_code)]
             pub const fn overlaps(self, other: Self) -> bool {
@@ -202,6 +203,14 @@ macro_rules! bit_field {
         impl BitXorAssign for $t {
             fn bitxor_assign(&mut self, rhs: Self) {
                 *self = Self(self.0 ^ rhs.0)
+            }
+        }
+
+        impl Not for $t {
+            type Output = Self;
+
+            fn not(self) -> Self::Output {
+                Self(!self.0)
             }
         }
     };
