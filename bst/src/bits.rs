@@ -148,3 +148,61 @@ pub fn first_high_bit_index<T: BitTarget>(digit: T) -> usize {
 
     first_high_bit_index
 }
+
+macro_rules! bit_field {
+    ($t:ident) => {
+        impl $t {
+            pub const fn has_any_flag_of(self, other: Self) -> bool {
+                (self.0 & other.0) != 0
+            }
+
+            pub const fn has_all_flags_of(self, other: Self) -> bool {
+                (self.0 & other.0) == other.0
+            }
+        }
+
+        impl BitAnd for $t {
+            type Output = Self;
+
+            fn bitand(self, rhs: Self) -> Self::Output {
+                Self(self.0 & rhs.0)
+            }
+        }
+
+        impl BitAndAssign for $t {
+            fn bitand_assign(&mut self, rhs: Self) {
+                *self = Self(self.0 & rhs.0)
+            }
+        }
+
+        impl BitOr for $t {
+            type Output = Self;
+
+            fn bitor(self, rhs: Self) -> Self::Output {
+                Self(self.0 | rhs.0)
+            }
+        }
+
+        impl BitOrAssign for $t {
+            fn bitor_assign(&mut self, rhs: Self) {
+                *self = Self(self.0 | rhs.0)
+            }
+        }
+
+        impl BitXor for $t {
+            type Output = Self;
+
+            fn bitxor(self, rhs: Self) -> Self::Output {
+                Self(self.0 ^ rhs.0)
+            }
+        }
+
+        impl BitXorAssign for $t {
+            fn bitxor_assign(&mut self, rhs: Self) {
+                *self = Self(self.0 ^ rhs.0)
+            }
+        }
+    };
+}
+
+pub(crate) use bit_field;

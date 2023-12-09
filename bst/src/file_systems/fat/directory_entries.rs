@@ -15,6 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
+use crate::bits::bit_field;
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 #[repr(C)]
 pub struct FatDate([u8; 2]);
@@ -35,22 +37,50 @@ pub struct FatTime {
 }
 
 #[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct DirectoryEntryAttributes(u8);
 
 impl DirectoryEntryAttributes {
     pub const LONG_FILE_NAME_ENTRY: Self = Self(0x0F);
+    pub const READ_ONLY: Self = Self(0x01);
+    pub const HIDDEN: Self = Self(0x02);
+    pub const SYSTEM: Self = Self(0x04);
+    /// An entry with this attribute is the volume label. Only one entry can have this flag, in the root directory. Cluster and filesize values must all be set to zero.
+    pub const VOLUME_LABEL: Self = Self(0x08);
+    pub const DIRECTORY: Self = Self(0x10);
+    /// A flag for backup utilities to detect changes. Should be set to 1 on any change, 0 by the backup utility on backup.
+    pub const ARCHIVE: Self = Self(0x20);
 
     pub const fn is_long_file_name_entry(&self) -> bool {
         self.0 == Self::LONG_FILE_NAME_ENTRY.0
     }
-    // 0x01: Read Only
-    // 0x02: Hidden
-    // 0x04: System
-    // 0x08: Volume label - An entry with this attribute is the volume label. Only one entry can have this flag, in the root directory. Cluster and filesize values must all be set to zero.
-    // 0x10: Directory
-    // 0x20: Archive - A flag for backup utilities to detect changes. Should be set to 1 on any change, 0 by the backup utility on backup.
-    // 0x0F: Long File Name Entry - Indicates the entry is part of a long file name.
+
+    pub const fn is_read_only(&self) -> bool {
+        self.has_all_flags_of(Self::READ_ONLY)
+    }
+
+    pub const fn is_hidden(&self) -> bool {
+        self.has_any_flag_of(Self::HIDDEN)
+    }
+
+    pub const fn is_system_entry(&self) -> bool {
+        self.has_any_flag_of(Self::SYSTEM)
+    }
+
+    pub const fn is_volume_label(&self) -> bool {
+        self.has_any_flag_of(Self::VOLUME_LABEL)
+    }
+
+    pub const fn is_directory(&self) -> bool {
+        self.has_any_flag_of(Self::DIRECTORY)
+    }
+
+    pub const fn updated_since_last_archive(&self) -> bool {
+        self.has_any_flag_of(Self::ARCHIVE)
+    }
 }
+
+bit_field!(DirectoryEntryAttributes);
 
 #[repr(C)]
 pub struct DirectoryEntryNameCaseFlags(u8);

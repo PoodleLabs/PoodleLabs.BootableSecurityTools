@@ -18,6 +18,7 @@ pub(in crate::uefi) mod device_paths;
 pub(in crate::uefi) mod text;
 
 use super::core_types::{UefiGuid, UefiHandle};
+use crate::bits::bit_field;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 pub(in crate::uefi) trait UefiProtocol {
@@ -76,47 +77,7 @@ impl UefiProtocolAttributes {
     pub const EXCLUSIVE: Self = Self(0x00000020);
 }
 
-impl BitAnd for UefiProtocolAttributes {
-    type Output = UefiProtocolAttributes;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for UefiProtocolAttributes {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 & self.0)
-    }
-}
-
-impl BitOr for UefiProtocolAttributes {
-    type Output = UefiProtocolAttributes;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for UefiProtocolAttributes {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 | self.0)
-    }
-}
-
-impl BitXor for UefiProtocolAttributes {
-    type Output = UefiProtocolAttributes;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for UefiProtocolAttributes {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 ^ self.0)
-    }
-}
+bit_field!(UefiProtocolAttributes);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]

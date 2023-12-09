@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::bits::bit_field;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 #[repr(C)]
@@ -45,44 +46,4 @@ impl UefiEventTypeFlags {
     pub const SIGNAL_VIRTUAL_ADDRESS_CHANGE: Self = Self(0x60000202);
 }
 
-impl BitAnd for UefiEventTypeFlags {
-    type Output = UefiEventTypeFlags;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for UefiEventTypeFlags {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 & self.0)
-    }
-}
-
-impl BitOr for UefiEventTypeFlags {
-    type Output = UefiEventTypeFlags;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for UefiEventTypeFlags {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 | self.0)
-    }
-}
-
-impl BitXor for UefiEventTypeFlags {
-    type Output = UefiEventTypeFlags;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for UefiEventTypeFlags {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 ^ self.0)
-    }
-}
+bit_field!(UefiEventTypeFlags);

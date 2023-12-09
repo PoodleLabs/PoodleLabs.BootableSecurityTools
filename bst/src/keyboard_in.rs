@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::bits::bit_field;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
@@ -119,57 +120,9 @@ impl ToggleKeys {
     pub const fn scroll_lock(self) -> bool {
         self.has_any_flag_of(Self::SCROLL_LOCK)
     }
-
-    pub const fn has_any_flag_of(self, other: Self) -> bool {
-        (self.0 & other.0) != 0
-    }
-
-    pub const fn has_all_flags_of(self, other: Self) -> bool {
-        (self.0 & other.0) == other.0
-    }
 }
 
-impl BitAnd for ToggleKeys {
-    type Output = Self;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for ToggleKeys {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(self.0 & rhs.0)
-    }
-}
-
-impl BitOr for ToggleKeys {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for ToggleKeys {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(self.0 | rhs.0)
-    }
-}
-
-impl BitXor for ToggleKeys {
-    type Output = Self;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for ToggleKeys {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(self.0 ^ rhs.0)
-    }
-}
+bit_field!(ToggleKeys);
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ModifierKeys(u16);
@@ -248,57 +201,9 @@ impl ModifierKeys {
     pub const fn system_request(self) -> bool {
         self.has_any_flag_of(Self::SYSTEM_REQUEST)
     }
-
-    pub const fn has_any_flag_of(self, other: Self) -> bool {
-        (self.0 & other.0) != 0
-    }
-
-    pub const fn has_all_flags_of(self, other: Self) -> bool {
-        (self.0 & other.0) == other.0
-    }
 }
 
-impl BitAnd for ModifierKeys {
-    type Output = Self;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for ModifierKeys {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(self.0 & rhs.0)
-    }
-}
-
-impl BitOr for ModifierKeys {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for ModifierKeys {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(self.0 | rhs.0)
-    }
-}
-
-impl BitXor for ModifierKeys {
-    type Output = Self;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for ModifierKeys {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(self.0 ^ rhs.0)
-    }
-}
+bit_field!(ModifierKeys);
 
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct KeyPress {
