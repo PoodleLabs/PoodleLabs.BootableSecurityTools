@@ -152,11 +152,13 @@ pub fn first_high_bit_index<T: BitTarget>(digit: T) -> usize {
 macro_rules! bit_field {
     ($t:ident) => {
         impl $t {
-            pub const fn has_any_flag_of(self, other: Self) -> bool {
+            #[allow(dead_code)]
+            pub const fn overlaps(self, other: Self) -> bool {
                 (self.0 & other.0) != 0
             }
 
-            pub const fn has_all_flags_of(self, other: Self) -> bool {
+            #[allow(dead_code)]
+            pub const fn encompasses(self, other: Self) -> bool {
                 (self.0 & other.0) == other.0
             }
         }

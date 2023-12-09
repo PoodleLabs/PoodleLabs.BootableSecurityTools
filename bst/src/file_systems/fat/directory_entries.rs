@@ -56,27 +56,27 @@ impl DirectoryEntryAttributes {
     }
 
     pub const fn is_read_only(&self) -> bool {
-        self.has_all_flags_of(Self::READ_ONLY)
+        self.encompasses(Self::READ_ONLY)
     }
 
     pub const fn is_hidden(&self) -> bool {
-        self.has_any_flag_of(Self::HIDDEN)
+        self.overlaps(Self::HIDDEN)
     }
 
     pub const fn is_system_entry(&self) -> bool {
-        self.has_any_flag_of(Self::SYSTEM)
+        self.overlaps(Self::SYSTEM)
     }
 
     pub const fn is_volume_label(&self) -> bool {
-        self.has_any_flag_of(Self::VOLUME_LABEL)
+        self.overlaps(Self::VOLUME_LABEL)
     }
 
     pub const fn is_directory(&self) -> bool {
-        self.has_any_flag_of(Self::DIRECTORY)
+        self.overlaps(Self::DIRECTORY)
     }
 
     pub const fn updated_since_last_archive(&self) -> bool {
-        self.has_any_flag_of(Self::ARCHIVE)
+        self.overlaps(Self::ARCHIVE)
     }
 }
 

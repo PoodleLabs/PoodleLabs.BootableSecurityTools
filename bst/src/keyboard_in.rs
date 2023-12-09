@@ -110,15 +110,15 @@ impl ToggleKeys {
     pub const SCROLL_LOCK: Self = Self(4);
 
     pub const fn num_lock(self) -> bool {
-        self.has_any_flag_of(Self::NUM_LOCK)
+        self.overlaps(Self::NUM_LOCK)
     }
 
     pub const fn caps_lock(self) -> bool {
-        self.has_any_flag_of(Self::CAPS_LOCK)
+        self.overlaps(Self::CAPS_LOCK)
     }
 
     pub const fn scroll_lock(self) -> bool {
-        self.has_any_flag_of(Self::SCROLL_LOCK)
+        self.overlaps(Self::SCROLL_LOCK)
     }
 }
 
@@ -147,59 +147,59 @@ impl ModifierKeys {
     pub const ALT: Self = Self(Self::LEFT_ALT.0 | Self::RIGHT_ALT.0);
 
     pub const fn control(self) -> bool {
-        self.has_any_flag_of(Self::CONTROL)
+        self.overlaps(Self::CONTROL)
     }
 
     pub const fn shift(self) -> bool {
-        self.has_any_flag_of(Self::SHIFT)
+        self.overlaps(Self::SHIFT)
     }
 
     pub const fn logo(self) -> bool {
-        self.has_any_flag_of(Self::LOGO)
+        self.overlaps(Self::LOGO)
     }
 
     pub const fn alt(self) -> bool {
-        self.has_any_flag_of(Self::ALT)
+        self.overlaps(Self::ALT)
     }
 
     pub const fn right_shift(self) -> bool {
-        self.has_any_flag_of(Self::RIGHT_SHIFT)
+        self.overlaps(Self::RIGHT_SHIFT)
     }
 
     pub const fn left_shift(self) -> bool {
-        self.has_any_flag_of(Self::LEFT_SHIFT)
+        self.overlaps(Self::LEFT_SHIFT)
     }
 
     pub const fn right_control(self) -> bool {
-        self.has_any_flag_of(Self::RIGHT_CONTROL)
+        self.overlaps(Self::RIGHT_CONTROL)
     }
 
     pub const fn left_control(self) -> bool {
-        self.has_any_flag_of(Self::LEFT_CONTROL)
+        self.overlaps(Self::LEFT_CONTROL)
     }
 
     pub const fn right_alt(self) -> bool {
-        self.has_any_flag_of(Self::RIGHT_ALT)
+        self.overlaps(Self::RIGHT_ALT)
     }
 
     pub const fn left_alt(self) -> bool {
-        self.has_any_flag_of(Self::LEFT_ALT)
+        self.overlaps(Self::LEFT_ALT)
     }
 
     pub const fn right_logo(self) -> bool {
-        self.has_any_flag_of(Self::RIGHT_LOGO)
+        self.overlaps(Self::RIGHT_LOGO)
     }
 
     pub const fn left_logo(self) -> bool {
-        self.has_any_flag_of(Self::LEFT_LOGO)
+        self.overlaps(Self::LEFT_LOGO)
     }
 
     pub const fn menu(self) -> bool {
-        self.has_any_flag_of(Self::MENU)
+        self.overlaps(Self::MENU)
     }
 
     pub const fn system_request(self) -> bool {
-        self.has_any_flag_of(Self::SYSTEM_REQUEST)
+        self.overlaps(Self::SYSTEM_REQUEST)
     }
 }
 
