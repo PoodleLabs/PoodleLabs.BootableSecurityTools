@@ -197,7 +197,7 @@ impl ShortFileName {
             // Or exclusively contain allowable characters.
             || value
                 .iter()
-                .all(|c| (b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&'()-@^_`{}~").contains(c))
+                .all(|c| *c >= 0x80 || (b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&'()-@^_`{}~").contains(c))
     }
 }
 
