@@ -182,15 +182,17 @@ pub struct LongFileNameDirectoryEntry {
 }
 
 impl LongFileNameDirectoryEntry {
-    pub const fn is_valid(&self) -> bool {
-        // TODO: Checksum?
-        self.attribute.is_long_file_name_entry()
-            && self.entry_type == 0
-            && u16::from_le_bytes(self.cluster_low) == 0
-    }
+    pub const PADDING_CHARACTER: u16 = 0xFFFF;
 
     pub const fn ordering(&self) -> &LongFileNameOrdering {
         &self.ordering
+    }
+
+    pub fn content_slice(characters: &[u16; 13]) -> &[u16] {
+        match characters.iter().enumerate().find(|(_, c)| **c == 0) {
+            Some((i, _)) => &characters[..i],
+            None => &characters[..],
+        }
     }
 
     pub fn characters(&self) -> [u16; 13] {
@@ -201,11 +203,23 @@ impl LongFileNameDirectoryEntry {
         characters
     }
 
-    pub fn content_slice(characters: &[u16; 13]) -> &[u16] {
-        match characters.iter().enumerate().find(|(_, c)| **c == 0) {
-            Some((i, _)) => &characters[..i],
-            None => &characters[..],
-        }
+    pub fn is_valid(&self, expected_sfn_checksum: u8) -> bool {
+        let characters = self.characters();
+        let content_slice = Self::content_slice(&characters);
+        // The SFN checksum must be correct.
+        self.sfn_checksum == expected_sfn_checksum
+            // The attribute must be correct.
+            && self.attribute.is_long_file_name_entry()
+            // The entry type must be zero.
+            && self.entry_type == 0
+            // The cluster_low value must be zero.
+            && u16::from_le_bytes(self.cluster_low) == 0
+            // Entry is either filled with content, or with content and a single null terminating character.
+            && (content_slice.len() >= characters.len() - 1
+            // Or all of the characters after the null terminator are the correct padding character.
+                || characters[content_slice.len() + 1..]
+                    .iter()
+                    .all(|c| Self::PADDING_CHARACTER.eq(c)))
     }
 
     fn extract_chars_from_part<const N: usize>(
