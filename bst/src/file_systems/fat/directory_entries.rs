@@ -97,6 +97,17 @@ pub struct ShortFileName([u8; 11]);
 // Allowable characters are 0-9 A-Z ! # $ % & ' ( ) - @ ^ _ ` { } ~
 // No spaces besides automatic padding are allowed.
 
+impl ShortFileName {
+    pub fn checksum(&self) -> u8 {
+        let mut sum = 0u8;
+        for i in 0..11 {
+            sum = (sum >> 1) + (sum << 7) + self.0[i];
+        }
+
+        sum
+    }
+}
+
 #[repr(C)]
 pub struct DirectoryEntry {
     name: ShortFileName,
