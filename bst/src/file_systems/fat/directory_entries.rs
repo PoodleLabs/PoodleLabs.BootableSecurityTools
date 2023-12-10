@@ -16,6 +16,8 @@
 
 use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
 use crate::bits::bit_field;
+use alloc::vec::Vec;
+use core::{mem::size_of, slice};
 
 #[repr(C)]
 pub struct FatDate([u8; 2]);
@@ -199,26 +201,20 @@ impl LongFileNameDirectoryEntry {
         &self.ordering
     }
 
-    pub fn content_slice(characters: &[u16; 13]) -> &[u16] {
+    pub fn content_characters_from_raw_characters(characters: &[u16; 13]) -> &[u16] {
         match characters.iter().enumerate().find(|(_, c)| **c == 0) {
             Some((i, _)) => &characters[..i],
             None => &characters[..],
         }
     }
 
-    pub fn characters(&self) -> [u16; 13] {
-        let mut characters = [0u16; 13];
-        Self::extract_chars_from_part(&mut characters, &self.part_1.0, 0);
-        Self::extract_chars_from_part(&mut characters, &self.part_2.0, 5);
-        Self::extract_chars_from_part(&mut characters, &self.part_3.0, 11);
-        characters
-    }
-
-    pub fn is_valid(&self, expected_sfn_checksum: u8) -> bool {
-        let characters = self.characters();
-        let content_slice = Self::content_slice(&characters);
+    pub fn is_valid(&self, expected_sfn_checksum: u8, expected_order_value: u8) -> bool {
+        let raw_characters = self.raw_characters();
+        let content_slice = Self::content_characters_from_raw_characters(&raw_characters);
         // The SFN checksum must be correct.
         self.sfn_checksum == expected_sfn_checksum
+            // The ordering value must be correct.
+            && self.ordering.0 == expected_order_value
             // The attribute must be correct.
             && self.attribute.is_long_file_name_entry()
             // The entry type must be zero.
@@ -226,9 +222,9 @@ impl LongFileNameDirectoryEntry {
             // The cluster_low value must be zero.
             && u16::from_le_bytes(self.cluster_low) == 0
             // Entry is either filled with content, or with content and a single null terminating character.
-            && (content_slice.len() >= characters.len() - 1
+            && (content_slice.len() >= raw_characters.len() - 1
             // Or all of the characters after the null terminator are the correct padding character.
-                || characters[content_slice.len() + 1..]
+                || raw_characters[content_slice.len() + 1..]
                     .iter()
                     .all(|c| Self::PADDING_CHARACTER.eq(c)))
     }
@@ -244,5 +240,105 @@ impl LongFileNameDirectoryEntry {
             single_character_buffer[1] = part[(i * 2) + 1];
             characters[i + offset] = u16::from_le_bytes(single_character_buffer);
         }
+    }
+
+    fn raw_characters(&self) -> [u16; 13] {
+        let mut characters = [0u16; 13];
+        Self::extract_chars_from_part(&mut characters, &self.part_1.0, 0);
+        Self::extract_chars_from_part(&mut characters, &self.part_2.0, 5);
+        Self::extract_chars_from_part(&mut characters, &self.part_3.0, 11);
+        characters
+    }
+}
+
+pub struct LongFileName {
+    start_pointer: *const u8,
+    lfn_entry_count: usize,
+}
+
+impl LongFileName {
+    pub const fn lfn_entries(&self) -> &[LongFileNameDirectoryEntry] {
+        unsafe {
+            slice::from_raw_parts(
+                self.start_pointer as *const LongFileNameDirectoryEntry,
+                self.lfn_entry_count,
+            )
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        if self.lfn_entry_count == 0 || self.lfn_entry_count > 20 {
+            // LFNs should have inclusively between 1 and 20 parts.
+            return false;
+        }
+
+        // Get the short file name entry at the end of the chain.
+        let sfn_entry = self.get_sfn_entry();
+
+        // The sfn entry must be a directory.
+        if !sfn_entry.attributes.is_directory() {
+            return false;
+        }
+
+        // Get a slice of lfn entries.
+        let lfn_entries = self.lfn_entries();
+
+        // Calculate the expected sfn checksum.
+        let checksum = sfn_entry.name.checksum();
+        for i in 0..lfn_entries.len() {
+            let lfn_entry = &lfn_entries[i];
+
+            // Expect LFN entries to be 1-indexed, and in reverse order.
+            let expected_order_value = self.lfn_entry_count - i;
+            if !lfn_entry.is_valid(checksum, expected_order_value as u8) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn get_sfn_entry(&self) -> &DirectoryEntry {
+        unsafe {
+            (self
+                .start_pointer
+                .add(size_of::<LongFileNameDirectoryEntry>() * self.lfn_entry_count)
+                as *const DirectoryEntry)
+                .as_ref()
+                .unwrap()
+        }
+    }
+
+    pub fn build_name(&self, null_terminate: bool) -> Vec<u16> {
+        let lfn_entries = self.lfn_entries();
+        // Prepare a vector with adequate capacity to hold the entire name.
+        let mut vec = Vec::with_capacity(
+            lfn_entries
+                .iter()
+                .map(|e| {
+                    LongFileNameDirectoryEntry::content_characters_from_raw_characters(
+                        &e.raw_characters(),
+                    )
+                    .len()
+                })
+                .sum::<usize>()
+                + if null_terminate { 1 } else { 0 },
+        );
+
+        // Push all the content characters from the LFN entries in reverse order;
+        // remember; they're stored on disk in reverse order.
+        for i in (0..lfn_entries.len()).rev() {
+            vec.extend(
+                LongFileNameDirectoryEntry::content_characters_from_raw_characters(
+                    &lfn_entries[i].raw_characters(),
+                ),
+            );
+        }
+
+        if null_terminate {
+            vec.push(0);
+        }
+
+        vec
     }
 }
