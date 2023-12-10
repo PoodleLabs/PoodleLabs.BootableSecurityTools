@@ -18,6 +18,7 @@ use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBoot
 use crate::bits::bit_field;
 use alloc::vec::Vec;
 use core::{mem::size_of, slice};
+use macros::c16;
 
 #[repr(C)]
 pub struct FatDate([u8; 2]);
@@ -88,16 +89,117 @@ pub struct DirectoryEntryNameCaseFlags(u8);
 // 0x10: File extension part is all lowercase
 // 0x08: File name part is all lowercase
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ShortFileNameFreeIndicator {
+    NotFree,
+    IsolatedFree,
+    FreeAndAllSubsequentEntriesFree,
+}
+
 #[repr(C)]
 pub struct ShortFileName([u8; 11]);
-// First byte:
-// 0xE5: Free
-// 0x00: Free, and all following directory entries are free
-// First 8 bytes are file name
-// Last 3 bytes are extension
-// Pad with spaces (0x20)
-// Allowable characters are 0-9 A-Z ! # $ % & ' ( ) - @ ^ _ ` { } ~
-// No spaces besides automatic padding are allowed.
+
+impl ShortFileName {
+    pub const TAIL_PADDING_CHARACTER: u8 = 0x20;
+
+    pub const fn free_indicator(&self) -> ShortFileNameFreeIndicator {
+        match self.0[0] {
+            0x00 => ShortFileNameFreeIndicator::FreeAndAllSubsequentEntriesFree,
+            0xE5 => ShortFileNameFreeIndicator::IsolatedFree,
+            _ => ShortFileNameFreeIndicator::NotFree,
+        }
+    }
+
+    pub const fn get_characters(&self) -> Option<[u8; 11]> {
+        match self.free_indicator() {
+            ShortFileNameFreeIndicator::NotFree => Some(self.0),
+            _ => None,
+        }
+    }
+
+    pub fn trim_trailing_padding(content: &[u8]) -> &[u8] {
+        let mut len = content.len();
+        while len > 0 {
+            if content[len - 1] != Self::TAIL_PADDING_CHARACTER {
+                break;
+            }
+
+            len -= 1;
+        }
+
+        &content[..len]
+    }
+
+    pub fn get_file_extension_characters(&self) -> Option<&[u8]> {
+        match self.free_indicator() {
+            ShortFileNameFreeIndicator::NotFree => Some(&self.0[8..]),
+            _ => None,
+        }
+    }
+
+    pub fn get_file_name_characters(&self) -> Option<&[u8]> {
+        match self.free_indicator() {
+            ShortFileNameFreeIndicator::NotFree => Some(&self.0[..8]),
+            _ => None,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        if self.free_indicator() != ShortFileNameFreeIndicator::NotFree {
+            return true;
+        }
+
+        let name = Self::trim_trailing_padding(self.get_file_name_characters().unwrap());
+        let extension = Self::trim_trailing_padding(self.get_file_extension_characters().unwrap());
+        if name.len() + extension.len() == 0 {
+            return false;
+        }
+
+        // The complete file name must contain at least one character.
+        (name.len() + extension.len() > 0)
+            && Self::part_is_valid(name)
+            && Self::part_is_valid(extension)
+    }
+
+    pub fn build_name(&self, null_terminate: bool) -> Option<Vec<u16>> {
+        if self.free_indicator() != ShortFileNameFreeIndicator::NotFree {
+            return None;
+        }
+
+        let name = Self::trim_trailing_padding(self.get_file_name_characters().unwrap());
+        let extension = Self::trim_trailing_padding(self.get_file_extension_characters().unwrap());
+
+        // Prepare a vec with space for all characters, plus a null terminating character if necessary,
+        // and a dot if there is a file extension.
+        let mut vec = Vec::with_capacity(
+            name.len()
+                + extension.len()
+                + if extension.len() > 0 { 1 } else { 0 }
+                + if null_terminate { 1 } else { 0 },
+        );
+
+        vec.extend(name.iter().map(|c| *c as u16));
+        if extension.len() > 0 {
+            vec.push(c16!("."));
+            vec.extend(extension.iter().map(|c| *c as u16));
+        }
+
+        if null_terminate {
+            vec.push(0);
+        }
+
+        Some(vec)
+    }
+
+    fn part_is_valid(value: &[u8]) -> bool {
+        // The part must have a length of 0
+        value.len() == 0
+            // Or exclusively contain allowable characters.
+            || value
+                .iter()
+                .all(|c| (b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&'()-@^_`{}~").contains(c))
+    }
+}
 
 impl ShortFileName {
     pub fn checksum(&self) -> u8 {
