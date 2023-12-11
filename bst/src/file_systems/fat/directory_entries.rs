@@ -86,8 +86,16 @@ bit_field!(DirectoryEntryAttributes);
 
 #[repr(C)]
 pub struct DirectoryEntryNameCaseFlags(u8);
-// 0x10: File extension part is all lowercase
-// 0x08: File name part is all lowercase
+
+impl DirectoryEntryNameCaseFlags {
+    pub const fn extension_is_lowercase(&self) -> bool {
+        (self.0 & 0x10) != 0
+    }
+
+    pub const fn name_is_lowercase(&self) -> bool {
+        (self.0 & 0x08) != 0
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ShortFileNameFreeIndicator {
@@ -272,8 +280,16 @@ impl DirectoryEntry {
 
 #[repr(C)]
 pub struct LongFileNameOrdering(u8);
-// Bit 0x40 indicated end of LFN when high.
-// Bits 0-4 represent the ordering index from (1-20).
+
+impl LongFileNameOrdering {
+    pub const fn is_end(&self) -> bool {
+        (self.0 & 0x40) != 0
+    }
+
+    pub const fn value(&self) -> u8 {
+        self.0 & 0b00011111
+    }
+}
 
 #[repr(C)]
 pub struct LongFileNamePart1([u8; 10]); // Five UTF-16 characters.
@@ -316,7 +332,7 @@ impl LongFileNameDirectoryEntry {
         // The SFN checksum must be correct.
         self.sfn_checksum == expected_sfn_checksum
             // The ordering value must be correct.
-            && self.ordering.0 == expected_order_value
+            && self.ordering.value() == expected_order_value
             // The attribute must be correct.
             && self.attribute.is_long_file_name_entry()
             // The entry type must be zero.
@@ -389,10 +405,14 @@ impl LongFileName {
         let checksum = sfn_entry.name.checksum();
         for i in 0..lfn_entries.len() {
             let lfn_entry = &lfn_entries[i];
-
             // Expect LFN entries to be 1-indexed, and in reverse order.
             let expected_order_value = self.lfn_entry_count - i;
             if !lfn_entry.is_valid(checksum, expected_order_value as u8) {
+                return false;
+            }
+
+            if i == 0 && !lfn_entry.ordering.is_end() {
+                // Last LFN entry should be indicated to be the end.
                 return false;
             }
         }
