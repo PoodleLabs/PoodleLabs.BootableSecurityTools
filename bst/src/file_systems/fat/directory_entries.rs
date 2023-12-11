@@ -28,9 +28,20 @@ pub struct FatDate([u8; 2]);
 
 #[repr(C)]
 pub struct FatTime2sResolution([u8; 2]);
-// Bit 15-11: Hour 0-23
-// Bit 10-5: Minute 0-59
-// Bit 4-0: 2 second increment 0-29 (equalling 0-58s)
+
+impl FatTime2sResolution {
+    pub const fn hour(&self) -> u8 {
+        (self.0[0] & 0b11111000) >> 3
+    }
+
+    pub const fn minute(&self) -> u8 {
+        ((self.0[0] & 0b00000111) << 3) | ((self.0[1] & 0b11100000) >> 5)
+    }
+
+    pub const fn second(&self) -> u8 {
+        (self.0[1] & 0b00011111) * 2
+    }
+}
 
 #[repr(C)]
 pub struct FatTime {
