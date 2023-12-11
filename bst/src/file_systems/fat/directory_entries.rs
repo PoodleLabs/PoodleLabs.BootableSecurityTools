@@ -60,6 +60,24 @@ pub struct FatTime {
     main: FatTime2sResolution,
 }
 
+impl FatTime {
+    pub const fn hour(&self) -> u8 {
+        self.main.hour()
+    }
+
+    pub const fn minute(&self) -> u8 {
+        self.main.minute()
+    }
+
+    pub const fn second(&self) -> u8 {
+        self.main.second() + (self.sub_2s / 100)
+    }
+
+    pub const fn millisecond(&self) -> u16 {
+        (self.sub_2s as u16 % 100) * 10
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct DirectoryEntryAttributes(u8);
