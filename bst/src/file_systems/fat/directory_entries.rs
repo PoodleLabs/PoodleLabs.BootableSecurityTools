@@ -22,9 +22,20 @@ use macros::c16;
 
 #[repr(C)]
 pub struct FatDate([u8; 2]);
-// Bit 15-9: Year 0-127 (1980-2107)
-// Bit 8-5: Month 1-12
-// Bit 4-0: Day 1-31
+
+impl FatDate {
+    pub const fn year(&self) -> u16 {
+        (((self.0[0] & 0b11111110) >> 1) as u16) + 1980
+    }
+
+    pub const fn month(&self) -> u8 {
+        ((self.0[0] & 0b00000001) << 3) | ((self.0[1] & 0b11100000) >> 5)
+    }
+
+    pub const fn day(&self) -> u8 {
+        self.0[1] & 0b00011111
+    }
+}
 
 #[repr(C)]
 pub struct FatTime2sResolution([u8; 2]);
