@@ -18,7 +18,7 @@ use super::{
     get_byte_aligned_fat_entry_byte_offset_and_sector, get_status, read_byte_aligned_fat_entry,
     FatEntry, FatEntryOutOfRangeError, FatEntryStatus,
 };
-use crate::file_systems::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
+use crate::file_systems::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors, FatType};
 use core::ops::{BitAnd, BitOr, Not};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -89,6 +89,10 @@ impl FatEntry for Fat16Entry {
 
     fn bad_cluster() -> Self {
         Self(Self::BAD_CLUSTER)
+    }
+
+    fn fat_type() -> FatType {
+        FatType::Fat16
     }
 
     fn reserved() -> Self {

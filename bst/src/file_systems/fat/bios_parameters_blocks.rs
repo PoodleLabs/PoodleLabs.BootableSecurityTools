@@ -15,9 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    boot_sectors::Fat32BootSector, fat_entries::FatEntry, file_system_info::FileSystemInfo,
-    FatErrors, FatType,
+    boot_sectors::Fat32BootSector, directory_handles::DirectoryHandle, fat_entries::FatEntry,
+    file_system_info::FileSystemInfo, FatErrors, FatType,
 };
+use crate::file_systems::fat::directory_entries::DirectoryEntry;
 use core::{mem::size_of, slice};
 
 pub trait FatBiosParameterBlock: Sized {
@@ -154,6 +155,11 @@ pub trait FatBiosParameterBlock: Sized {
 
         true
     }
+
+    fn root_directory_handle<TFatEntry: FatEntry>(
+        &self,
+        volume_root: *const u8,
+    ) -> DirectoryHandle<'_, Self, TFatEntry>;
 }
 
 fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
@@ -273,6 +279,13 @@ impl FatBiosParameterBlock for FatBiosParameterBlockCommonFields {
 
     fn fat_count(&self) -> u8 {
         self.fat_count
+    }
+
+    fn root_directory_handle<TFatEntry: FatEntry>(
+        &self,
+        volume_root: *const u8,
+    ) -> DirectoryHandle<'_, Self, TFatEntry> {
+        todo!()
     }
 }
 
@@ -450,5 +463,25 @@ impl FatBiosParameterBlock for Fat32BiosParameterBlock {
 
     fn fat_count(&self) -> u8 {
         self.common_fields.fat_count()
+    }
+
+    fn root_directory_handle<TFatEntry: FatEntry>(
+        &self,
+        volume_root: *const u8,
+    ) -> DirectoryHandle<'_, Self, TFatEntry> {
+        if TFatEntry::fat_type() != FatType::Fat32 {
+            panic!(
+                "Attempted to read from a FAT32 volume, using FAT entries for type {:?}.",
+                TFatEntry::fat_type()
+            );
+        }
+
+        DirectoryHandle::from(
+            None,
+            None,
+            DirectoryEntry::root_from_cluster(self.root_cluster()),
+            self,
+            volume_root,
+        )
     }
 }

@@ -17,10 +17,11 @@
 use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
 use crate::bits::bit_field;
 use alloc::vec::Vec;
-use core::{mem::size_of, slice};
+use core::slice;
 use macros::c16;
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct FatDate([u8; 2]);
 
 impl FatDate {
@@ -38,6 +39,7 @@ impl FatDate {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct FatTime2sResolution([u8; 2]);
 
 impl FatTime2sResolution {
@@ -55,6 +57,7 @@ impl FatTime2sResolution {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct FatTime {
     sub_2s: u8, // Resolution of 10 milliseconds, 0-199 where 0 = 0, and 199 = 1.99s.
     main: FatTime2sResolution,
@@ -125,6 +128,7 @@ impl DirectoryEntryAttributes {
 bit_field!(DirectoryEntryAttributes);
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct DirectoryEntryNameCaseFlags(u8);
 
 impl DirectoryEntryNameCaseFlags {
@@ -145,6 +149,7 @@ pub enum ShortFileNameFreeIndicator {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct ShortFileName([u8; 11]);
 
 impl ShortFileName {
@@ -261,6 +266,7 @@ impl ShortFileName {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct DirectoryEntry {
     name: ShortFileName,
     attributes: DirectoryEntryAttributes,
@@ -276,6 +282,28 @@ pub struct DirectoryEntry {
 }
 
 impl DirectoryEntry {
+    pub fn root_from_cluster(cluster: u32) -> Self {
+        Self {
+            name_case_flags: DirectoryEntryNameCaseFlags(0),
+            attributes: DirectoryEntryAttributes::DIRECTORY
+                | DirectoryEntryAttributes::ARCHIVE
+                | DirectoryEntryAttributes::READ_ONLY
+                | DirectoryEntryAttributes::SYSTEM,
+            last_write_time: FatTime2sResolution([0, 0]),
+            name: ShortFileName(b"ROOT       ".clone()),
+            last_access_date: FatDate([0, 0]),
+            last_write_date: FatDate([0, 0]),
+            creation_date: FatDate([0, 0]),
+            creation_time: FatTime {
+                sub_2s: 0,
+                main: FatTime2sResolution([0, 0]),
+            },
+            file_size: [0, 0, 0, 0],
+            cluster_high: [0, 0], //TODO
+            cluster_low: [0, 0],  //TODO
+        }
+    }
+
     pub const fn attributes(&self) -> &DirectoryEntryAttributes {
         &self.attributes
     }

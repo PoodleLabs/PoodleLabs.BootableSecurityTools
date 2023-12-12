@@ -22,7 +22,7 @@ pub use fat_12::Fat12Entry;
 pub use fat_16::Fat16Entry;
 pub use fat_32::Fat32Entry;
 
-use super::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors};
+use super::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors, FatType};
 use core::{
     mem::size_of,
     ops::{BitAnd, BitOr, Not},
@@ -71,6 +71,8 @@ pub trait FatEntry:
 
     fn bad_cluster() -> Self;
 
+    fn fat_type() -> FatType;
+
     fn reserved() -> Self;
 
     fn free() -> Self;
@@ -100,6 +102,10 @@ pub trait FatEntry:
 
     fn is_bad_cluster(&self) -> bool {
         self.eq(&Self::bad_cluster())
+    }
+
+    fn is_reserved(&self) -> bool {
+        self.eq(&Self::reserved())
     }
 
     fn is_free(&self) -> bool {

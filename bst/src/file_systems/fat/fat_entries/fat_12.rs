@@ -17,7 +17,7 @@
 use super::{get_status, FatEntry, FatEntryOutOfRangeError, FatEntryStatus};
 use crate::{
     bits::{try_get_bit_at_index, try_set_bit_at_index},
-    file_systems::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors},
+    file_systems::fat::{bios_parameters_blocks::FatBiosParameterBlock, FatErrors, FatType},
 };
 use core::{
     ops::{BitAnd, BitOr, Not},
@@ -99,6 +99,10 @@ impl FatEntry for Fat12Entry {
 
     fn bad_cluster() -> Self {
         Self(Self::BAD_CLUSTER)
+    }
+
+    fn fat_type() -> FatType {
+        FatType::Fat12
     }
 
     fn reserved() -> Self {
