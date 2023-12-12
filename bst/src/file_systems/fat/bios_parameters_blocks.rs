@@ -15,10 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    boot_sectors::Fat32BootSector, directory_handles::DirectoryHandle, fat_entries::FatEntry,
-    file_system_info::FileSystemInfo, FatErrors, FatType,
+    boot_sectors::Fat32BootSector, fat_entries::FatEntry, file_system_info::FileSystemInfo,
+    FatErrors, FatType,
 };
-use crate::file_systems::fat::directory_entries::DirectoryEntry;
 use core::{mem::size_of, slice};
 
 pub trait FatBiosParameterBlock: Sized {
@@ -43,6 +42,8 @@ pub trait FatBiosParameterBlock: Sized {
     fn number_of_heads(&self) -> u16;
 
     fn media_type(&self) -> u8;
+
+    fn active_fat(&self) -> u8;
 
     fn fat_count(&self) -> u8;
 
@@ -86,6 +87,26 @@ pub trait FatBiosParameterBlock: Sized {
         }
     }
 
+    fn active_fat_bytes(&self, root: *const u8) -> &[u8] {
+        let bytes_per_fat = self.sectors_per_fat() as usize * self.bytes_per_sector() as usize;
+        unsafe {
+            slice::from_raw_parts(
+                root.add(self.active_fat() as usize * bytes_per_fat),
+                bytes_per_fat,
+            )
+        }
+    }
+
+    fn active_fat_bytes_mut(&self, root: *mut u8) -> &mut [u8] {
+        let bytes_per_fat = self.sectors_per_fat() as usize * self.bytes_per_sector() as usize;
+        unsafe {
+            slice::from_raw_parts_mut(
+                root.add(self.active_fat() as usize * bytes_per_fat),
+                bytes_per_fat,
+            )
+        }
+    }
+
     fn get_byte_offset_for_cluster(&self, cluster: usize) -> Option<usize> {
         if cluster < 2 {
             None
@@ -102,13 +123,14 @@ pub trait FatBiosParameterBlock: Sized {
         }
     }
 
-    fn error_check<TFatEntry: FatEntry>(&self, pointer: *const u8) -> FatErrors {
-        let first_entry = match TFatEntry::try_read_from(0, pointer, self) {
+    fn error_check<TFatEntry: FatEntry>(&self, root: *const u8) -> FatErrors {
+        let active_fat_bytes = self.active_fat_bytes(root);
+        let first_entry = match TFatEntry::try_read_from(active_fat_bytes, 0) {
             Some(e) => e,
             None => return FatErrors::Unreadable,
         };
 
-        let second_entry = match TFatEntry::try_read_from(1, pointer, self) {
+        let second_entry = match TFatEntry::try_read_from(active_fat_bytes, 1) {
             Some(e) => e,
             None => return FatErrors::Unreadable,
         };
@@ -120,23 +142,23 @@ pub trait FatBiosParameterBlock: Sized {
         return second_entry.check_error_bits();
     }
 
-    fn try_clear_volume_dirty<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
-        try_set_flag_high(self, pointer, TFatEntry::volume_dirty_flag())
+    fn try_clear_volume_dirty<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_high(self, root, TFatEntry::volume_dirty_flag())
     }
 
-    fn try_set_volume_dirty<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
-        try_set_flag_low(self, pointer, TFatEntry::volume_dirty_flag())
+    fn try_set_volume_dirty<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_low(self, root, TFatEntry::volume_dirty_flag())
     }
 
-    fn try_clear_hard_error<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
-        try_set_flag_high(self, pointer, TFatEntry::hard_error_flag())
+    fn try_clear_hard_error<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_high(self, root, TFatEntry::hard_error_flag())
     }
 
-    fn try_set_hard_error<TFatEntry: FatEntry>(&mut self, pointer: *mut u8) -> bool {
-        try_set_flag_low(self, pointer, TFatEntry::hard_error_flag())
+    fn try_set_hard_error<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_low(self, root, TFatEntry::hard_error_flag())
     }
 
-    fn update_mirrored_fats(&mut self, pointer: *mut u8) -> bool {
+    fn update_mirrored_fats(&mut self, root: *mut u8) -> bool {
         let fat_count = self.fat_count() as usize;
         if !self.should_mirror_fats() || fat_count < 2 {
             return false;
@@ -145,47 +167,42 @@ pub trait FatBiosParameterBlock: Sized {
         let bytes_per_sector = self.bytes_per_sector() as usize;
         let fat_size = (self.sectors_per_fat() as usize) * bytes_per_sector;
         let start_offset = (self.fat_start_sector() as usize) * bytes_per_sector;
-        let source = unsafe { slice::from_raw_parts(pointer.add(start_offset), fat_size) };
+        let source = unsafe { slice::from_raw_parts(root.add(start_offset), fat_size) };
         for i in 1..fat_count {
-            unsafe {
-                slice::from_raw_parts_mut(pointer.add(start_offset + (i * fat_size)), fat_size)
-            }
-            .copy_from_slice(source)
+            unsafe { slice::from_raw_parts_mut(root.add(start_offset + (i * fat_size)), fat_size) }
+                .copy_from_slice(source)
         }
 
         true
     }
-
-    fn root_directory_handle<TFatEntry: FatEntry>(
-        &self,
-        volume_root: *const u8,
-    ) -> DirectoryHandle<'_, Self, TFatEntry>;
 }
 
 fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
     parameters: &TFatBiosParameterBlock,
-    pointer: *mut u8,
+    root: *mut u8,
     flag: TFatEntry,
 ) -> bool {
-    let current_value = match TFatEntry::try_read_from(1, pointer, parameters) {
+    let active_fat_bytes = parameters.active_fat_bytes_mut(root);
+    let current_value = match TFatEntry::try_read_from(active_fat_bytes, 1) {
         Some(e) => e,
         None => return false,
     };
 
-    (current_value | flag).try_write_to(1, pointer, parameters)
+    (current_value | flag).try_write_to(active_fat_bytes, 1)
 }
 
 fn try_set_flag_low<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
     parameters: &TFatBiosParameterBlock,
-    pointer: *mut u8,
+    root: *mut u8,
     flag: TFatEntry,
 ) -> bool {
-    let current_value = match TFatEntry::try_read_from(1, pointer, parameters) {
+    let active_fat_bytes = parameters.active_fat_bytes_mut(root);
+    let current_value = match TFatEntry::try_read_from(active_fat_bytes, 1) {
         Some(e) => e,
         None => return false,
     };
 
-    (current_value & (!flag)).try_write_to(1, pointer, parameters)
+    (current_value & (!flag)).try_write_to(active_fat_bytes, 1)
 }
 
 #[repr(C)]
@@ -281,11 +298,8 @@ impl FatBiosParameterBlock for FatBiosParameterBlockCommonFields {
         self.fat_count
     }
 
-    fn root_directory_handle<TFatEntry: FatEntry>(
-        &self,
-        volume_root: *const u8,
-    ) -> DirectoryHandle<'_, Self, TFatEntry> {
-        todo!()
+    fn active_fat(&self) -> u8 {
+        0
     }
 }
 
@@ -337,7 +351,7 @@ impl Fat32BiosParameterBlock {
         u32::from_le_bytes(self.root_cluster)
     }
 
-    pub fn file_system_info(&self, pointer: *const u8) -> Option<&FileSystemInfo> {
+    pub fn file_system_info(&self, root: *const u8) -> Option<&FileSystemInfo> {
         let sector = self.file_system_info_sector();
         let bytes_per_sector = self.bytes_per_sector();
         if sector >= self.reserved_sector_count() || bytes_per_sector < 512 {
@@ -345,7 +359,7 @@ impl Fat32BiosParameterBlock {
         }
 
         let offset = (sector as usize) * (bytes_per_sector as usize);
-        let fs_info = match unsafe { (pointer.add(offset) as *const FileSystemInfo).as_ref() } {
+        let fs_info = match unsafe { (root.add(offset) as *const FileSystemInfo).as_ref() } {
             Some(fs_info) => fs_info,
             None => {
                 return None;
@@ -359,27 +373,27 @@ impl Fat32BiosParameterBlock {
         }
     }
 
-    pub fn backup_boot_sector(&self, pointer: *const u8) -> Option<&Fat32BootSector> {
+    pub fn backup_boot_sector(&self, root: *const u8) -> Option<&Fat32BootSector> {
         let sector = self.backup_boot_sector_start();
         if sector >= self.reserved_sector_count() {
             return None;
         }
 
         let offset = (sector as usize) * (self.bytes_per_sector() as usize);
-        match unsafe { (pointer.add(offset) as *const Fat32BootSector).as_ref() } {
+        match unsafe { (root.add(offset) as *const Fat32BootSector).as_ref() } {
             Some(fs_info) => Some(fs_info),
             None => None,
         }
     }
 
-    pub fn update_reserved_sector_backups(&mut self, pointer: *mut u8) -> bool {
+    pub fn update_reserved_sector_backups(&mut self, root: *mut u8) -> bool {
         let bytes_per_sector = self.bytes_per_sector() as usize;
         let start_sector = self.backup_boot_sector_start() as usize;
         let boot_sector_count =
             (size_of::<Fat32BootSector>() + bytes_per_sector - 1) / bytes_per_sector;
 
         let mut total_sector_count = boot_sector_count;
-        let filesystem_info = self.file_system_info(pointer);
+        let filesystem_info = self.file_system_info(root);
         if filesystem_info.is_none() {
             // FS Info requires a sector size >= 512, and the structure size is 512, so if present, it needs exactly one sector.
             total_sector_count += 1;
@@ -391,14 +405,14 @@ impl Fat32BiosParameterBlock {
 
         let backup_start_byte = start_sector * bytes_per_sector;
         let boot_sector_bytes = boot_sector_count * bytes_per_sector;
-        let boot_sector_source = unsafe { slice::from_raw_parts(pointer, boot_sector_bytes) };
+        let boot_sector_source = unsafe { slice::from_raw_parts(root, boot_sector_bytes) };
         let boot_sector_destination =
-            unsafe { slice::from_raw_parts_mut(pointer.add(backup_start_byte), boot_sector_bytes) };
+            unsafe { slice::from_raw_parts_mut(root.add(backup_start_byte), boot_sector_bytes) };
 
         boot_sector_destination.copy_from_slice(boot_sector_source);
         match filesystem_info {
             Some(v) => unsafe {
-                *(pointer.add(backup_start_byte + boot_sector_bytes) as *mut FileSystemInfo) =
+                *(root.add(backup_start_byte + boot_sector_bytes) as *mut FileSystemInfo) =
                     v.clone();
             },
             None => {}
@@ -465,23 +479,7 @@ impl FatBiosParameterBlock for Fat32BiosParameterBlock {
         self.common_fields.fat_count()
     }
 
-    fn root_directory_handle<TFatEntry: FatEntry>(
-        &self,
-        volume_root: *const u8,
-    ) -> DirectoryHandle<'_, Self, TFatEntry> {
-        if TFatEntry::fat_type() != FatType::Fat32 {
-            panic!(
-                "Attempted to read from a FAT32 volume, using FAT entries for type {:?}.",
-                TFatEntry::fat_type()
-            );
-        }
-
-        DirectoryHandle::from(
-            None,
-            None,
-            DirectoryEntry::root_from_cluster(self.root_cluster()),
-            self,
-            volume_root,
-        )
+    fn active_fat(&self) -> u8 {
+        self.mirroring().active_fat().unwrap_or(0)
     }
 }

@@ -19,7 +19,7 @@ use super::{
     directory_entries::{
         DirectoryEntry, LongFileName, LongFileNameDirectoryEntry, ShortFileNameFreeIndicator,
     },
-    fat_entries::FatEntry,
+    fat_entries::{FatEntry, FatEntryStatus},
 };
 use alloc::vec::Vec;
 use core::{marker::PhantomData, mem::size_of};
@@ -86,6 +86,9 @@ impl<'a, TBpb: FatBiosParameterBlock, TFatEntry: FatEntry> DirectoryHandle<'a, T
                 None => return None,
             },
         };
+
+        // Grab the active FAT bytes.
+        let fat = self.bios_parameter_block.active_fat_bytes(self.volume_root);
 
         // Prepare a vector to return children in.
         let mut return_vec = Vec::new();
@@ -156,26 +159,18 @@ impl<'a, TBpb: FatBiosParameterBlock, TFatEntry: FatEntry> DirectoryHandle<'a, T
             }
 
             // Grab the next cluster indicator from the FAT.
-            let next = match TFatEntry::try_read_from(
-                cluster,
-                self.volume_root,
-                self.bios_parameter_block,
-            ) {
+            let next = match TFatEntry::try_read_from(fat, cluster) {
                 Some(e) => e,
                 None => break,
             };
 
             // If there's no next cluster, or it's invalid, break early.
-            if next.is_free()
-                || next.is_bad_cluster()
-                || next.is_reserved()
-                || next.is_end_of_chain()
-            {
+            if next.status() != FatEntryStatus::Link {
                 break;
             }
 
             // Move on to the next cluster in the chain.
-            cluster = Into::<u32>::into(next) as usize;
+            cluster = next.into();
             offset = match self
                 .bios_parameter_block
                 .get_byte_offset_for_cluster(cluster)
