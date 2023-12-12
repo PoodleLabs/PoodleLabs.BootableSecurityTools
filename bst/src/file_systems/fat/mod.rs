@@ -17,6 +17,7 @@
 mod bios_parameters_blocks;
 mod boot_sectors;
 mod directory_entries;
+mod directory_handles;
 mod fat_entries;
 mod file_system_info;
 

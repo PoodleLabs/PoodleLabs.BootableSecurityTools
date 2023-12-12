@@ -276,6 +276,10 @@ pub struct DirectoryEntry {
 }
 
 impl DirectoryEntry {
+    pub const fn attributes(&self) -> &DirectoryEntryAttributes {
+        &self.attributes
+    }
+
     pub const fn file_name(&self) -> &ShortFileName {
         &self.name
     }
@@ -409,12 +413,20 @@ impl LongFileNameDirectoryEntry {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct LongFileName {
-    start_pointer: *const u8,
+    start_pointer: *const DirectoryEntry,
     lfn_entry_count: usize,
 }
 
 impl LongFileName {
+    pub const fn from(start_pointer: *const DirectoryEntry, lfn_entry_count: usize) -> Self {
+        Self {
+            lfn_entry_count,
+            start_pointer,
+        }
+    }
+
     pub const fn lfn_entries(&self) -> &[LongFileNameDirectoryEntry] {
         unsafe {
             slice::from_raw_parts(
@@ -462,10 +474,8 @@ impl LongFileName {
 
     pub fn get_sfn_entry(&self) -> &DirectoryEntry {
         unsafe {
-            (self
-                .start_pointer
-                .add(size_of::<LongFileNameDirectoryEntry>() * self.lfn_entry_count)
-                as *const DirectoryEntry)
+            self.start_pointer
+                .add(self.lfn_entry_count)
                 .as_ref()
                 .unwrap()
         }

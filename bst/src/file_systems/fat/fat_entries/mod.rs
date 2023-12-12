@@ -93,6 +93,18 @@ pub trait FatEntry:
         pointer: *mut u8,
         parameters: &T,
     ) -> bool;
+
+    fn is_end_of_chain(&self) -> bool {
+        self.eq(&Self::end_of_chain())
+    }
+
+    fn is_bad_cluster(&self) -> bool {
+        self.eq(&Self::bad_cluster())
+    }
+
+    fn is_free(&self) -> bool {
+        self.eq(&Self::free())
+    }
 }
 
 fn get_byte_aligned_fat_entry_byte_offset_and_sector<TEntry: Sized>(
