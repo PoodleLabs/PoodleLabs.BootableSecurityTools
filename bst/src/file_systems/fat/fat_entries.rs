@@ -278,8 +278,7 @@ macro_rules! fat_entry {
 
                 fn check_error_bits(&self) -> FatErrors {
                     // Check all bits save the error bits are high.
-                    let highs = (Self::MASK >> 2 << 2);
-                    if (self.0 & highs) != highs {
+                    if (self.0 & Self::ALWAYS_HIGH_ERROR_BITS) != Self::ALWAYS_HIGH_ERROR_BITS {
                         FatErrors::InvalidErrorFatEntry
                     } else if (self.0 & Self::HARD_ERROR_BIT) != Self::HARD_ERROR_BIT
                     {
