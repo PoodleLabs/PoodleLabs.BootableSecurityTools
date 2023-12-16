@@ -329,27 +329,15 @@ pub trait FatFileSystemReader<'a> {
 }
 
 // Layout calculations.
-
-const fn clustered_sector_count(parameters: &FatVolumeParameters) -> usize {
-    parameters.sector_count
-        - parameters.reserved_sectors
-        - (parameters.fat_count * parameters.sectors_per_fat)
-}
-
-const fn clustered_area_start(parameters: &FatVolumeParameters) -> usize {
-    fat_area_start(parameters) + (fat_size(parameters) * parameters.fat_count)
-}
-
 const fn fat_area_start(parameters: &FatVolumeParameters) -> usize {
     parameters.reserved_sectors * parameters.bytes_per_sector
 }
 
 const fn cluster_count(parameters: &FatVolumeParameters) -> usize {
-    clustered_sector_count(parameters) / parameters.sectors_per_cluster
-}
-
-const fn cluster_size(parameters: &FatVolumeParameters) -> usize {
-    parameters.bytes_per_sector * parameters.sectors_per_cluster
+    let clustered_sector_count = parameters.sector_count
+        - parameters.reserved_sectors
+        - (parameters.fat_count * parameters.sectors_per_fat);
+    clustered_sector_count / parameters.sectors_per_cluster
 }
 
 const fn fat_size(parameters: &FatVolumeParameters) -> usize {
@@ -357,34 +345,18 @@ const fn fat_size(parameters: &FatVolumeParameters) -> usize {
 }
 
 // FAT reads.
-
 const fn active_fat_bytes(parameters: &FatVolumeParameters) -> &[u8] {
     let fat_size = fat_size(parameters);
-    let fat_offset = fat_area_start(parameters) + (active_fat_index(parameters) * fat_size);
+    let fat_offset = fat_area_start(parameters)
+        + (match parameters.active_fat {
+            Some(i) => i,
+            None => 0,
+        } * fat_size);
+
     unsafe { slice::from_raw_parts(parameters.volume_root.add(fat_offset), fat_size) }
 }
 
-const fn active_fat_index(parameters: &FatVolumeParameters) -> usize {
-    match parameters.active_fat {
-        Some(i) => i,
-        None => 0,
-    }
-}
-
 // Cluster reads.
-
-const fn try_get_cluster_content(parameters: &FatVolumeParameters, index: usize) -> Option<&[u8]> {
-    if index >= cluster_count(parameters) {
-        None
-    } else {
-        let cluster_size = cluster_size(parameters);
-        let cluster_offset = clustered_area_start(parameters) + (cluster_size * index);
-        Some(unsafe {
-            slice::from_raw_parts(parameters.volume_root.add(cluster_offset), cluster_size)
-        })
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClusterReadResult<'a> {
     OutOfBounds,
@@ -406,7 +378,19 @@ impl<'a> ClusterReadResult<'a> {
             return Self::Free;
         }
 
-        let data = try_get_cluster_content(parameters, index).unwrap();
+        let data = if index >= cluster_count(parameters) {
+            return Self::OutOfBounds;
+        } else {
+            let cluster_size = parameters.bytes_per_sector * parameters.sectors_per_cluster;
+            let cluster_offset = (fat_area_start(parameters)
+                + (fat_size(parameters) * parameters.fat_count))
+                + (cluster_size * index);
+
+            unsafe {
+                slice::from_raw_parts(parameters.volume_root.add(cluster_offset), cluster_size)
+            }
+        };
+
         match status {
             FatEntryStatus::Free => Self::Free,
             FatEntryStatus::Reserved => Self::Reserved(data),
