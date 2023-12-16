@@ -149,7 +149,7 @@ pub enum ShortFileNameFreeIndicator {
 }
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShortFileName([u8; 11]);
 
 impl ShortFileName {

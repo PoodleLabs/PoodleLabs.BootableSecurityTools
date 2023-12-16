@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::fat_entries::FatEntry;
+use super::{
+    directory_entries::{DirectoryEntry, ShortFileName, ShortFileNameFreeIndicator},
+    fat_entries::FatEntry,
+};
 use crate::file_systems::fat::fat_entries::FatEntryStatus;
 use core::{marker::PhantomData, slice};
 
@@ -134,8 +137,141 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterChainIterator<'a, TFatEntry
     }
 }
 
-pub trait FatFileSystemReader {
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FatDirectoryEntry<'a> {
+    VolumeLabel(&'a ShortFileName),
+}
+
+pub trait FatDirectoryEntryIterator<'a>: Iterator<Item = FatDirectoryEntry<'a>> {
+    fn reset(&mut self);
+}
+
+pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+    current_cluster_data: Option<(&'a [u8], Option<usize>)>,
+    volume_parameters: &'a FatVolumeParameters,
+    phantom_data: PhantomData<TFatEntry>,
+    entries_per_cluster: usize,
+    skip_hidden: bool,
+    start_cluster: usize,
+    next_index: usize,
+}
+
+impl<'a, TFatEntry: FatEntry> FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
+    fn set_current_cluster(&mut self, cluster_index: usize) {
+        self.next_index = 0;
+        self.current_cluster_data =
+            match read_cluster::<TFatEntry>(self.volume_parameters, cluster_index) {
+                ClusterReadResult::Link(d, n) => Some((d, Some(n))),
+                ClusterReadResult::EndOfChain(d) => Some((d, None)),
+                _ => None,
+            };
+    }
+}
+
+impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
+    type Item = FatDirectoryEntry<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match loop {
+            // Iterate over the clusters composing the directory.
+            let (cluster, next_cluster) = match self.current_cluster_data {
+                Some(d) => d,
+                None => return None,
+            };
+
+            let directory_entries = unsafe {
+                slice::from_raw_parts(
+                    cluster.as_ptr() as *const DirectoryEntry,
+                    self.entries_per_cluster,
+                )
+            };
+
+            match loop {
+                // Iterate over entries in each cluster.
+                if self.next_index >= directory_entries.len() {
+                    // If we reach the end of the cluster without encountering an entry,
+                    // we'll need to load the next cluster.
+                    break None;
+                }
+
+                let entry = &directory_entries[self.next_index];
+                if entry.is_invalid() {
+                    // Skip invalid entries.
+                    self.next_index += 1;
+                    continue;
+                }
+
+                match entry.file_name().free_indicator() {
+                    ShortFileNameFreeIndicator::NotFree => {
+                        // We've encountered a non-free entry. Interrogate it.
+                        let attributes = entry.attributes();
+                        if attributes.is_volume_label() {
+                            break Some(FatDirectoryEntry::VolumeLabel(entry.file_name()));
+                        }
+
+                        if attributes.is_long_file_name_entry() {
+                            // Remember to check hidden flag on SFN entry.
+                            todo!("LFN Directory or File")
+                        }
+
+                        if attributes.is_hidden() && self.skip_hidden {
+                            // Skip hidden entries.
+                            self.next_index += 1;
+                            continue;
+                        }
+
+                        if attributes.is_directory() {
+                            todo!("SFN Directory")
+                        }
+
+                        todo!("SFN File")
+                    }
+                    ShortFileNameFreeIndicator::IsolatedFree => {
+                        // Skip isolated free entries.
+                        self.next_index += 1;
+                        continue;
+                    }
+                    ShortFileNameFreeIndicator::FreeAndAllSubsequentEntriesFree => {
+                        // There's no entry remaining in this cluster; we'll need to move to the next.
+                        break None;
+                    }
+                }
+            } {
+                Some(v) => break Some(v),
+                None => {
+                    // No value was found in the remaining entries in the cluster.
+                    match next_cluster {
+                        // Move to the next cluster if there is one.
+                        Some(n) => self.set_current_cluster(n),
+                        // If there's no next cluster, there's no next value.
+                        None => break None,
+                    }
+                }
+            };
+        } {
+            Some(v) => {
+                // We don't want to return this entry in the next call; bump the next index.
+                self.next_index += 1;
+                Some(v)
+            }
+            None => None,
+        }
+    }
+}
+
+impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
+    for FatClusterBasedDirectoryEntryIterator<'a, TFatEntry>
+{
+    fn reset(&mut self) {
+        self.set_current_cluster(self.start_cluster)
+    }
+}
+
+pub trait FatFileSystemReader<'a> {
+    type RootDirectoryEntryIterator: FatDirectoryEntryIterator<'a>;
     type FatEntry: FatEntry;
+
+    fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator;
 
     fn volume_parameters(&self) -> &FatVolumeParameters;
 
