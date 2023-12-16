@@ -339,15 +339,15 @@ impl Fat32Mirroring {
 }
 
 impl Fat32BiosParameterBlock {
-    pub fn mirroring(&self) -> Fat32Mirroring {
+    pub const fn mirroring(&self) -> Fat32Mirroring {
         Fat32Mirroring(u16::from_le_bytes(self.extended_flags))
     }
 
-    pub fn file_system_version(&self) -> u16 {
+    pub const fn file_system_version(&self) -> u16 {
         u16::from_le_bytes(self.file_system_version)
     }
 
-    pub fn root_cluster(&self) -> u32 {
+    pub const fn root_cluster(&self) -> u32 {
         u32::from_le_bytes(self.root_cluster)
     }
 

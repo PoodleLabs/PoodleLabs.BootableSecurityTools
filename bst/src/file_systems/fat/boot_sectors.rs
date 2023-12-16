@@ -26,15 +26,15 @@ pub struct FatBootCode<const N: usize> {
 }
 
 impl<const N: usize> FatBootCode<N> {
-    fn boot_sign_is_valid(&self) -> bool {
+    pub const fn boot_sign_is_valid(&self) -> bool {
         self.boot_sign() == 0xAA55
     }
 
-    fn clone_boot_code(&self) -> [u8; N] {
+    pub const fn clone_boot_code(&self) -> [u8; N] {
         self.boot_code
     }
 
-    fn boot_sign(&self) -> u16 {
+    pub const fn boot_sign(&self) -> u16 {
         u16::from_le_bytes(self.boot_sign)
     }
 }
@@ -53,15 +53,15 @@ impl FatExtendedBootSignature {
     pub const FAT_32_FILE_SYSTEM_TYPE: &[u8; 8] = b"FAT32   ";
     pub const VOLUME_DEFAULT_LABEL: &[u8; 11] = b"NO NAME    ";
 
-    fn file_system_type(&self) -> &[u8; 8] {
+    pub const fn file_system_type(&self) -> &[u8; 8] {
         &self.file_system_type
     }
 
-    fn volume_label(&self) -> &[u8; 11] {
+    pub const fn volume_label(&self) -> &[u8; 11] {
         &self.volume_label
     }
 
-    fn volume_id(&self) -> &[u8; 4] {
+    pub const fn volume_id(&self) -> &[u8; 4] {
         &self.volume_id
     }
 }

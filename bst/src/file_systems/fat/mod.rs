@@ -20,6 +20,7 @@ mod directory_entries;
 mod directory_handles;
 mod fat_entries;
 mod file_system_info;
+mod reads;
 
 // This FAT implementation was written based on the FatFs documentation,
 // which can be found at: http://elm-chan.org/fsw/ff/00index_e.html.

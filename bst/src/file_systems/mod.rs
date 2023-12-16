@@ -27,7 +27,7 @@ enum BootSectorExtendedBootSignature {
 }
 
 impl BootSectorExtendedBootSignature {
-    pub fn has_extended_fields(&self) -> bool {
+    pub const fn has_extended_fields(&self) -> bool {
         *self as u8 >= 0x29
     }
 }
