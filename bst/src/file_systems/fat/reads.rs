@@ -196,7 +196,25 @@ impl<'a>
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum FatDirectoryEntry<'a> {
+pub enum DirectoryEntryClusterPointer {
+    UnclusteredRoot,
+    Cluster(usize),
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct DirectoryEntryPointer {
+    cluster: DirectoryEntryClusterPointer,
+    index: usize,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct DirectoryEntryDescriptor<'a> {
+    content: DirectoryEntryContent<'a>,
+    pointer: DirectoryEntryPointer,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum DirectoryEntryContent<'a> {
     ShortFileNameEntry(&'a DirectoryEntry),
     VolumeLabel(&'a ShortFileName),
     LongFileName(
@@ -210,10 +228,11 @@ pub enum FatDirectoryEntry<'a> {
 
 fn next_directory_entry_in_cluster<'a>(
     lfn_buffer: &mut [Option<&'a LongFileNameDirectoryEntry>; 20],
+    cluster_pointer: DirectoryEntryClusterPointer,
     directory_entries: &'a [DirectoryEntry],
     next_index: &mut usize,
     skip_hidden: bool,
-) -> Option<FatDirectoryEntry<'a>> {
+) -> Option<DirectoryEntryDescriptor<'a>> {
     loop {
         // Iterate over entries in the provided cluster.
         if *next_index >= directory_entries.len() {
@@ -237,7 +256,13 @@ fn next_directory_entry_in_cluster<'a>(
                     lfn_buffer.fill(None);
 
                     // Return the volume label.
-                    return Some(FatDirectoryEntry::VolumeLabel(entry.file_name()));
+                    return Some(DirectoryEntryDescriptor {
+                        content: DirectoryEntryContent::VolumeLabel(entry.file_name()),
+                        pointer: DirectoryEntryPointer {
+                            cluster: cluster_pointer,
+                            index: *next_index,
+                        },
+                    });
                 }
 
                 if attributes.is_long_file_name_entry() {
@@ -283,7 +308,13 @@ fn next_directory_entry_in_cluster<'a>(
 
                 if lfn_length == 0 {
                     // No LFN buffer entries are set. We can just return a SFN entry.
-                    return Some(FatDirectoryEntry::ShortFileNameEntry(entry));
+                    return Some(DirectoryEntryDescriptor {
+                        content: DirectoryEntryContent::ShortFileNameEntry(entry),
+                        pointer: DirectoryEntryPointer {
+                            cluster: cluster_pointer,
+                            index: *next_index,
+                        },
+                    });
                 }
 
                 // There are entries in the LFN buffer. Calculate the start index.
@@ -303,15 +334,27 @@ fn next_directory_entry_in_cluster<'a>(
                     lfn_buffer.fill(None);
 
                     // Return an LFN directory entry.
-                    return Some(FatDirectoryEntry::LongFileName((
-                        entry,
-                        lfn_start_index,
-                        lfn_out,
-                    )));
+                    return Some(DirectoryEntryDescriptor {
+                        content: DirectoryEntryContent::LongFileName((
+                            entry,
+                            lfn_start_index,
+                            lfn_out,
+                        )),
+                        pointer: DirectoryEntryPointer {
+                            cluster: cluster_pointer,
+                            index: *next_index,
+                        },
+                    });
                 } else {
                     // The LFN is invalid; clear the buffer and just return a SFN entry.
                     lfn_buffer.fill(None);
-                    return Some(FatDirectoryEntry::ShortFileNameEntry(entry));
+                    return Some(DirectoryEntryDescriptor {
+                        content: DirectoryEntryContent::ShortFileNameEntry(entry),
+                        pointer: DirectoryEntryPointer {
+                            cluster: cluster_pointer,
+                            index: *next_index,
+                        },
+                    });
                 }
             }
             ShortFileNameFreeIndicator::IsolatedFree => {
@@ -327,7 +370,7 @@ fn next_directory_entry_in_cluster<'a>(
     }
 }
 
-pub trait FatDirectoryEntryIterator<'a>: Iterator<Item = FatDirectoryEntry<'a>> {
+pub trait FatDirectoryEntryIterator<'a>: Iterator<Item = DirectoryEntryDescriptor<'a>> {
     fn reset(&mut self);
 }
 
@@ -341,7 +384,7 @@ pub struct FatFixedSizeDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
 }
 
 impl<'a, TFatEntry: FatEntry> Iterator for FatFixedSizeDirectoryEntryIterator<'a, TFatEntry> {
-    type Item = FatDirectoryEntry<'a>;
+    type Item = DirectoryEntryDescriptor<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let directory_entries = unsafe {
@@ -358,6 +401,7 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatFixedSizeDirectoryEntryIterator<'a
         // We can handle fixed sized root directories by treating them as having a single, special cluster.
         match next_directory_entry_in_cluster(
             &mut self.lfn_buffer,
+            DirectoryEntryClusterPointer::UnclusteredRoot,
             directory_entries,
             &mut self.next_index,
             self.skip_hidden,
@@ -381,8 +425,8 @@ impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
 }
 
 pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+    current_cluster_data: Option<(usize, &'a [u8], Option<usize>)>,
     lfn_buffer: [Option<&'a LongFileNameDirectoryEntry>; 20],
-    current_cluster_data: Option<(&'a [u8], Option<usize>)>,
     volume_parameters: &'a FatVolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
     entries_per_cluster: usize,
@@ -396,34 +440,35 @@ impl<'a, TFatEntry: FatEntry> FatClusterBasedDirectoryEntryIterator<'a, TFatEntr
         self.next_index = 0;
         self.current_cluster_data =
             match read_cluster::<TFatEntry>(self.volume_parameters, cluster_index) {
-                ClusterReadResult::Link(d, n) => Some((d, Some(n))),
-                ClusterReadResult::EndOfChain(d) => Some((d, None)),
+                ClusterReadResult::Link(d, n) => Some((cluster_index, d, Some(n))),
+                ClusterReadResult::EndOfChain(d) => Some((cluster_index, d, None)),
                 _ => None,
             };
     }
 }
 
 impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
-    type Item = FatDirectoryEntry<'a>;
+    type Item = DirectoryEntryDescriptor<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.lfn_buffer.fill(None);
         match loop {
             // Iterate over the clusters composing the directory.
-            let (cluster, next_cluster) = match self.current_cluster_data {
+            let (current_cluster, cluster_content, next_cluster) = match self.current_cluster_data {
                 Some(d) => d,
                 None => return None,
             };
 
             let directory_entries = unsafe {
                 slice::from_raw_parts(
-                    cluster.as_ptr() as *const DirectoryEntry,
+                    cluster_content.as_ptr() as *const DirectoryEntry,
                     self.entries_per_cluster,
                 )
             };
 
             match next_directory_entry_in_cluster(
                 &mut self.lfn_buffer,
+                DirectoryEntryClusterPointer::Cluster(current_cluster),
                 directory_entries,
                 &mut self.next_index,
                 self.skip_hidden,
