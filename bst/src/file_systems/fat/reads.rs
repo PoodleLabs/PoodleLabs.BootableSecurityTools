@@ -57,6 +57,29 @@ impl<'a, TFatEntry: FatEntry> Iterator for LinearFatEntryIterator<'a, TFatEntry>
     }
 }
 
+pub struct FatEntryChainIterator<'a, TFatEntry: FatEntry> {
+    volume_parameters: &'a FatVolumeParameters,
+    phantom_data: PhantomData<TFatEntry>,
+    next_index: usize,
+}
+
+impl<'a, TFatEntry: FatEntry> Iterator for FatEntryChainIterator<'a, TFatEntry> {
+    type Item = TFatEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry = match TFatEntry::try_read_from(
+            active_fat_bytes(self.volume_parameters),
+            self.next_index,
+        ) {
+            Some(e) => e,
+            None => return None,
+        };
+
+        self.next_index = entry.into();
+        Some(entry)
+    }
+}
+
 pub struct LinearFatClusterIterator<'a, TFatEntry: FatEntry> {
     volume_parameters: &'a FatVolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
@@ -73,6 +96,35 @@ impl<'a, TFatEntry: FatEntry> Iterator for LinearFatClusterIterator<'a, TFatEntr
         }
 
         self.next_index += 1;
+        Some(result)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let cluster_count = cluster_count(self.volume_parameters);
+        (cluster_count, Some(cluster_count))
+    }
+}
+
+pub struct FatClusterChainIterator<'a, TFatEntry: FatEntry> {
+    volume_parameters: &'a FatVolumeParameters,
+    phantom_data: PhantomData<TFatEntry>,
+    next_index: usize,
+}
+
+impl<'a, TFatEntry: FatEntry> Iterator for FatClusterChainIterator<'a, TFatEntry> {
+    type Item = ClusterReadResult<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = read_cluster::<TFatEntry>(self.volume_parameters, self.next_index);
+        if result == ClusterReadResult::OutOfBounds {
+            return None;
+        }
+
+        self.next_index = match result {
+            ClusterReadResult::Link(_, n) => n,
+            _ => usize::MAX,
+        };
+
         Some(result)
     }
 
@@ -102,6 +154,17 @@ pub trait FatFileSystemReader {
         }
     }
 
+    fn iter_fat_entry_chain(
+        &self,
+        start_index: usize,
+    ) -> FatEntryChainIterator<'_, Self::FatEntry> {
+        FatEntryChainIterator {
+            phantom_data: PhantomData::<Self::FatEntry>,
+            volume_parameters: self.volume_parameters(),
+            next_index: start_index,
+        }
+    }
+
     fn iter_fat_clusters_linear(&self) -> LinearFatClusterIterator<'_, Self::FatEntry> {
         self.iter_fat_clusters_linear_from(0)
     }
@@ -111,6 +174,17 @@ pub trait FatFileSystemReader {
         start_index: usize,
     ) -> LinearFatClusterIterator<'_, Self::FatEntry> {
         LinearFatClusterIterator {
+            phantom_data: PhantomData::<Self::FatEntry>,
+            volume_parameters: self.volume_parameters(),
+            next_index: start_index,
+        }
+    }
+
+    fn iter_fat_cluster_chain(
+        &self,
+        start_index: usize,
+    ) -> FatClusterChainIterator<'_, Self::FatEntry> {
+        FatClusterChainIterator {
             phantom_data: PhantomData::<Self::FatEntry>,
             volume_parameters: self.volume_parameters(),
             next_index: start_index,
