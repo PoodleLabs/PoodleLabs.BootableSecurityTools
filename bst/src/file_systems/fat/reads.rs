@@ -21,7 +21,9 @@ use super::{
 use crate::file_systems::fat::{
     directory_entries::LongFileNameDirectoryEntry, fat_entries::FatEntryStatus,
 };
+use alloc::vec::Vec;
 use core::{marker::PhantomData, slice};
+use macros::s16;
 
 pub struct FatVolumeParameters {
     sectors_per_cluster: usize,
@@ -171,9 +173,55 @@ impl<'a> DirectoryEntryWithLfn<'a> {
             if !entry.is_valid(expected_checksum, expected_order_value) {
                 return false;
             }
+
+            if i == 0 && !entry.ordering().is_end() {
+                // Check the first entry is marked correctly.
+                return false;
+            }
         }
 
         return true;
+    }
+
+    pub fn build_name(&self, null_terminate: bool) -> Vec<u16> {
+        if !self.is_valid() {
+            let mut invalid_name = Vec::from(s16!("INVALID LONG FILE NAME").content_slice());
+            if null_terminate {
+                invalid_name.push(0);
+            }
+
+            return invalid_name;
+        }
+
+        // Prepare a vector with adequate capacity to hold the entire name.
+        let mut vec = Vec::with_capacity(
+            self.lfn_entries
+                .iter()
+                .map(|e| {
+                    LongFileNameDirectoryEntry::content_characters_from_raw_characters(
+                        &e.unwrap().raw_characters(),
+                    )
+                    .len()
+                })
+                .sum::<usize>()
+                + if null_terminate { 1 } else { 0 },
+        );
+
+        // Push all the content characters from the LFN entries in reverse order;
+        // remember; they're stored on disk in reverse order.
+        for i in (0..self.lfn_entries.len()).rev() {
+            vec.extend(
+                LongFileNameDirectoryEntry::content_characters_from_raw_characters(
+                    &self.lfn_entries[i].unwrap().raw_characters(),
+                ),
+            );
+        }
+
+        if null_terminate {
+            vec.push(0);
+        }
+
+        vec
     }
 }
 

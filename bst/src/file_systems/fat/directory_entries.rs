@@ -14,10 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{bios_parameters_blocks::FatBiosParameterBlock, boot_sectors::FatBootSector};
 use crate::bits::bit_field;
 use alloc::vec::Vec;
-use core::slice;
 use macros::c16;
 
 #[repr(C)]
@@ -282,28 +280,6 @@ pub struct DirectoryEntry {
 }
 
 impl DirectoryEntry {
-    pub fn root_from_cluster(cluster: u32) -> Self {
-        Self {
-            name_case_flags: DirectoryEntryNameCaseFlags(0),
-            attributes: DirectoryEntryAttributes::DIRECTORY
-                | DirectoryEntryAttributes::ARCHIVE
-                | DirectoryEntryAttributes::READ_ONLY
-                | DirectoryEntryAttributes::SYSTEM,
-            last_write_time: FatTime2sResolution([0, 0]),
-            name: ShortFileName(b"ROOT       ".clone()),
-            last_access_date: FatDate([0, 0]),
-            last_write_date: FatDate([0, 0]),
-            creation_date: FatDate([0, 0]),
-            creation_time: FatTime {
-                sub_2s: 0,
-                main: FatTime2sResolution([0, 0]),
-            },
-            file_size: [0, 0, 0, 0],
-            cluster_high: [0, 0], //TODO
-            cluster_low: [0, 0],  //TODO
-        }
-    }
-
     pub const fn attributes(&self) -> &DirectoryEntryAttributes {
         &self.attributes
     }
@@ -329,24 +305,6 @@ impl DirectoryEntry {
 
     pub fn is_invalid(&self) -> bool {
         ((self.file_size() == 0) != (self.first_cluster() == 0)) || (self.first_cluster() == 1)
-    }
-
-    pub fn try_get_start_byte_offset<
-        const N: usize,
-        TBiosParameterBlock: FatBiosParameterBlock,
-        TBootSector: FatBootSector<N, TBiosParameterBlock>,
-    >(
-        &self,
-        boot_sector: &TBootSector,
-    ) -> Option<usize> {
-        if self.is_empty_file() || self.is_invalid() {
-            None
-        } else {
-            boot_sector
-                .body()
-                .bios_parameters_block()
-                .get_byte_offset_for_cluster(self.first_cluster() as usize)
-        }
     }
 }
 
@@ -424,6 +382,14 @@ impl LongFileNameDirectoryEntry {
                     .all(|c| Self::PADDING_CHARACTER.eq(c)))
     }
 
+    pub fn raw_characters(&self) -> [u16; 13] {
+        let mut characters = [0u16; 13];
+        Self::extract_chars_from_part(&mut characters, &self.part_1.0, 0);
+        Self::extract_chars_from_part(&mut characters, &self.part_2.0, 5);
+        Self::extract_chars_from_part(&mut characters, &self.part_3.0, 11);
+        characters
+    }
+
     fn extract_chars_from_part<const N: usize>(
         characters: &mut [u16; 13],
         part: &[u8; N],
@@ -435,115 +401,5 @@ impl LongFileNameDirectoryEntry {
             single_character_buffer[1] = part[(i * 2) + 1];
             characters[i + offset] = u16::from_le_bytes(single_character_buffer);
         }
-    }
-
-    fn raw_characters(&self) -> [u16; 13] {
-        let mut characters = [0u16; 13];
-        Self::extract_chars_from_part(&mut characters, &self.part_1.0, 0);
-        Self::extract_chars_from_part(&mut characters, &self.part_2.0, 5);
-        Self::extract_chars_from_part(&mut characters, &self.part_3.0, 11);
-        characters
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct LongFileName {
-    start_pointer: *const DirectoryEntry,
-    lfn_entry_count: usize,
-}
-
-impl LongFileName {
-    pub const fn from(start_pointer: *const DirectoryEntry, lfn_entry_count: usize) -> Self {
-        Self {
-            lfn_entry_count,
-            start_pointer,
-        }
-    }
-
-    pub const fn lfn_entries(&self) -> &[LongFileNameDirectoryEntry] {
-        unsafe {
-            slice::from_raw_parts(
-                self.start_pointer as *const LongFileNameDirectoryEntry,
-                self.lfn_entry_count,
-            )
-        }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        if self.lfn_entry_count == 0 || self.lfn_entry_count > 20 {
-            // LFNs should have inclusively between 1 and 20 parts.
-            return false;
-        }
-
-        // Get the short file name entry at the end of the chain.
-        let sfn_entry = self.get_sfn_entry();
-
-        // The sfn entry must be a directory.
-        if !sfn_entry.attributes.is_directory() {
-            return false;
-        }
-
-        // Get a slice of lfn entries.
-        let lfn_entries = self.lfn_entries();
-
-        // Calculate the expected sfn checksum.
-        let checksum = sfn_entry.name.checksum();
-        for i in 0..lfn_entries.len() {
-            let lfn_entry = &lfn_entries[i];
-            // Expect LFN entries to be 1-indexed, and in reverse order.
-            let expected_order_value = self.lfn_entry_count - i;
-            if !lfn_entry.is_valid(checksum, expected_order_value as u8) {
-                return false;
-            }
-
-            if i == 0 && !lfn_entry.ordering.is_end() {
-                // Last LFN entry should be indicated to be the end.
-                return false;
-            }
-        }
-
-        true
-    }
-
-    pub fn get_sfn_entry(&self) -> &DirectoryEntry {
-        unsafe {
-            self.start_pointer
-                .add(self.lfn_entry_count)
-                .as_ref()
-                .unwrap()
-        }
-    }
-
-    pub fn build_name(&self, null_terminate: bool) -> Vec<u16> {
-        let lfn_entries = self.lfn_entries();
-        // Prepare a vector with adequate capacity to hold the entire name.
-        let mut vec = Vec::with_capacity(
-            lfn_entries
-                .iter()
-                .map(|e| {
-                    LongFileNameDirectoryEntry::content_characters_from_raw_characters(
-                        &e.raw_characters(),
-                    )
-                    .len()
-                })
-                .sum::<usize>()
-                + if null_terminate { 1 } else { 0 },
-        );
-
-        // Push all the content characters from the LFN entries in reverse order;
-        // remember; they're stored on disk in reverse order.
-        for i in (0..lfn_entries.len()).rev() {
-            vec.extend(
-                LongFileNameDirectoryEntry::content_characters_from_raw_characters(
-                    &lfn_entries[i].raw_characters(),
-                ),
-            );
-        }
-
-        if null_terminate {
-            vec.push(0);
-        }
-
-        vec
     }
 }
