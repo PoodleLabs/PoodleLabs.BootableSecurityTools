@@ -15,10 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    directory_entries::{self, DirectoryEntry, ShortFileName, ShortFileNameFreeIndicator},
+    directory_entries::{DirectoryEntry, LongFileName, ShortFileName, ShortFileNameFreeIndicator},
     fat_entries::FatEntry,
 };
-use crate::file_systems::fat::fat_entries::FatEntryStatus;
+use crate::file_systems::fat::{
+    directory_entries::LongFileNameDirectoryEntry, fat_entries::FatEntryStatus,
+};
 use core::{marker::PhantomData, slice};
 
 pub struct FatVolumeParameters {
@@ -138,11 +140,57 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterChainIterator<'a, TFatEntry
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CompleteLongFileNameDirectoryEntry<'a> {
+    lfn_entries: &'a [Option<&'a LongFileNameDirectoryEntry>],
+    sfn_entry: &'a DirectoryEntry,
+}
+
+impl<'a> CompleteLongFileNameDirectoryEntry<'a> {
+    pub const fn from(
+        lfn_entries: &'a [Option<&'a LongFileNameDirectoryEntry>],
+        sfn_entry: &'a DirectoryEntry,
+    ) -> Self {
+        Self {
+            lfn_entries,
+            sfn_entry,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        // Calculate the sfn checksum each lfn entry must have.
+        let expected_checksum = self.sfn_entry.file_name().checksum();
+        for i in 0..self.lfn_entries.len() {
+            let entry = match self.lfn_entries[i] {
+                Some(e) => e,
+                // There's a missing entry; the lfn is invalid.
+                None => return false,
+            };
+
+            // Expect entries in reverse order, with 1-indexed 'order' value.
+            let expected_order_value = (self.lfn_entries.len() - i) as u8;
+            if !entry.is_valid(expected_checksum, expected_order_value) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FatDirectoryEntry<'a> {
+    ShortFileNameEntry(&'a DirectoryEntry),
     VolumeLabel(&'a ShortFileName),
+    LongFileName(
+        (
+            &'a DirectoryEntry,
+            [Option<&'a LongFileNameDirectoryEntry>; 20],
+        ),
+    ),
 }
 
 fn next_directory_entry_in_cluster<'a>(
+    lfn_buffer: &mut [Option<&'a LongFileNameDirectoryEntry>; 20],
     directory_entries: &'a [DirectoryEntry],
     next_index: &mut usize,
     skip_hidden: bool,
@@ -166,25 +214,48 @@ fn next_directory_entry_in_cluster<'a>(
                 // We've encountered a non-free entry. Interrogate it.
                 let attributes = entry.attributes();
                 if attributes.is_volume_label() {
+                    // Clear any entries in the LFN buffer; any followed by a volume label are invalid.
+                    lfn_buffer.fill(None);
+
+                    // Return the volume label.
                     return Some(FatDirectoryEntry::VolumeLabel(entry.file_name()));
                 }
 
                 if attributes.is_long_file_name_entry() {
-                    // Remember to check hidden flag on SFN entry.
-                    todo!("LFN Directory or File")
+                    todo!("LFN")
                 }
 
                 if attributes.is_hidden() && skip_hidden {
+                    // Discard any entries in the LFN buffer.
+                    lfn_buffer.fill(None);
+
                     // Skip hidden entries.
                     *next_index += 1;
                     continue;
                 }
 
-                if attributes.is_directory() {
-                    todo!("SFN Directory")
-                }
+                match lfn_buffer.iter().enumerate().find(|(_, e)| e.is_some()) {
+                    Some((i, _)) => {
+                        // There are entries in the LFN buffer, starting at index i.
+                        let lfn_entries = &lfn_buffer[i..];
+                        let complete_lfn_entry =
+                            CompleteLongFileNameDirectoryEntry::from(lfn_entries, entry);
+                        if complete_lfn_entry.is_valid() {
+                            // The LFN is valid; copy out, then clear the buffer and return an LFN entry.
+                            let mut lfn_out = [None; 20];
+                            lfn_out[i..].copy_from_slice(lfn_entries);
+                            lfn_buffer[i..].fill(None);
 
-                todo!("SFN File")
+                            return Some(FatDirectoryEntry::LongFileName((entry, lfn_out)));
+                        } else {
+                            // The LFN is invalid; clear the buffer and just return a SFN entry.
+                            lfn_buffer[i..].fill(None);
+                            return Some(FatDirectoryEntry::ShortFileNameEntry(entry));
+                        }
+                    }
+                    // No LFN buffer entries are set. We can just return a SFN entry.
+                    None => return Some(FatDirectoryEntry::ShortFileNameEntry(entry)),
+                }
             }
             ShortFileNameFreeIndicator::IsolatedFree => {
                 // Skip isolated free entries.
@@ -204,6 +275,7 @@ pub trait FatDirectoryEntryIterator<'a>: Iterator<Item = FatDirectoryEntry<'a>> 
 }
 
 pub struct FatFixedSizeDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+    lfn_buffer: [Option<&'a LongFileNameDirectoryEntry>; 20],
     volume_parameters: &'a FatVolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
     directory_entry_count: usize,
@@ -225,8 +297,10 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatFixedSizeDirectoryEntryIterator<'a
             )
         };
 
+        self.lfn_buffer.fill(None);
         // We can handle fixed sized root directories by treating them as having a single, special cluster.
         match next_directory_entry_in_cluster(
+            &mut self.lfn_buffer,
             directory_entries,
             &mut self.next_index,
             self.skip_hidden,
@@ -250,6 +324,7 @@ impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
 }
 
 pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+    lfn_buffer: [Option<&'a LongFileNameDirectoryEntry>; 20],
     current_cluster_data: Option<(&'a [u8], Option<usize>)>,
     volume_parameters: &'a FatVolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
@@ -275,6 +350,7 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator
     type Item = FatDirectoryEntry<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        self.lfn_buffer.fill(None);
         match loop {
             // Iterate over the clusters composing the directory.
             let (cluster, next_cluster) = match self.current_cluster_data {
@@ -290,6 +366,7 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator
             };
 
             match next_directory_entry_in_cluster(
+                &mut self.lfn_buffer,
                 directory_entries,
                 &mut self.next_index,
                 self.skip_hidden,

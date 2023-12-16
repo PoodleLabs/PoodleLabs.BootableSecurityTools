@@ -21,7 +21,7 @@ use core::slice;
 use macros::c16;
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FatDate([u8; 2]);
 
 impl FatDate {
@@ -39,7 +39,7 @@ impl FatDate {
 }
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FatTime2sResolution([u8; 2]);
 
 impl FatTime2sResolution {
@@ -57,7 +57,7 @@ impl FatTime2sResolution {
 }
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FatTime {
     sub_2s: u8, // Resolution of 10 milliseconds, 0-199 where 0 = 0, and 199 = 1.99s.
     main: FatTime2sResolution,
@@ -128,7 +128,7 @@ impl DirectoryEntryAttributes {
 bit_field!(DirectoryEntryAttributes);
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct DirectoryEntryNameCaseFlags(u8);
 
 impl DirectoryEntryNameCaseFlags {
@@ -266,7 +266,7 @@ impl ShortFileName {
 }
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectoryEntry {
     name: ShortFileName,
     attributes: DirectoryEntryAttributes,
@@ -351,6 +351,7 @@ impl DirectoryEntry {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LongFileNameOrdering(u8);
 
 impl LongFileNameOrdering {
@@ -364,15 +365,19 @@ impl LongFileNameOrdering {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongFileNamePart1([u8; 10]); // Five UTF-16 characters.
 
 #[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongFileNamePart2([u8; 12]); // Six UTF-16 characters.
 
 #[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongFileNamePart3([u8; 4]); // Two UTF-16 characters.
 
 #[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongFileNameDirectoryEntry {
     ordering: LongFileNameOrdering,
     part_1: LongFileNamePart1,
@@ -441,7 +446,7 @@ impl LongFileNameDirectoryEntry {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct LongFileName {
     start_pointer: *const DirectoryEntry,
     lfn_entry_count: usize,
