@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    directory_entries::{DirectoryEntry, ShortFileName, ShortFileNameFreeIndicator},
+    directory_entries::{self, DirectoryEntry, ShortFileName, ShortFileNameFreeIndicator},
     fat_entries::FatEntry,
 };
 use crate::file_systems::fat::fat_entries::FatEntryStatus;
@@ -142,8 +142,111 @@ pub enum FatDirectoryEntry<'a> {
     VolumeLabel(&'a ShortFileName),
 }
 
+fn next_directory_entry_in_cluster<'a>(
+    directory_entries: &'a [DirectoryEntry],
+    next_index: &mut usize,
+    skip_hidden: bool,
+) -> Option<FatDirectoryEntry<'a>> {
+    loop {
+        // Iterate over entries in the provided cluster.
+        if *next_index >= directory_entries.len() {
+            // We've reached the end of the cluster without encountering an entry.
+            return None;
+        }
+
+        let entry = &directory_entries[*next_index];
+        if entry.is_invalid() {
+            // Skip invalid entries.
+            *next_index += 1;
+            continue;
+        }
+
+        match entry.file_name().free_indicator() {
+            ShortFileNameFreeIndicator::NotFree => {
+                // We've encountered a non-free entry. Interrogate it.
+                let attributes = entry.attributes();
+                if attributes.is_volume_label() {
+                    return Some(FatDirectoryEntry::VolumeLabel(entry.file_name()));
+                }
+
+                if attributes.is_long_file_name_entry() {
+                    // Remember to check hidden flag on SFN entry.
+                    todo!("LFN Directory or File")
+                }
+
+                if attributes.is_hidden() && skip_hidden {
+                    // Skip hidden entries.
+                    *next_index += 1;
+                    continue;
+                }
+
+                if attributes.is_directory() {
+                    todo!("SFN Directory")
+                }
+
+                todo!("SFN File")
+            }
+            ShortFileNameFreeIndicator::IsolatedFree => {
+                // Skip isolated free entries.
+                *next_index += 1;
+                continue;
+            }
+            ShortFileNameFreeIndicator::FreeAndAllSubsequentEntriesFree => {
+                // There's no entry remaining in this cluster.
+                return None;
+            }
+        }
+    }
+}
+
 pub trait FatDirectoryEntryIterator<'a>: Iterator<Item = FatDirectoryEntry<'a>> {
     fn reset(&mut self);
+}
+
+pub struct FatFixedSizeDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+    volume_parameters: &'a FatVolumeParameters,
+    phantom_data: PhantomData<TFatEntry>,
+    directory_entry_count: usize,
+    next_index: usize,
+    skip_hidden: bool,
+}
+
+impl<'a, TFatEntry: FatEntry> Iterator for FatFixedSizeDirectoryEntryIterator<'a, TFatEntry> {
+    type Item = FatDirectoryEntry<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let directory_entries = unsafe {
+            slice::from_raw_parts(
+                self.volume_parameters
+                    .volume_root
+                    .add(clustered_area_start(self.volume_parameters))
+                    as *const DirectoryEntry,
+                self.directory_entry_count,
+            )
+        };
+
+        // We can handle fixed sized root directories by treating them as having a single, special cluster.
+        match next_directory_entry_in_cluster(
+            directory_entries,
+            &mut self.next_index,
+            self.skip_hidden,
+        ) {
+            Some(e) => {
+                // We don't want to return this entry in the next call; bump the next index.
+                self.next_index += 1;
+                Some(e)
+            }
+            None => None,
+        }
+    }
+}
+
+impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
+    for FatFixedSizeDirectoryEntryIterator<'a, TFatEntry>
+{
+    fn reset(&mut self) {
+        self.next_index = 0;
+    }
 }
 
 pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
@@ -151,9 +254,9 @@ pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
     volume_parameters: &'a FatVolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
     entries_per_cluster: usize,
-    skip_hidden: bool,
     start_cluster: usize,
     next_index: usize,
+    skip_hidden: bool,
 }
 
 impl<'a, TFatEntry: FatEntry> FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
@@ -186,60 +289,14 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator
                 )
             };
 
-            match loop {
-                // Iterate over entries in each cluster.
-                if self.next_index >= directory_entries.len() {
-                    // If we reach the end of the cluster without encountering an entry,
-                    // we'll need to load the next cluster.
-                    break None;
-                }
-
-                let entry = &directory_entries[self.next_index];
-                if entry.is_invalid() {
-                    // Skip invalid entries.
-                    self.next_index += 1;
-                    continue;
-                }
-
-                match entry.file_name().free_indicator() {
-                    ShortFileNameFreeIndicator::NotFree => {
-                        // We've encountered a non-free entry. Interrogate it.
-                        let attributes = entry.attributes();
-                        if attributes.is_volume_label() {
-                            break Some(FatDirectoryEntry::VolumeLabel(entry.file_name()));
-                        }
-
-                        if attributes.is_long_file_name_entry() {
-                            // Remember to check hidden flag on SFN entry.
-                            todo!("LFN Directory or File")
-                        }
-
-                        if attributes.is_hidden() && self.skip_hidden {
-                            // Skip hidden entries.
-                            self.next_index += 1;
-                            continue;
-                        }
-
-                        if attributes.is_directory() {
-                            todo!("SFN Directory")
-                        }
-
-                        todo!("SFN File")
-                    }
-                    ShortFileNameFreeIndicator::IsolatedFree => {
-                        // Skip isolated free entries.
-                        self.next_index += 1;
-                        continue;
-                    }
-                    ShortFileNameFreeIndicator::FreeAndAllSubsequentEntriesFree => {
-                        // There's no entry remaining in this cluster; we'll need to move to the next.
-                        break None;
-                    }
-                }
-            } {
+            match next_directory_entry_in_cluster(
+                directory_entries,
+                &mut self.next_index,
+                self.skip_hidden,
+            ) {
                 Some(v) => break Some(v),
                 None => {
-                    // No value was found in the remaining entries in the cluster.
+                    // No returnable entry was found in the remaining entries in the cluster.
                     match next_cluster {
                         // Move to the next cluster if there is one.
                         Some(n) => self.set_current_cluster(n),
@@ -357,6 +414,10 @@ const fn active_fat_bytes(parameters: &FatVolumeParameters) -> &[u8] {
 }
 
 // Cluster reads.
+const fn clustered_area_start(parameters: &FatVolumeParameters) -> usize {
+    fat_area_start(parameters) + (fat_size(parameters) * parameters.fat_count)
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClusterReadResult<'a> {
     OutOfBounds,
@@ -382,10 +443,7 @@ impl<'a> ClusterReadResult<'a> {
             return Self::OutOfBounds;
         } else {
             let cluster_size = parameters.bytes_per_sector * parameters.sectors_per_cluster;
-            let cluster_offset = (fat_area_start(parameters)
-                + (fat_size(parameters) * parameters.fat_count))
-                + (cluster_size * index);
-
+            let cluster_offset = clustered_area_start(parameters) + (cluster_size * index);
             unsafe {
                 slice::from_raw_parts(parameters.volume_root.add(cluster_offset), cluster_size)
             }
