@@ -88,18 +88,32 @@ pub trait FatFileSystemReader {
     fn volume_parameters(&self) -> &FatVolumeParameters;
 
     fn iter_fat_entries_linear(&self) -> LinearFatEntryIterator<'_, Self::FatEntry> {
+        self.iter_fat_entries_linear_from(0)
+    }
+
+    fn iter_fat_entries_linear_from(
+        &self,
+        start_index: usize,
+    ) -> LinearFatEntryIterator<'_, Self::FatEntry> {
         LinearFatEntryIterator {
             phantom_data: PhantomData::<Self::FatEntry>,
             volume_parameters: self.volume_parameters(),
-            next_index: 0,
+            next_index: start_index,
         }
     }
 
     fn iter_fat_clusters_linear(&self) -> LinearFatClusterIterator<'_, Self::FatEntry> {
+        self.iter_fat_clusters_linear_from(0)
+    }
+
+    fn iter_fat_clusters_linear_from(
+        &self,
+        start_index: usize,
+    ) -> LinearFatClusterIterator<'_, Self::FatEntry> {
         LinearFatClusterIterator {
             phantom_data: PhantomData::<Self::FatEntry>,
             volume_parameters: self.volume_parameters(),
-            next_index: 0,
+            next_index: start_index,
         }
     }
 }
