@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    directory_entries::{DirectoryEntry, LongFileName, ShortFileName, ShortFileNameFreeIndicator},
+    directory_entries::{DirectoryEntry, ShortFileName, ShortFileNameFreeIndicator},
     fat_entries::FatEntry,
 };
 use crate::file_systems::fat::{
@@ -140,12 +140,12 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterChainIterator<'a, TFatEntry
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct CompleteLongFileNameDirectoryEntry<'a> {
+pub struct DirectoryEntryWithLfn<'a> {
     lfn_entries: &'a [Option<&'a LongFileNameDirectoryEntry>],
     sfn_entry: &'a DirectoryEntry,
 }
 
-impl<'a> CompleteLongFileNameDirectoryEntry<'a> {
+impl<'a> DirectoryEntryWithLfn<'a> {
     pub const fn from(
         lfn_entries: &'a [Option<&'a LongFileNameDirectoryEntry>],
         sfn_entry: &'a DirectoryEntry,
@@ -177,6 +177,24 @@ impl<'a> CompleteLongFileNameDirectoryEntry<'a> {
     }
 }
 
+impl<'a>
+    From<&'a (
+        &'a DirectoryEntry,
+        usize,
+        [Option<&'a LongFileNameDirectoryEntry>; 20],
+    )> for DirectoryEntryWithLfn<'a>
+{
+    fn from(
+        (sfn_entry, lfn_start_index, lfn_entries): &'a (
+            &'a DirectoryEntry,
+            usize,
+            [Option<&'a LongFileNameDirectoryEntry>; 20],
+        ),
+    ) -> Self {
+        Self::from(&lfn_entries[*lfn_start_index..], sfn_entry)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FatDirectoryEntry<'a> {
     ShortFileNameEntry(&'a DirectoryEntry),
@@ -184,6 +202,7 @@ pub enum FatDirectoryEntry<'a> {
     LongFileName(
         (
             &'a DirectoryEntry,
+            usize,
             [Option<&'a LongFileNameDirectoryEntry>; 20],
         ),
     ),
@@ -222,7 +241,25 @@ fn next_directory_entry_in_cluster<'a>(
                 }
 
                 if attributes.is_long_file_name_entry() {
-                    todo!("LFN")
+                    // Interpret the directory entry as a LFN entry.
+                    let lfn_entry = unsafe {
+                        (directory_entries.as_ptr().add(*next_index)
+                            as *const LongFileNameDirectoryEntry)
+                            .as_ref()
+                    }
+                    .unwrap();
+
+                    // LFNs can have inclusively between 1 and 20 entries, and are in reverse order, with a 1 indexed ordering value.
+                    // Calculate the index this LFN entry should be stored at in the LFN entry buffer.
+                    let index = 20 - lfn_entry.ordering().value() as usize;
+                    lfn_buffer[index] = Some(lfn_entry);
+
+                    // Any trailing LFN entries currently in the buffer are invalid, so clear them.
+                    // An example where this fill would matter is:
+                    // lfna2,lfna1,lfnb4,lfnb3,lfnb2,sfn
+                    // Both LFNs are invalid, as the first is not followed by a sfn, and the second does not have all the lfn entries,
+                    // but without the below fill, we'd end up with lfnb4,lfnb3,lfnb2,lfna1,sfn.
+                    lfn_buffer[index + 1..].fill(None);
                 }
 
                 if attributes.is_hidden() && skip_hidden {
@@ -234,27 +271,47 @@ fn next_directory_entry_in_cluster<'a>(
                     continue;
                 }
 
-                match lfn_buffer.iter().enumerate().find(|(_, e)| e.is_some()) {
-                    Some((i, _)) => {
-                        // There are entries in the LFN buffer, starting at index i.
-                        let lfn_entries = &lfn_buffer[i..];
-                        let complete_lfn_entry =
-                            CompleteLongFileNameDirectoryEntry::from(lfn_entries, entry);
-                        if complete_lfn_entry.is_valid() {
-                            // The LFN is valid; copy out, then clear the buffer and return an LFN entry.
-                            let mut lfn_out = [None; 20];
-                            lfn_out[i..].copy_from_slice(lfn_entries);
-                            lfn_buffer[i..].fill(None);
-
-                            return Some(FatDirectoryEntry::LongFileName((entry, lfn_out)));
-                        } else {
-                            // The LFN is invalid; clear the buffer and just return a SFN entry.
-                            lfn_buffer[i..].fill(None);
-                            return Some(FatDirectoryEntry::ShortFileNameEntry(entry));
-                        }
+                // Calculate the length of any LFN in the buffer by iterating backwards until we find an empty slot.
+                let mut lfn_length = 0;
+                for i in (0..20).rev() {
+                    if lfn_buffer[i].is_none() {
+                        break;
                     }
+
+                    lfn_length += 1;
+                }
+
+                if lfn_length == 0 {
                     // No LFN buffer entries are set. We can just return a SFN entry.
-                    None => return Some(FatDirectoryEntry::ShortFileNameEntry(entry)),
+                    return Some(FatDirectoryEntry::ShortFileNameEntry(entry));
+                }
+
+                // There are entries in the LFN buffer. Calculate the start index.
+                let lfn_start_index = 20 - lfn_length;
+
+                // Extract the trailing LFN entries.
+                let lfn_entries = &lfn_buffer[lfn_start_index..];
+                let full_entry = DirectoryEntryWithLfn::from(lfn_entries, entry);
+                if full_entry.is_valid() {
+                    // The LFN is valid. Create an owned output buffer.
+                    let mut lfn_out = [None; 20];
+
+                    // Copy the LFN entries into the output buffer.
+                    lfn_out[lfn_start_index..].copy_from_slice(lfn_entries);
+
+                    // Clear the values in our working buffer.
+                    lfn_buffer.fill(None);
+
+                    // Return an LFN directory entry.
+                    return Some(FatDirectoryEntry::LongFileName((
+                        entry,
+                        lfn_start_index,
+                        lfn_out,
+                    )));
+                } else {
+                    // The LFN is invalid; clear the buffer and just return a SFN entry.
+                    lfn_buffer.fill(None);
+                    return Some(FatDirectoryEntry::ShortFileNameEntry(entry));
                 }
             }
             ShortFileNameFreeIndicator::IsolatedFree => {
