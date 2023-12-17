@@ -14,51 +14,51 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::file_systems::fat::objects::DirectoryEntryAttributes;
+use crate::file_systems::fat;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LongFileNameOrdering(u8);
+pub struct PartOrdering(u8);
 
-impl LongFileNameOrdering {
-    pub const fn is_end(&self) -> bool {
+impl PartOrdering {
+    pub const fn is_final_part(&self) -> bool {
         (self.0 & 0x40) != 0
     }
 
-    pub const fn value(&self) -> u8 {
+    pub const fn number(&self) -> u8 {
         self.0 & 0b00011111
     }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LongFileNamePart1([u8; 10]); // Five UTF-16 characters.
+pub struct Characters1([u8; 10]); // Five UTF-16 characters.
 
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LongFileNamePart2([u8; 12]); // Six UTF-16 characters.
+pub struct Characters2([u8; 12]); // Six UTF-16 characters.
 
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LongFileNamePart3([u8; 4]); // Two UTF-16 characters.
+pub struct Characters3([u8; 4]); // Two UTF-16 characters.
 
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LongFileNameDirectoryEntry {
-    ordering: LongFileNameOrdering,
-    part_1: LongFileNamePart1,
-    attribute: DirectoryEntryAttributes, // Always 0x0F: Long File Name Entry.
-    entry_type: u8,                      // Always 0.
-    sfn_checksum: u8,                    // Checksum of associated SFN entry.
-    part_2: LongFileNamePart2,
-    cluster_low: [u8; 2], // Always 0
-    part_3: LongFileNamePart3,
+pub struct NamePart {
+    ordering: PartOrdering,    // The order number and end indicator.
+    characters_1: Characters1, // 5 UTF-16 characters.
+    attribute: fat::objects::directories::EntryAttributes, // Always 0x0F: Long File Name Entry.
+    entry_type: u8,            // Always 0.
+    sfn_checksum: u8,          // Checksum of associated SFN entry.
+    characters_2: Characters2, // 6 UTF-16 Characters
+    cluster_low: [u8; 2],      // Always 0
+    characters_3: Characters3, // 3 UTF-16 Characters
 }
 
-impl LongFileNameDirectoryEntry {
+impl NamePart {
     pub const PADDING_CHARACTER: u16 = 0xFFFF;
 
-    pub const fn ordering(&self) -> &LongFileNameOrdering {
+    pub const fn ordering(&self) -> &PartOrdering {
         &self.ordering
     }
 
@@ -75,7 +75,7 @@ impl LongFileNameDirectoryEntry {
         // The SFN checksum must be correct.
         self.sfn_checksum == expected_sfn_checksum
             // The ordering value must be correct.
-            && self.ordering.value() == expected_order_value
+            && self.ordering.number() == expected_order_value
             // The attribute must be correct.
             && self.attribute.is_long_file_name_entry()
             // The entry type must be zero.
@@ -92,13 +92,13 @@ impl LongFileNameDirectoryEntry {
 
     pub fn raw_characters(&self) -> [u16; 13] {
         let mut characters = [0u16; 13];
-        Self::extract_chars_from_part(&mut characters, &self.part_1.0, 0);
-        Self::extract_chars_from_part(&mut characters, &self.part_2.0, 5);
-        Self::extract_chars_from_part(&mut characters, &self.part_3.0, 11);
+        Self::extract_character_chunk(&mut characters, &self.characters_1.0, 0);
+        Self::extract_character_chunk(&mut characters, &self.characters_2.0, 5);
+        Self::extract_character_chunk(&mut characters, &self.characters_3.0, 11);
         characters
     }
 
-    fn extract_chars_from_part<const N: usize>(
+    fn extract_character_chunk<const N: usize>(
         characters: &mut [u16; 13],
         part: &[u8; N],
         offset: usize,

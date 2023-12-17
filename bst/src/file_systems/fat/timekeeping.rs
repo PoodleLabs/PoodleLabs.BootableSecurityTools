@@ -16,9 +16,9 @@
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct FatDate([u8; 2]);
+pub struct Date([u8; 2]);
 
-impl FatDate {
+impl Date {
     pub const fn year(&self) -> u16 {
         (((self.0[0] & 0b11111110) >> 1) as u16) + 1980
     }
@@ -34,9 +34,9 @@ impl FatDate {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct FatTime2sResolution([u8; 2]);
+pub struct Time2sResolution([u8; 2]);
 
-impl FatTime2sResolution {
+impl Time2sResolution {
     pub const fn hour(&self) -> u8 {
         (self.0[0] & 0b11111000) >> 3
     }
@@ -52,12 +52,12 @@ impl FatTime2sResolution {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct FatTime {
+pub struct Time {
     sub_2s: u8, // Resolution of 10 milliseconds, 0-199 where 0 = 0, and 199 = 1.99s.
-    main: FatTime2sResolution,
+    main: Time2sResolution,
 }
 
-impl FatTime {
+impl Time {
     pub const fn hour(&self) -> u8 {
         self.main.hour()
     }

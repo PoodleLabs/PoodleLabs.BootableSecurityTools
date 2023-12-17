@@ -18,6 +18,28 @@ pub mod map;
 
 use core::{marker::PhantomData, slice};
 
+// FAT filesystems operate on a cluster-based system. Files and directories are made up of
+// cluster chains, with a map at the beginning of the volume to the next cluster in the chain
+// you're currently following. A simplified demonstration is:
+// MAP:
+// 0: 1
+// 1: 3
+// 2: 4
+// 3: END
+// 4: END
+// CLUSTERS:
+// 0: "Hello"
+// 1: " Worl"
+// 2: "Foo, "
+// 3: "d!"
+// 4: "Bar!"
+//
+// The above 'filesystem' has two distinct 'files': "Hello World!", and "Foo Bar!".
+// FAT12 has 12 bit cluster addresses, FAT16 has 16 bit cluster addresses, and FAT32 has 32 bit cluster addresses,
+// though in the case of FAT32, the first 4 bits are reserved. A cluster can be an arbitrary size; FAT volumes are
+// divided into clusters, which are sub-divided into sectors, the size of each determined by the 'parameter block'
+// at the beginning of the volume. A common configuration is 512 byte sectors, with 4 sectors per cluster.
+
 pub struct VolumeParameters {
     sectors_per_cluster: usize,
     active_map: Option<usize>,

@@ -16,7 +16,7 @@
 
 use super::{
     boot_sectors::Fat32BootSector, clustering::map::Entry, file_system_info::FileSystemInfo,
-    Errors, FatType,
+    Errors, Variant,
 };
 use core::{mem::size_of, slice};
 
@@ -76,14 +76,14 @@ pub trait FatBiosParameterBlock: Sized {
         self.data_sector_count() / self.sectors_per_cluster() as u32
     }
 
-    fn fat_type(&self) -> FatType {
+    fn variant(&self) -> Variant {
         let cluster_count = self.cluster_count();
         if cluster_count <= 4085 {
-            FatType::Fat12
+            Variant::Fat12
         } else if cluster_count <= 65525 {
-            FatType::Fat16
+            Variant::Fat16
         } else {
-            FatType::Fat32
+            Variant::Fat32
         }
     }
 
@@ -123,14 +123,14 @@ pub trait FatBiosParameterBlock: Sized {
         }
     }
 
-    fn error_check<TFatEntry: Entry>(&self, root: *const u8) -> Errors {
+    fn error_check<TMapEntry: Entry>(&self, root: *const u8) -> Errors {
         let active_fat_bytes = self.active_fat_bytes(root);
-        let first_entry = match TFatEntry::try_read_from(active_fat_bytes, 0) {
+        let first_entry = match TMapEntry::try_read_from(active_fat_bytes, 0) {
             Some(e) => e,
             None => return Errors::Unreadable,
         };
 
-        let second_entry = match TFatEntry::try_read_from(active_fat_bytes, 1) {
+        let second_entry = match TMapEntry::try_read_from(active_fat_bytes, 1) {
             Some(e) => e,
             None => return Errors::Unreadable,
         };
@@ -142,20 +142,20 @@ pub trait FatBiosParameterBlock: Sized {
         return second_entry.check_error_bits();
     }
 
-    fn try_clear_volume_dirty<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
-        try_set_flag_high(self, root, TFatEntry::volume_dirty_flag())
+    fn try_clear_volume_dirty<TMapEntry: Entry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_high(self, root, TMapEntry::volume_dirty_flag())
     }
 
-    fn try_set_volume_dirty<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
-        try_set_flag_low(self, root, TFatEntry::volume_dirty_flag())
+    fn try_set_volume_dirty<TMapEntry: Entry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_low(self, root, TMapEntry::volume_dirty_flag())
     }
 
-    fn try_clear_hard_error<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
-        try_set_flag_high(self, root, TFatEntry::hard_error_flag())
+    fn try_clear_hard_error<TMapEntry: Entry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_high(self, root, TMapEntry::hard_error_flag())
     }
 
-    fn try_set_hard_error<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
-        try_set_flag_low(self, root, TFatEntry::hard_error_flag())
+    fn try_set_hard_error<TMapEntry: Entry>(&mut self, root: *mut u8) -> bool {
+        try_set_flag_low(self, root, TMapEntry::hard_error_flag())
     }
 
     fn update_mirrored_fats(&mut self, root: *mut u8) -> bool {
@@ -177,13 +177,13 @@ pub trait FatBiosParameterBlock: Sized {
     }
 }
 
-fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: Entry>(
+fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TMapEntry: Entry>(
     parameters: &TFatBiosParameterBlock,
     root: *mut u8,
-    flag: TFatEntry,
+    flag: TMapEntry,
 ) -> bool {
     let active_fat_bytes = parameters.active_fat_bytes_mut(root);
-    let current_value = match TFatEntry::try_read_from(active_fat_bytes, 1) {
+    let current_value = match TMapEntry::try_read_from(active_fat_bytes, 1) {
         Some(e) => e,
         None => return false,
     };
@@ -191,13 +191,13 @@ fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: E
     (current_value | flag).try_write_to(active_fat_bytes, 1)
 }
 
-fn try_set_flag_low<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: Entry>(
+fn try_set_flag_low<TFatBiosParameterBlock: FatBiosParameterBlock, TMapEntry: Entry>(
     parameters: &TFatBiosParameterBlock,
     root: *mut u8,
-    flag: TFatEntry,
+    flag: TMapEntry,
 ) -> bool {
     let active_fat_bytes = parameters.active_fat_bytes_mut(root);
-    let current_value = match TFatEntry::try_read_from(active_fat_bytes, 1) {
+    let current_value = match TMapEntry::try_read_from(active_fat_bytes, 1) {
         Some(e) => e,
         None => return false,
     };

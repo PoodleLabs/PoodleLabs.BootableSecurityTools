@@ -19,9 +19,9 @@ use macros::c16;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct DirectoryEntryNameCaseFlags(u8);
+pub struct CaseFlags(u8);
 
-impl DirectoryEntryNameCaseFlags {
+impl CaseFlags {
     pub const fn extension_is_lowercase(&self) -> bool {
         (self.0 & 0x10) != 0
     }
@@ -32,7 +32,7 @@ impl DirectoryEntryNameCaseFlags {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ShortFileNameFreeIndicator {
+pub enum FreeIndicator {
     NotFree,
     IsolatedFree,
     FreeAndAllSubsequentEntriesFree,
@@ -40,22 +40,22 @@ pub enum ShortFileNameFreeIndicator {
 
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ShortFileName([u8; 11]);
+pub struct Name([u8; 11]);
 
-impl ShortFileName {
+impl Name {
     pub const TAIL_PADDING_CHARACTER: u8 = 0x20;
 
-    pub const fn free_indicator(&self) -> ShortFileNameFreeIndicator {
+    pub const fn free_indicator(&self) -> FreeIndicator {
         match self.0[0] {
-            0x00 => ShortFileNameFreeIndicator::FreeAndAllSubsequentEntriesFree,
-            0xE5 => ShortFileNameFreeIndicator::IsolatedFree,
-            _ => ShortFileNameFreeIndicator::NotFree,
+            0x00 => FreeIndicator::FreeAndAllSubsequentEntriesFree,
+            0xE5 => FreeIndicator::IsolatedFree,
+            _ => FreeIndicator::NotFree,
         }
     }
 
     pub const fn get_characters(&self) -> Option<[u8; 11]> {
         match self.free_indicator() {
-            ShortFileNameFreeIndicator::NotFree => Some(self.0),
+            FreeIndicator::NotFree => Some(self.0),
             _ => None,
         }
     }
@@ -73,27 +73,27 @@ impl ShortFileName {
         &content[..len]
     }
 
-    pub fn get_file_extension_characters(&self) -> Option<&[u8]> {
+    pub fn get_extension_characters(&self) -> Option<&[u8]> {
         match self.free_indicator() {
-            ShortFileNameFreeIndicator::NotFree => Some(&self.0[8..]),
+            FreeIndicator::NotFree => Some(&self.0[8..]),
             _ => None,
         }
     }
 
-    pub fn get_file_name_characters(&self) -> Option<&[u8]> {
+    pub fn get_name_characters(&self) -> Option<&[u8]> {
         match self.free_indicator() {
-            ShortFileNameFreeIndicator::NotFree => Some(&self.0[..8]),
+            FreeIndicator::NotFree => Some(&self.0[..8]),
             _ => None,
         }
     }
 
     pub fn is_valid(&self) -> bool {
-        if self.free_indicator() != ShortFileNameFreeIndicator::NotFree {
+        if self.free_indicator() != FreeIndicator::NotFree {
             return true;
         }
 
-        let name = Self::trim_trailing_padding(self.get_file_name_characters().unwrap());
-        let extension = Self::trim_trailing_padding(self.get_file_extension_characters().unwrap());
+        let name = Self::trim_trailing_padding(self.get_name_characters().unwrap());
+        let extension = Self::trim_trailing_padding(self.get_extension_characters().unwrap());
         if name.len() + extension.len() == 0 {
             return false;
         }
@@ -104,13 +104,13 @@ impl ShortFileName {
             && Self::part_is_valid(extension)
     }
 
-    pub fn build_name(&self, null_terminate: bool) -> Option<Vec<u16>> {
-        if self.free_indicator() != ShortFileNameFreeIndicator::NotFree {
+    pub fn build_string(&self, null_terminate: bool) -> Option<Vec<u16>> {
+        if self.free_indicator() != FreeIndicator::NotFree {
             return None;
         }
 
-        let name = Self::trim_trailing_padding(self.get_file_name_characters().unwrap());
-        let extension = Self::trim_trailing_padding(self.get_file_extension_characters().unwrap());
+        let name = Self::trim_trailing_padding(self.get_name_characters().unwrap());
+        let extension = Self::trim_trailing_padding(self.get_extension_characters().unwrap());
 
         // Prepare a vec with space for all characters, plus a null terminating character if necessary,
         // and a dot if there is a file extension.
@@ -134,17 +134,6 @@ impl ShortFileName {
         Some(vec)
     }
 
-    fn part_is_valid(value: &[u8]) -> bool {
-        // The part must have a length of 0
-        value.len() == 0
-            // Or exclusively contain allowable characters.
-            || value
-                .iter()
-                .all(|c| *c >= 0x80 || (b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&'()-@^_`{}~").contains(c))
-    }
-}
-
-impl ShortFileName {
     pub fn checksum(&self) -> u8 {
         let mut sum = 0u8;
         for i in 0..11 {
@@ -152,5 +141,14 @@ impl ShortFileName {
         }
 
         sum
+    }
+
+    fn part_is_valid(value: &[u8]) -> bool {
+        // The part must have a length of 0
+        value.len() == 0
+            // Or exclusively contain allowable characters.
+            || value
+                .iter()
+                .all(|c| *c >= 0x80 || (b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&'()-@^_`{}~").contains(c))
     }
 }

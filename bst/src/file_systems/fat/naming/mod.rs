@@ -16,3 +16,9 @@
 
 pub mod long;
 pub mod short;
+
+// Objects (files and directories) in a FAT filesystem can have two names.
+// The old type, a 'SFN', or short file name, has 8 characters for the name,
+// and three characters for the file extension.
+// Long file names were added as an extension of the filesystem's capabilities,
+// though all objects have a SFN, even if it's randomly generated.
