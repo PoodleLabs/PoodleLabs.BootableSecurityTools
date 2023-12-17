@@ -15,8 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    boot_sectors::Fat32BootSector, fat_entries::FatEntry, file_system_info::FileSystemInfo,
-    FatErrors, FatType,
+    boot_sectors::Fat32BootSector, clustering::map::Entry, file_system_info::FileSystemInfo,
+    Errors, FatType,
 };
 use core::{mem::size_of, slice};
 
@@ -123,38 +123,38 @@ pub trait FatBiosParameterBlock: Sized {
         }
     }
 
-    fn error_check<TFatEntry: FatEntry>(&self, root: *const u8) -> FatErrors {
+    fn error_check<TFatEntry: Entry>(&self, root: *const u8) -> Errors {
         let active_fat_bytes = self.active_fat_bytes(root);
         let first_entry = match TFatEntry::try_read_from(active_fat_bytes, 0) {
             Some(e) => e,
-            None => return FatErrors::Unreadable,
+            None => return Errors::Unreadable,
         };
 
         let second_entry = match TFatEntry::try_read_from(active_fat_bytes, 1) {
             Some(e) => e,
-            None => return FatErrors::Unreadable,
+            None => return Errors::Unreadable,
         };
 
         if !first_entry.check_media_bits(self.media_type()) {
-            return FatErrors::InvalidMediaFatEntry;
+            return Errors::InvalidMediaFatEntry;
         }
 
         return second_entry.check_error_bits();
     }
 
-    fn try_clear_volume_dirty<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+    fn try_clear_volume_dirty<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
         try_set_flag_high(self, root, TFatEntry::volume_dirty_flag())
     }
 
-    fn try_set_volume_dirty<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+    fn try_set_volume_dirty<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
         try_set_flag_low(self, root, TFatEntry::volume_dirty_flag())
     }
 
-    fn try_clear_hard_error<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+    fn try_clear_hard_error<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
         try_set_flag_high(self, root, TFatEntry::hard_error_flag())
     }
 
-    fn try_set_hard_error<TFatEntry: FatEntry>(&mut self, root: *mut u8) -> bool {
+    fn try_set_hard_error<TFatEntry: Entry>(&mut self, root: *mut u8) -> bool {
         try_set_flag_low(self, root, TFatEntry::hard_error_flag())
     }
 
@@ -177,7 +177,7 @@ pub trait FatBiosParameterBlock: Sized {
     }
 }
 
-fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
+fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: Entry>(
     parameters: &TFatBiosParameterBlock,
     root: *mut u8,
     flag: TFatEntry,
@@ -191,7 +191,7 @@ fn try_set_flag_high<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: F
     (current_value | flag).try_write_to(active_fat_bytes, 1)
 }
 
-fn try_set_flag_low<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: FatEntry>(
+fn try_set_flag_low<TFatBiosParameterBlock: FatBiosParameterBlock, TFatEntry: Entry>(
     parameters: &TFatBiosParameterBlock,
     root: *mut u8,
     flag: TFatEntry,

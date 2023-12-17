@@ -15,129 +15,137 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    directory_entries::{DirectoryEntry, ShortFileName, ShortFileNameFreeIndicator},
-    fat_entries::FatEntry,
+    clustering::{map::Entry, ReadResult, VolumeParameters},
+    naming::{
+        long::LongFileNameDirectoryEntry,
+        short::{DirectoryEntryNameCaseFlags, ShortFileName, ShortFileNameFreeIndicator},
+    },
+    timekeeping::{FatDate, FatTime, FatTime2sResolution},
 };
-use crate::file_systems::fat::{
-    directory_entries::LongFileNameDirectoryEntry, fat_entries::FatEntryStatus,
-};
+use crate::bits::bit_field;
 use alloc::vec::Vec;
 use core::{marker::PhantomData, slice};
 use macros::s16;
 
-pub struct FatVolumeParameters {
-    sectors_per_cluster: usize,
-    active_fat: Option<usize>,
-    bytes_per_sector: usize,
-    reserved_sectors: usize,
-    volume_root: *const u8,
-    sectors_per_fat: usize,
-    sector_count: usize,
-    fat_count: usize,
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum DirectoryEntryClusterPointer {
+    UnclusteredRoot,
+    Cluster(usize),
 }
 
-pub struct LinearFatEntryIterator<'a, TFatEntry: FatEntry> {
-    volume_parameters: &'a FatVolumeParameters,
-    phantom_data: PhantomData<TFatEntry>,
-    next_index: usize,
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct DirectoryEntryPointer {
+    cluster: DirectoryEntryClusterPointer,
+    index: usize,
 }
 
-impl<'a, TFatEntry: FatEntry> Iterator for LinearFatEntryIterator<'a, TFatEntry> {
-    type Item = TFatEntry;
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum DirectoryEntryContent<'a> {
+    ShortFileNameEntry(&'a DirectoryEntry),
+    VolumeLabel(&'a ShortFileName),
+    LongFileName(
+        (
+            &'a DirectoryEntry,
+            usize,
+            [Option<&'a LongFileNameDirectoryEntry>; 20],
+        ),
+    ),
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let entry = match TFatEntry::try_read_from(
-            active_fat_bytes(self.volume_parameters),
-            self.next_index,
-        ) {
-            Some(e) => e,
-            None => return None,
-        };
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct DirectoryEntryDescriptor<'a> {
+    content: DirectoryEntryContent<'a>,
+    pointer: DirectoryEntryPointer,
+}
 
-        self.next_index += 1;
-        Some(entry)
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct DirectoryEntryAttributes(u8);
+
+impl DirectoryEntryAttributes {
+    pub const LONG_FILE_NAME_ENTRY: Self = Self(0x0F);
+    pub const READ_ONLY: Self = Self(0x01);
+    pub const HIDDEN: Self = Self(0x02);
+    pub const SYSTEM: Self = Self(0x04);
+    /// An entry with this attribute is the volume label. Only one entry can have this flag, in the root directory. Cluster and filesize values must all be set to zero.
+    pub const VOLUME_LABEL: Self = Self(0x08);
+    pub const DIRECTORY: Self = Self(0x10);
+    /// A flag for backup utilities to detect changes. Should be set to 1 on any change, 0 by the backup utility on backup.
+    pub const ARCHIVE: Self = Self(0x20);
+
+    pub const fn is_long_file_name_entry(&self) -> bool {
+        self.0 == Self::LONG_FILE_NAME_ENTRY.0
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let fat_entries = (fat_size(self.volume_parameters) * 8) / TFatEntry::bits_per_digit();
-        (fat_entries, Some(fat_entries))
-    }
-}
-
-pub struct FatEntryChainIterator<'a, TFatEntry: FatEntry> {
-    volume_parameters: &'a FatVolumeParameters,
-    phantom_data: PhantomData<TFatEntry>,
-    next_index: usize,
-}
-
-impl<'a, TFatEntry: FatEntry> Iterator for FatEntryChainIterator<'a, TFatEntry> {
-    type Item = TFatEntry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let entry = match TFatEntry::try_read_from(
-            active_fat_bytes(self.volume_parameters),
-            self.next_index,
-        ) {
-            Some(e) => e,
-            None => return None,
-        };
-
-        self.next_index = entry.into();
-        Some(entry)
-    }
-}
-
-pub struct LinearFatClusterIterator<'a, TFatEntry: FatEntry> {
-    volume_parameters: &'a FatVolumeParameters,
-    phantom_data: PhantomData<TFatEntry>,
-    next_index: usize,
-}
-
-impl<'a, TFatEntry: FatEntry> Iterator for LinearFatClusterIterator<'a, TFatEntry> {
-    type Item = ClusterReadResult<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = read_cluster::<TFatEntry>(self.volume_parameters, self.next_index);
-        if result == ClusterReadResult::OutOfBounds {
-            return None;
-        }
-
-        self.next_index += 1;
-        Some(result)
+    pub const fn is_read_only(&self) -> bool {
+        self.encompasses(Self::READ_ONLY)
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let cluster_count = cluster_count(self.volume_parameters);
-        (cluster_count, Some(cluster_count))
+    pub const fn is_hidden(&self) -> bool {
+        self.overlaps(Self::HIDDEN)
+    }
+
+    pub const fn is_system_entry(&self) -> bool {
+        self.overlaps(Self::SYSTEM)
+    }
+
+    pub const fn is_volume_label(&self) -> bool {
+        self.overlaps(Self::VOLUME_LABEL)
+    }
+
+    pub const fn is_directory(&self) -> bool {
+        self.overlaps(Self::DIRECTORY)
+    }
+
+    pub const fn updated_since_last_archive(&self) -> bool {
+        self.overlaps(Self::ARCHIVE)
     }
 }
 
-pub struct FatClusterChainIterator<'a, TFatEntry: FatEntry> {
-    volume_parameters: &'a FatVolumeParameters,
-    phantom_data: PhantomData<TFatEntry>,
-    next_index: usize,
+bit_field!(DirectoryEntryAttributes);
+
+#[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryEntry {
+    name: ShortFileName,
+    attributes: DirectoryEntryAttributes,
+    name_case_flags: DirectoryEntryNameCaseFlags,
+    creation_time: FatTime,
+    creation_date: FatDate,
+    last_access_date: FatDate,
+    cluster_high: [u8; 2], // Upper bytes of the cluster number, always 0x00, 0x00 on FAT12/16
+    last_write_time: FatTime2sResolution,
+    last_write_date: FatDate,
+    cluster_low: [u8; 2], // Lower bytes of the cluster number.
+    file_size: [u8; 4],
 }
 
-impl<'a, TFatEntry: FatEntry> Iterator for FatClusterChainIterator<'a, TFatEntry> {
-    type Item = ClusterReadResult<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = read_cluster::<TFatEntry>(self.volume_parameters, self.next_index);
-        if result == ClusterReadResult::OutOfBounds {
-            return None;
-        }
-
-        self.next_index = match result {
-            ClusterReadResult::Link(_, n) => n,
-            _ => usize::MAX,
-        };
-
-        Some(result)
+impl DirectoryEntry {
+    pub const fn attributes(&self) -> &DirectoryEntryAttributes {
+        &self.attributes
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let cluster_count = cluster_count(self.volume_parameters);
-        (cluster_count, Some(cluster_count))
+    pub const fn file_name(&self) -> &ShortFileName {
+        &self.name
+    }
+
+    pub const fn file_size(&self) -> u32 {
+        u32::from_le_bytes(self.file_size)
+    }
+
+    pub fn is_empty_file(&self) -> bool {
+        self.file_size() == 0 && self.first_cluster() == 0
+    }
+
+    pub fn first_cluster(&self) -> u32 {
+        let mut bytes = [0u8; 4];
+        bytes[..2].copy_from_slice(&self.cluster_high);
+        bytes[2..].copy_from_slice(&self.cluster_low);
+        u32::from_le_bytes(bytes)
+    }
+
+    pub fn is_invalid(&self) -> bool {
+        ((self.file_size() == 0) != (self.first_cluster() == 0)) || (self.first_cluster() == 1)
     }
 }
 
@@ -224,7 +232,6 @@ impl<'a> DirectoryEntryWithLfn<'a> {
         vec
     }
 }
-
 impl<'a>
     From<&'a (
         &'a DirectoryEntry,
@@ -241,37 +248,6 @@ impl<'a>
     ) -> Self {
         Self::from(&lfn_entries[*lfn_start_index..], sfn_entry)
     }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum DirectoryEntryClusterPointer {
-    UnclusteredRoot,
-    Cluster(usize),
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct DirectoryEntryPointer {
-    cluster: DirectoryEntryClusterPointer,
-    index: usize,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct DirectoryEntryDescriptor<'a> {
-    content: DirectoryEntryContent<'a>,
-    pointer: DirectoryEntryPointer,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum DirectoryEntryContent<'a> {
-    ShortFileNameEntry(&'a DirectoryEntry),
-    VolumeLabel(&'a ShortFileName),
-    LongFileName(
-        (
-            &'a DirectoryEntry,
-            usize,
-            [Option<&'a LongFileNameDirectoryEntry>; 20],
-        ),
-    ),
 }
 
 fn next_directory_entry_in_cluster<'a>(
@@ -422,24 +398,24 @@ pub trait FatDirectoryEntryIterator<'a>: Iterator<Item = DirectoryEntryDescripto
     fn reset(&mut self);
 }
 
-pub struct FatFixedSizeDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+pub struct FatFixedSizeDirectoryEntryIterator<'a, TFatEntry: Entry> {
     lfn_buffer: [Option<&'a LongFileNameDirectoryEntry>; 20],
-    volume_parameters: &'a FatVolumeParameters,
+    volume_parameters: &'a VolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
     directory_entry_count: usize,
     next_index: usize,
     skip_hidden: bool,
 }
 
-impl<'a, TFatEntry: FatEntry> Iterator for FatFixedSizeDirectoryEntryIterator<'a, TFatEntry> {
+impl<'a, TFatEntry: Entry> Iterator for FatFixedSizeDirectoryEntryIterator<'a, TFatEntry> {
     type Item = DirectoryEntryDescriptor<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let directory_entries = unsafe {
             slice::from_raw_parts(
                 self.volume_parameters
-                    .volume_root
-                    .add(clustered_area_start(self.volume_parameters))
+                    .volume_root()
+                    .add(self.volume_parameters.clustered_area_start())
                     as *const DirectoryEntry,
                 self.directory_entry_count,
             )
@@ -464,7 +440,7 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatFixedSizeDirectoryEntryIterator<'a
     }
 }
 
-impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
+impl<'a, TFatEntry: Entry> FatDirectoryEntryIterator<'a>
     for FatFixedSizeDirectoryEntryIterator<'a, TFatEntry>
 {
     fn reset(&mut self) {
@@ -472,10 +448,10 @@ impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
     }
 }
 
-pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
+pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: Entry> {
     current_cluster_data: Option<(usize, &'a [u8], Option<usize>)>,
     lfn_buffer: [Option<&'a LongFileNameDirectoryEntry>; 20],
-    volume_parameters: &'a FatVolumeParameters,
+    volume_parameters: &'a VolumeParameters,
     phantom_data: PhantomData<TFatEntry>,
     entries_per_cluster: usize,
     start_cluster: usize,
@@ -483,19 +459,21 @@ pub struct FatClusterBasedDirectoryEntryIterator<'a, TFatEntry: FatEntry> {
     skip_hidden: bool,
 }
 
-impl<'a, TFatEntry: FatEntry> FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
+impl<'a, TFatEntry: Entry> FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
     fn set_current_cluster(&mut self, cluster_index: usize) {
         self.next_index = 0;
-        self.current_cluster_data =
-            match read_cluster::<TFatEntry>(self.volume_parameters, cluster_index) {
-                ClusterReadResult::Link(d, n) => Some((cluster_index, d, Some(n))),
-                ClusterReadResult::EndOfChain(d) => Some((cluster_index, d, None)),
-                _ => None,
-            };
+        self.current_cluster_data = match self
+            .volume_parameters
+            .read_cluster::<TFatEntry>(cluster_index)
+        {
+            ReadResult::Link(d, n) => Some((cluster_index, d, Some(n))),
+            ReadResult::EndOfChain(d) => Some((cluster_index, d, None)),
+            _ => None,
+        };
     }
 }
 
-impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
+impl<'a, TFatEntry: Entry> Iterator for FatClusterBasedDirectoryEntryIterator<'a, TFatEntry> {
     type Item = DirectoryEntryDescriptor<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -543,155 +521,10 @@ impl<'a, TFatEntry: FatEntry> Iterator for FatClusterBasedDirectoryEntryIterator
     }
 }
 
-impl<'a, TFatEntry: FatEntry> FatDirectoryEntryIterator<'a>
+impl<'a, TFatEntry: Entry> FatDirectoryEntryIterator<'a>
     for FatClusterBasedDirectoryEntryIterator<'a, TFatEntry>
 {
     fn reset(&mut self) {
         self.set_current_cluster(self.start_cluster)
-    }
-}
-
-pub trait FatFileSystemReader<'a> {
-    type RootDirectoryEntryIterator: FatDirectoryEntryIterator<'a>;
-    type FatEntry: FatEntry;
-
-    fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator;
-
-    fn volume_parameters(&self) -> &FatVolumeParameters;
-
-    fn iter_fat_entries_linear(&self) -> LinearFatEntryIterator<'_, Self::FatEntry> {
-        self.iter_fat_entries_linear_from(0)
-    }
-
-    fn iter_fat_entries_linear_from(
-        &self,
-        start_index: usize,
-    ) -> LinearFatEntryIterator<'_, Self::FatEntry> {
-        LinearFatEntryIterator {
-            phantom_data: PhantomData::<Self::FatEntry>,
-            volume_parameters: self.volume_parameters(),
-            next_index: start_index,
-        }
-    }
-
-    fn iter_fat_entry_chain(
-        &self,
-        start_index: usize,
-    ) -> FatEntryChainIterator<'_, Self::FatEntry> {
-        FatEntryChainIterator {
-            phantom_data: PhantomData::<Self::FatEntry>,
-            volume_parameters: self.volume_parameters(),
-            next_index: start_index,
-        }
-    }
-
-    fn iter_fat_clusters_linear(&self) -> LinearFatClusterIterator<'_, Self::FatEntry> {
-        self.iter_fat_clusters_linear_from(0)
-    }
-
-    fn iter_fat_clusters_linear_from(
-        &self,
-        start_index: usize,
-    ) -> LinearFatClusterIterator<'_, Self::FatEntry> {
-        LinearFatClusterIterator {
-            phantom_data: PhantomData::<Self::FatEntry>,
-            volume_parameters: self.volume_parameters(),
-            next_index: start_index,
-        }
-    }
-
-    fn iter_fat_cluster_chain(
-        &self,
-        start_index: usize,
-    ) -> FatClusterChainIterator<'_, Self::FatEntry> {
-        FatClusterChainIterator {
-            phantom_data: PhantomData::<Self::FatEntry>,
-            volume_parameters: self.volume_parameters(),
-            next_index: start_index,
-        }
-    }
-}
-
-// Layout calculations.
-const fn fat_area_start(parameters: &FatVolumeParameters) -> usize {
-    parameters.reserved_sectors * parameters.bytes_per_sector
-}
-
-const fn cluster_count(parameters: &FatVolumeParameters) -> usize {
-    let clustered_sector_count = parameters.sector_count
-        - parameters.reserved_sectors
-        - (parameters.fat_count * parameters.sectors_per_fat);
-    clustered_sector_count / parameters.sectors_per_cluster
-}
-
-const fn fat_size(parameters: &FatVolumeParameters) -> usize {
-    parameters.bytes_per_sector * parameters.sectors_per_fat
-}
-
-// FAT reads.
-const fn active_fat_bytes(parameters: &FatVolumeParameters) -> &[u8] {
-    let fat_size = fat_size(parameters);
-    let fat_offset = fat_area_start(parameters)
-        + (match parameters.active_fat {
-            Some(i) => i,
-            None => 0,
-        } * fat_size);
-
-    unsafe { slice::from_raw_parts(parameters.volume_root.add(fat_offset), fat_size) }
-}
-
-// Cluster reads.
-const fn clustered_area_start(parameters: &FatVolumeParameters) -> usize {
-    fat_area_start(parameters) + (fat_size(parameters) * parameters.fat_count)
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum ClusterReadResult<'a> {
-    OutOfBounds,
-    Free,
-    Reserved(&'a [u8]),
-    EndOfChain(&'a [u8]),
-    BadCluster(&'a [u8]),
-    Link(&'a [u8], usize),
-}
-
-impl<'a> ClusterReadResult<'a> {
-    fn from<TFatEntry: FatEntry>(
-        fat_entry: TFatEntry,
-        parameters: &'a FatVolumeParameters,
-        index: usize,
-    ) -> Self {
-        let status = fat_entry.status();
-        if status == FatEntryStatus::Free {
-            return Self::Free;
-        }
-
-        let data = if index >= cluster_count(parameters) {
-            return Self::OutOfBounds;
-        } else {
-            let cluster_size = parameters.bytes_per_sector * parameters.sectors_per_cluster;
-            let cluster_offset = clustered_area_start(parameters) + (cluster_size * index);
-            unsafe {
-                slice::from_raw_parts(parameters.volume_root.add(cluster_offset), cluster_size)
-            }
-        };
-
-        match status {
-            FatEntryStatus::Free => Self::Free,
-            FatEntryStatus::Reserved => Self::Reserved(data),
-            FatEntryStatus::Link => Self::Link(data, fat_entry.into()),
-            FatEntryStatus::BadCluster => Self::BadCluster(data),
-            FatEntryStatus::EndOfChain => Self::EndOfChain(data),
-        }
-    }
-}
-
-fn read_cluster<TFatEntry: FatEntry>(
-    parameters: &FatVolumeParameters,
-    index: usize,
-) -> ClusterReadResult {
-    match TFatEntry::try_read_from(active_fat_bytes(parameters), index) {
-        Some(e) => ClusterReadResult::from(e, parameters, index),
-        None => ClusterReadResult::OutOfBounds,
     }
 }

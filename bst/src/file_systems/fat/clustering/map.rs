@@ -14,9 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::FatErrors;
-use crate::bits::{try_copy, BitTarget};
+use crate::{
+    bits::{try_copy, BitTarget},
+    file_systems::fat,
+};
 use core::{
+    marker::PhantomData,
     mem::size_of,
     ops::{
         BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr,
@@ -25,7 +28,7 @@ use core::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum FatEntryStatus {
+pub enum EntryType {
     Free,
     Reserved,
     Link,
@@ -33,7 +36,7 @@ pub enum FatEntryStatus {
     EndOfChain,
 }
 
-pub trait FatEntry: BitTarget + Into<usize> {
+pub trait Entry: BitTarget + Into<usize> {
     fn volume_dirty_flag() -> Self;
 
     fn hard_error_flag() -> Self;
@@ -46,18 +49,18 @@ pub trait FatEntry: BitTarget + Into<usize> {
 
     fn free() -> Self;
 
-    fn try_read_from(fat: &[u8], index: usize) -> Option<Self>;
+    fn try_read_from(map: &[u8], index: usize) -> Option<Self>;
 
-    fn try_write_to(&self, fat: &mut [u8], index: usize) -> bool;
+    fn try_write_to(&self, map: &mut [u8], index: usize) -> bool;
 
     fn check_media_bits(&self, media_bits: u8) -> bool;
 
-    fn check_error_bits(&self) -> FatErrors;
+    fn check_error_bits(&self) -> fat::Errors;
 
-    fn status(&self) -> FatEntryStatus;
+    fn entry_type(&self) -> EntryType;
 }
 
-macro_rules! fat_entry {
+macro_rules! map_entry {
     ($($name:ident:$underlying:ident:$bit_count:literal;$reserved_bit_count:literal($free:literal, $reserved:literal, $bad_cluster:literal, $end_of_chain:literal, $mask:literal),)*) => {
         $(
             #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -77,7 +80,7 @@ macro_rules! fat_entry {
                 pub const HARD_ERROR_FLAG: Self = Self(0b10);
 
                 // These values are used for reading/writing bits from/to disk.
-                // We need to account reserved bits, as with the first 4 bits of FAT32 fat entries, as well as
+                // We need to account reserved bits, as with the first 4 bits of FAT32 map entries, as well as
                 // extra bits from the underlying storage type, as with the first 4 bits of FAT12 backed by u16s in memory.
                 // These are handled differently; the former takes up space on disk, but the latter does not.
                 const BIT_OFFSET: usize = Self::RESERVED_BIT_COUNT + ((size_of::<$underlying>() * 8) - Self::BIT_COUNT);
@@ -218,7 +221,7 @@ macro_rules! fat_entry {
                 }
             }
 
-            impl FatEntry for $name {
+            impl Entry for $name {
                 fn volume_dirty_flag() -> Self {
                     Self::VOLUME_DIRTY_FLAG
                 }
@@ -243,11 +246,11 @@ macro_rules! fat_entry {
                     Self::FREE
                 }
 
-                fn try_read_from(fat: &[u8], index: usize) -> Option<Self> {
+                fn try_read_from(map: &[u8], index: usize) -> Option<Self> {
                     // Prepare a buffer to read into.
                     let mut buffer: [$underlying; 1] = [0];
                     if try_copy(
-                        fat,
+                        map,
                         (index * Self::BIT_COUNT) + Self::RESERVED_BIT_COUNT,
                         &mut buffer,
                         Self::BIT_OFFSET,
@@ -260,13 +263,13 @@ macro_rules! fat_entry {
                     }
                 }
 
-                fn try_write_to(&self, fat: &mut [u8], index: usize) -> bool {
+                fn try_write_to(&self, map: &mut [u8], index: usize) -> bool {
                     // Prepare a buffer to read form.
                     let buffer = [ self.0 ];
                     try_copy(
                         &buffer,
                         Self::BIT_OFFSET,
-                        fat,
+                        map,
                         (index * Self::BIT_COUNT) + Self::RESERVED_BIT_COUNT,
                         Self::MUTABLE_BITS,
                     )
@@ -276,31 +279,31 @@ macro_rules! fat_entry {
                     self.0 == (Self::MASK & (media_bits as $underlying))
                 }
 
-                fn check_error_bits(&self) -> FatErrors {
+                fn check_error_bits(&self) -> fat::Errors {
                     // Check all bits save the error bits are high.
                     if (self.0 & Self::ALWAYS_HIGH_ERROR_BITS) != Self::ALWAYS_HIGH_ERROR_BITS {
-                        FatErrors::InvalidErrorFatEntry
+                        fat::Errors::InvalidErrorFatEntry
                     } else if (self.0 & Self::HARD_ERROR_BIT) != Self::HARD_ERROR_BIT
                     {
-                        FatErrors::HardError
+                        fat::Errors::HardError
                     } else if (self.0 & Self::VOLUME_DIRTY_BIT) != Self::VOLUME_DIRTY_BIT
                     {
-                        FatErrors::VolumeDirty
+                        fat::Errors::VolumeDirty
                     } else {
-                        FatErrors::None
+                        fat::Errors::None
                     }
                 }
 
-                fn status(&self) -> FatEntryStatus {
+                fn entry_type(&self) -> EntryType {
                     match self.0 {
-                        $free => FatEntryStatus::Free,
-                        $reserved => FatEntryStatus::Reserved,
-                        $bad_cluster => FatEntryStatus::BadCluster,
+                        $free => EntryType::Free,
+                        $reserved => EntryType::Reserved,
+                        $bad_cluster => EntryType::BadCluster,
                         _ => {
                             if self.0 > $bad_cluster {
-                                FatEntryStatus::EndOfChain
+                                EntryType::EndOfChain
                             } else {
-                                FatEntryStatus::Link
+                                EntryType::Link
                             }
                         }
                     }
@@ -311,8 +314,83 @@ macro_rules! fat_entry {
 
 }
 
-fat_entry!(
-    FatEntry12:u16:12;0(0, 1, 0x0FF7, 0x0FFF, 0x0FFF),
-    FatEntry16:u16:16;0(0, 1, 0xFFF7, 0xFFFF, 0xFFFF),
-    FatEntry32:u32:32;4(0, 1, 0x0FFFFFF7, 0x0FFFFFFF, 0x0FFFFFFF),
+map_entry!(
+    Entry12:u16:12;0(0, 1, 0x0FF7, 0x0FFF, 0x0FFF),
+    Entry16:u16:16;0(0, 1, 0xFFF7, 0xFFFF, 0xFFFF),
+    Entry32:u32:32;4(0, 1, 0x0FFFFFF7, 0x0FFFFFFF, 0x0FFFFFFF),
 );
+
+pub struct LinearIterator<'a, TEntry: Entry> {
+    volume_parameters: &'a fat::clustering::VolumeParameters,
+    phantom_data: PhantomData<TEntry>,
+    next_index: usize,
+}
+
+impl<'a, TEntry: Entry> LinearIterator<'a, TEntry> {
+    pub const fn from(
+        volume_parameters: &'a fat::clustering::VolumeParameters,
+        next_index: usize,
+    ) -> Self {
+        Self {
+            phantom_data: PhantomData,
+            volume_parameters,
+            next_index,
+        }
+    }
+}
+
+impl<'a, TEntry: Entry> Iterator for LinearIterator<'a, TEntry> {
+    type Item = TEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry =
+            match TEntry::try_read_from(self.volume_parameters.active_map_bytes(), self.next_index)
+            {
+                Some(e) => e,
+                None => return None,
+            };
+
+        self.next_index += 1;
+        Some(entry)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let entries = (self.volume_parameters.map_size() * 8) / TEntry::bits_per_digit();
+        (entries, Some(entries))
+    }
+}
+
+pub struct ChainIterator<'a, TEntry: Entry> {
+    volume_parameters: &'a fat::clustering::VolumeParameters,
+    phantom_data: PhantomData<TEntry>,
+    next_index: usize,
+}
+
+impl<'a, TEntry: Entry> ChainIterator<'a, TEntry> {
+    pub const fn from(
+        volume_parameters: &'a fat::clustering::VolumeParameters,
+        next_index: usize,
+    ) -> Self {
+        Self {
+            phantom_data: PhantomData,
+            volume_parameters,
+            next_index,
+        }
+    }
+}
+
+impl<'a, TEntry: Entry> Iterator for ChainIterator<'a, TEntry> {
+    type Item = TEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry =
+            match TEntry::try_read_from(self.volume_parameters.active_map_bytes(), self.next_index)
+            {
+                Some(e) => e,
+                None => return None,
+            };
+
+        self.next_index = entry.into();
+        Some(entry)
+    }
+}

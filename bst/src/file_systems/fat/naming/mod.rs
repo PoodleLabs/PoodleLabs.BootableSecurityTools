@@ -14,31 +14,5 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod bios_parameters_blocks;
-mod boot_sectors;
-mod clustering;
-mod file_system_info;
-mod naming;
-mod objects;
-mod reads;
-mod timekeeping;
-
-// This FAT implementation was written based on the FatFs documentation,
-// which can be found at: http://elm-chan.org/fsw/ff/00index_e.html.
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum FatType {
-    Fat12,
-    Fat16,
-    Fat32,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Errors {
-    None,
-    VolumeDirty,
-    HardError,
-    InvalidErrorFatEntry,
-    InvalidMediaFatEntry,
-    Unreadable,
-}
+pub mod long;
+pub mod short;
