@@ -24,13 +24,13 @@ use boot_sectors::BootSector;
 use core::mem::size_of;
 
 pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
-    volume_root: &'a TBlockDevice,
+    block_device: &'a TBlockDevice,
 ) -> Option<(
     fat::Variant,
     fat::clustering::VolumeParameters<'a, TBlockDevice>,
 )> {
     // Ensure the media actually exists.
-    if !volume_root.media_present() {
+    if !block_device.media_present() {
         return None;
     }
 
@@ -44,14 +44,14 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     ];
 
     // Capture the media id.
-    let media_id = volume_root.media_id();
+    let media_id = block_device.media_id();
 
     // Read the head of the volume.
-    if !volume_root.read_bytes(media_id, 0, &mut buffer) {
+    if !block_device.read_bytes(media_id, 0, &mut buffer) {
         return None;
     }
 
-    // First interpret the volume root as a FAT12/16 non-extended layout.
+    // First interpret the device as having a FAT12/16 non-extended layout.
     // The BPB should always line up if we're reading an actual FAT volume.
     // We can use this to determine the layout we need to read with.
     let small_fat_non_extended =
@@ -72,13 +72,13 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
 
     match variant {
         fat::Variant::Fat12 => {
-            match read_small_fat_volume_parameters(volume_root, extended, media_id, &buffer) {
+            match read_small_fat_volume_parameters(block_device, extended, media_id, &buffer) {
                 Some(p) => Some((fat::Variant::Fat12, p)),
                 None => None,
             }
         }
         fat::Variant::Fat16 => {
-            match read_small_fat_volume_parameters(volume_root, extended, media_id, &buffer) {
+            match read_small_fat_volume_parameters(block_device, extended, media_id, &buffer) {
                 Some(p) => Some((fat::Variant::Fat16, p)),
                 None => None,
             }
@@ -94,7 +94,7 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
                         .unwrap();
 
                 match volume_parameters_from_boot_sector(
-                    volume_root,
+                    block_device,
                     boot_sector.body().bios_parameters_block().root_cluster() as usize,
                     boot_sector,
                     media_id,
@@ -108,7 +108,7 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
 }
 
 fn read_small_fat_volume_parameters<'a, TBlockDevice: BlockDevice>(
-    volume_root: &'a TBlockDevice,
+    block_device: &'a TBlockDevice,
     extended: bool,
     media_id: u32,
     buffer: &[u8],
@@ -119,7 +119,7 @@ fn read_small_fat_volume_parameters<'a, TBlockDevice: BlockDevice>(
                 .unwrap();
 
         volume_parameters_from_boot_sector(
-            volume_root,
+            block_device,
             boot_sector
                 .body()
                 .bios_parameters_block()
@@ -132,7 +132,7 @@ fn read_small_fat_volume_parameters<'a, TBlockDevice: BlockDevice>(
             unsafe { (buffer.as_ptr() as *const boot_sectors::BootSectorSmall).as_ref() }.unwrap();
 
         volume_parameters_from_boot_sector(
-            volume_root,
+            block_device,
             boot_sector
                 .body()
                 .bios_parameters_block()
@@ -150,7 +150,7 @@ fn volume_parameters_from_boot_sector<
     TBiosParameterBlock: bios_parameters_blocks::BiosParameterBlock,
     TBootSector: boot_sectors::BootSector<N, TBiosParameterBlock>,
 >(
-    volume_root: &'a TBlockDevice,
+    block_device: &'a TBlockDevice,
     root_directory_value: usize,
     boot_sector: &TBootSector,
     media_id: u32,
@@ -162,7 +162,7 @@ fn volume_parameters_from_boot_sector<
 
     let bpb = boot_sector.body().bios_parameters_block();
     Some(fat::clustering::VolumeParameters::from(
-        volume_root,
+        block_device,
         root_directory_value,
         bpb.sectors_per_cluster() as usize,
         match bpb.active_map() {
@@ -174,26 +174,7 @@ fn volume_parameters_from_boot_sector<
         bpb.sectors_per_map() as usize,
         bpb.total_sectors() as usize,
         bpb.map_count() as usize,
+        bpb.media_type(),
         media_id,
     ))
 }
-
-// TODO: Find new home for:
-// fn error_check<TMapEntry: fat::clustering::map::Entry>(&self, root: *const u8) -> fat::Errors {
-//     let active_fat_bytes = self.active_fat_bytes(root);
-//     let first_entry = match TMapEntry::try_read_from(active_fat_bytes, 0) {
-//         Some(e) => e,
-//         None => return fat::Errors::Unreadable,
-//     };
-
-//     let second_entry = match TMapEntry::try_read_from(active_fat_bytes, 1) {
-//         Some(e) => e,
-//         None => return fat::Errors::Unreadable,
-//     };
-
-//     if !first_entry.check_media_bits(self.media_type()) {
-//         return fat::Errors::InvalidMediaFatEntry;
-//     }
-
-//     return second_entry.check_error_bits();
-// }

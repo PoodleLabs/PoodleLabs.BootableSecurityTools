@@ -317,7 +317,7 @@ impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry> Iter
         // Read the directory's bytes from the block device.
         // Note: We do this on each iteration to reflect any changes to the disk,
         // though this is a performance trade-off we may want to reconsider eventually.
-        if !self.volume_parameters.volume_root().read_bytes(
+        if !self.volume_parameters.block_device().read_bytes(
             self.volume_parameters.media_id(),
             self.volume_parameters.clustered_area_start() as u64,
             &mut self.buffer,

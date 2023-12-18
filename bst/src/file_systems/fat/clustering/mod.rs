@@ -43,7 +43,7 @@ use core::{marker::PhantomData, mem::size_of};
 // at the beginning of the volume. A common configuration is 512 byte sectors, with 4 sectors per cluster.
 
 pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
-    volume_root: &'a TBlockDevice,
+    block_device: &'a TBlockDevice,
     root_directory_value: usize,
     sectors_per_cluster: usize,
     active_map: Option<usize>,
@@ -52,12 +52,13 @@ pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
     sectors_per_map: usize,
     sector_count: usize,
     map_count: usize,
+    media_type: u8,
     media_id: u32,
 }
 
 impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
     pub const fn from(
-        volume_root: &'a TBlockDevice,
+        block_device: &'a TBlockDevice,
         root_directory_value: usize,
         sectors_per_cluster: usize,
         active_map: Option<usize>,
@@ -66,6 +67,7 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         sectors_per_map: usize,
         sector_count: usize,
         map_count: usize,
+        media_type: u8,
         media_id: u32,
     ) -> Self {
         Self {
@@ -75,9 +77,10 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
             reserved_sectors,
             sectors_per_map,
             sector_count,
-            volume_root,
+            block_device,
             active_map,
             map_count,
+            media_type,
             media_id,
         }
     }
@@ -91,6 +94,10 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         self.root_directory_value
     }
 
+    pub const fn block_device(&self) -> &TBlockDevice {
+        self.block_device
+    }
+
     pub const fn sectors_per_cluster(&self) -> usize {
         self.sectors_per_cluster
     }
@@ -99,16 +106,16 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         self.bytes_per_sector
     }
 
-    pub const fn volume_root(&self) -> &TBlockDevice {
-        self.volume_root
-    }
-
     pub const fn map_area_start(&self) -> usize {
         self.reserved_sectors * self.bytes_per_sector
     }
 
     pub const fn map_size(&self) -> usize {
         self.bytes_per_sector * self.sectors_per_map
+    }
+
+    pub const fn media_type(&self) -> u8 {
+        self.media_type
     }
 
     pub const fn media_id(&self) -> u32 {
@@ -123,7 +130,7 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
                 None => 0,
             } * map_size);
 
-        // unsafe { slice::from_raw_parts(self.volume_root.add(map_offset), map_size) }
+        // unsafe { slice::from_raw_parts(self.block_device.add(map_offset), map_size) }
         b"TODO"
     }
 
@@ -264,7 +271,7 @@ impl ReadResult {
             let size = parameters.bytes_per_sector() * parameters.sectors_per_cluster();
             let offset = parameters.clustered_area_start() + (size * index);
 
-            // unsafe { slice::from_raw_parts(parameters.volume_root().add(offset), size) }
+            // unsafe { slice::from_raw_parts(parameters.block_device().add(offset), size) }
             &b"TODO"[..]
         };
 

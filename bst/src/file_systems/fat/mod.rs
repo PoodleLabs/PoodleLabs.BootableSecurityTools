@@ -42,13 +42,33 @@ pub enum Errors {
     Unreadable,
 }
 
-trait FileSystemReader<'a, TBlockDevice: BlockDevice> {
+trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
     type RootDirectoryEntryIterator: objects::directories::ChildIterator<'a>;
     type FatEntry: clustering::map::Entry;
 
     fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator;
 
     fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice>;
+
+    fn error_check<TMapEntry: clustering::map::Entry>(&self) -> Errors {
+        let volume_paramters = self.volume_parameters();
+        let active_fat_bytes = volume_paramters.active_map_bytes();
+        let first_entry = match TMapEntry::try_read_from(active_fat_bytes, 0) {
+            Some(e) => e,
+            None => return Errors::Unreadable,
+        };
+
+        let second_entry = match TMapEntry::try_read_from(active_fat_bytes, 1) {
+            Some(e) => e,
+            None => return Errors::Unreadable,
+        };
+
+        if !first_entry.check_media_bits(volume_paramters.media_type()) {
+            return Errors::InvalidMediaFatEntry;
+        }
+
+        return second_entry.check_error_bits();
+    }
 
     fn iter_map_linear(
         &'a self,
