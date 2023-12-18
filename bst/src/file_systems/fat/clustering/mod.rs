@@ -16,7 +16,8 @@
 
 pub mod map;
 
-use core::{marker::PhantomData, slice};
+use crate::file_systems::fat;
+use core::{marker::PhantomData, mem::size_of, slice};
 
 // FAT filesystems operate on a cluster-based system. Files and directories are made up of
 // cluster chains, with a map at the beginning of the volume to the next cluster in the chain
@@ -41,6 +42,7 @@ use core::{marker::PhantomData, slice};
 // at the beginning of the volume. A common configuration is 512 byte sectors, with 4 sectors per cluster.
 
 pub struct VolumeParameters {
+    root_directory_value: usize,
     sectors_per_cluster: usize,
     active_map: Option<usize>,
     bytes_per_sector: usize,
@@ -52,6 +54,15 @@ pub struct VolumeParameters {
 }
 
 impl VolumeParameters {
+    pub const fn directory_entries_per_cluster(&self) -> usize {
+        (self.sectors_per_cluster * self.bytes_per_sector)
+            / size_of::<fat::objects::directories::Entry>()
+    }
+
+    pub const fn root_directory_value(&self) -> usize {
+        self.root_directory_value
+    }
+
     pub const fn sectors_per_cluster(&self) -> usize {
         self.sectors_per_cluster
     }

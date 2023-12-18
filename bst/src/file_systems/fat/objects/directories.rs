@@ -278,6 +278,24 @@ pub struct FixedSizedDirectoryChildIterator<'a, TMapEntry: fat::clustering::map:
     skip_hidden: bool,
 }
 
+impl<'a, TMapEntry: fat::clustering::map::Entry> FixedSizedDirectoryChildIterator<'a, TMapEntry> {
+    pub const fn from(
+        volume_parameters: &'a fat::clustering::VolumeParameters,
+        entry_count: usize,
+        start_index: usize,
+        skip_hidden: bool,
+    ) -> Self {
+        Self {
+            volume_parameters: volume_parameters,
+            lfn_part_buffer: [None; 20],
+            phantom_data: PhantomData,
+            next_index: start_index,
+            entry_count,
+            skip_hidden,
+        }
+    }
+}
+
 impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
     for FixedSizedDirectoryChildIterator<'a, TMapEntry>
 {
@@ -326,10 +344,28 @@ pub struct ClusteredDirectoryChildIterator<'a, TMapEntry: fat::clustering::map::
     lfn_part_buffer: [Option<&'a fat::naming::long::NamePart>; 20],
     volume_parameters: &'a fat::clustering::VolumeParameters,
     phantom_data: PhantomData<TMapEntry>,
-    entries_per_cluster: usize,
     start_cluster: usize,
     next_index: usize,
     skip_hidden: bool,
+}
+
+impl<'a, TMapEntry: fat::clustering::map::Entry> ClusteredDirectoryChildIterator<'a, TMapEntry> {
+    pub const fn from(
+        volume_parameters: &'a fat::clustering::VolumeParameters,
+        start_cluster: usize,
+        start_index: usize,
+        skip_hidden: bool,
+    ) -> Self {
+        Self {
+            operating_cluster_info: None,
+            lfn_part_buffer: [None; 20],
+            phantom_data: PhantomData,
+            next_index: start_index,
+            volume_parameters,
+            start_cluster,
+            skip_hidden,
+        }
+    }
 }
 
 impl<'a, TMapEntry: fat::clustering::map::Entry> ClusteredDirectoryChildIterator<'a, TMapEntry> {
@@ -364,7 +400,7 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
             let entries = unsafe {
                 slice::from_raw_parts(
                     cluster_content.as_ptr() as *const Entry,
-                    self.entries_per_cluster,
+                    self.volume_parameters.directory_entries_per_cluster(),
                 )
             };
 

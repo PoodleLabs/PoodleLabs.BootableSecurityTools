@@ -42,7 +42,7 @@ pub enum Errors {
     Unreadable,
 }
 
-pub trait FileSystemReader<'a> {
+trait FileSystemReader<'a> {
     type RootDirectoryEntryIterator: objects::directories::ChildIterator<'a>;
     type FatEntry: clustering::map::Entry;
 
@@ -86,3 +86,39 @@ pub trait FileSystemReader<'a> {
         clustering::ChainIterator::from(self.volume_parameters(), start_index)
     }
 }
+
+macro_rules! filesystem_reader {
+    ($($name:ident($map_entry_type:ident, $iterator_type:ident),)*) => {
+        $(
+            struct $name {
+                volume_parameters: clustering::VolumeParameters,
+                skip_hidden: bool,
+            }
+
+            impl<'a> FileSystemReader<'a> for &'a $name {
+                type FatEntry = clustering::map::$map_entry_type;
+                type RootDirectoryEntryIterator = objects::directories::$iterator_type<'a, Self::FatEntry>;
+
+                fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator {
+                    Self::RootDirectoryEntryIterator::from(
+                        &self.volume_parameters,
+                        self.volume_parameters.root_directory_value(),
+                        0,
+                        self.skip_hidden,
+                    )
+                }
+
+                fn volume_parameters(&self) -> &clustering::VolumeParameters {
+                    &self.volume_parameters
+                }
+            }
+
+        )*
+    }
+}
+
+filesystem_reader!(
+    Fat32FileSystemReader(Entry32, ClusteredDirectoryChildIterator),
+    Fat16FileSystemReader(Entry16, FixedSizedDirectoryChildIterator),
+    Fat12FileSystemReader(Entry12, FixedSizedDirectoryChildIterator),
+);
