@@ -247,6 +247,7 @@ impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> Iterator
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReadResult {
     OutOfBounds,
+    ReadError,
     Free,
     Reserved(Box<[u8]>),
     EndOfChain(Box<[u8]>),
@@ -270,9 +271,15 @@ impl ReadResult {
         } else {
             let size = parameters.bytes_per_sector() * parameters.sectors_per_cluster();
             let offset = parameters.clustered_area_start() + (size * index);
-
-            // unsafe { slice::from_raw_parts(parameters.block_device().add(offset), size) }
-            &b"TODO"[..]
+            let mut buffer = Box::from_iter((0..size).map(|_| 0u8));
+            if parameters
+                .block_device()
+                .read_bytes(parameters.media_id, offset as u64, &mut buffer)
+            {
+                buffer
+            } else {
+                return Self::ReadError;
+            }
         };
 
         match map_entry_type {
