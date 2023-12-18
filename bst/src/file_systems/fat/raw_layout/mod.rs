@@ -16,7 +16,6 @@
 
 mod bios_parameters_blocks;
 mod boot_sectors;
-mod file_system_info;
 
 use crate::file_systems::fat;
 use bios_parameters_blocks::BiosParameterBlock;
@@ -88,7 +87,7 @@ fn read_small_fat_volume_parameters(
             boot_sector
                 .body()
                 .bios_parameters_block()
-                .root_directory_entry_count() as usize,
+                .root_directory_entries() as usize,
             boot_sector,
             volume_root,
         )
@@ -100,7 +99,7 @@ fn read_small_fat_volume_parameters(
             boot_sector
                 .body()
                 .bios_parameters_block()
-                .root_directory_entry_count() as usize,
+                .root_directory_entries() as usize,
             boot_sector,
             volume_root,
         )
@@ -133,7 +132,7 @@ fn volume_parameters_from_boot_sector<
         bpb.reserved_sectors() as usize,
         volume_root,
         bpb.sectors_per_map() as usize,
-        bpb.total_sector_count() as usize,
+        bpb.total_sectors() as usize,
         bpb.map_count() as usize,
     ))
 }

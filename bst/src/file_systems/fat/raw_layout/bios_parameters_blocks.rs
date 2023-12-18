@@ -17,46 +17,44 @@
 use crate::file_systems::fat;
 
 pub trait BiosParameterBlock: Sized {
-    fn root_directory_entry_count(&self) -> u16;
-
-    fn reserved_sectors(&self) -> u16;
-
-    fn hidden_sector_count(&self) -> u32;
-
-    fn should_mirror_fats(&self) -> bool;
+    fn root_directory_entries(&self) -> u16;
 
     fn sectors_per_cluster(&self) -> u8;
 
-    fn total_sector_count(&self) -> u32;
-
     fn sectors_per_track(&self) -> u16;
-
-    fn bytes_per_sector(&self) -> u16;
-
-    fn sectors_per_map(&self) -> u32;
-
-    fn number_of_heads(&self) -> u16;
-
-    fn media_type(&self) -> u8;
 
     fn active_map(&self) -> Option<u8>;
 
+    fn reserved_sectors(&self) -> u16;
+
+    fn bytes_per_sector(&self) -> u16;
+
+    fn number_of_heads(&self) -> u16;
+
+    fn sectors_per_map(&self) -> u32;
+
+    fn hidden_sectors(&self) -> u32;
+
+    fn total_sectors(&self) -> u32;
+
+    fn media_type(&self) -> u8;
+
     fn map_count(&self) -> u8;
 
-    fn fat_start_sector(&self) -> u32 {
+    fn map_start_sector(&self) -> u32 {
         self.reserved_sectors() as u32
     }
 
-    fn fat_sector_count(&self) -> u32 {
+    fn map_sector_count(&self) -> u32 {
         self.sectors_per_map() * self.map_count() as u32
     }
 
     fn root_directory_start_sector(&self) -> u32 {
-        self.fat_start_sector() + self.fat_sector_count()
+        self.map_start_sector() + self.map_sector_count()
     }
 
     fn root_directory_sector_count(&self) -> u32 {
-        ((32 * self.root_directory_entry_count() as u32) + self.bytes_per_sector() as u32 - 1)
+        ((32 * self.root_directory_entries() as u32) + self.bytes_per_sector() as u32 - 1)
             / self.bytes_per_sector() as u32
     }
 
@@ -65,7 +63,7 @@ pub trait BiosParameterBlock: Sized {
     }
 
     fn data_sector_count(&self) -> u32 {
-        self.total_sector_count() - self.data_start_sector()
+        self.total_sectors() - self.data_start_sector()
     }
 
     fn cluster_count(&self) -> u32 {
@@ -95,18 +93,18 @@ pub struct FatBiosParameterBlockCommonFields {
     // For maximum compatibility, sectors_per_cluster * bytes_per_sector should be <=32KB.
     sectors_per_cluster: u8,
     // Must be > 0 given the BSB containing this value.
-    reserved_sector_count: [u8; 2],
+    reserved_sectors: [u8; 2],
     // >=1 technically valid, but 2 is STRONGLY recommended.
     // 1 is acceptable for non-disk memory, with a cost of reduced compatibility.
-    fat_count: u8,
+    map_count: u8,
     // For FAT12/16 file systems, the root directory is stored separately in a block of 32 byte entries of this length.
     // The value should be set so that root_directory_entry_count * 32 % bytes_per_sector % 2 == 0.
     // For maximum compatibility, 512 for FAT12/16.
     // For FAT32, this MUST be 0.
-    root_directory_entry_count: [u8; 2],
+    root_directory_entries: [u8; 2],
     // The total number of sectors in the volume for FAT12/16. When the total number of sectors is >= 0x10000,
     // this should be set to an invalid value of 0. For FAT32, this MUST be 0.
-    total_sector_count: [u8; 2],
+    total_sectors: [u8; 2],
     // Obsolete flag for identifying media type; don't need to support it. The first byte of the file access tables
     // should match this value.
     media_type: u8,
@@ -118,37 +116,33 @@ pub struct FatBiosParameterBlockCommonFields {
     // The number of heads on media with tracks. We don't need to support this.
     number_of_heads: [u8; 2],
     // The number of hidden sectors preceding the FAT volume. For unpartitioned media, this should be 0.
-    hidden_sector_count: [u8; 4],
+    hidden_sectors: [u8; 4],
     // The total number of sectors for FAT32, or FAT12/16 where the number of sectors is >= 0x10000.
     // This value will be used when total_sector_count == 0.
-    large_total_sector_count: [u8; 4],
+    large_total_sectors: [u8; 4],
 }
 
 impl BiosParameterBlock for FatBiosParameterBlockCommonFields {
-    fn root_directory_entry_count(&self) -> u16 {
-        u16::from_le_bytes(self.root_directory_entry_count)
+    fn root_directory_entries(&self) -> u16 {
+        u16::from_le_bytes(self.root_directory_entries)
     }
 
     fn reserved_sectors(&self) -> u16 {
-        u16::from_le_bytes(self.reserved_sector_count)
+        u16::from_le_bytes(self.reserved_sectors)
     }
 
-    fn hidden_sector_count(&self) -> u32 {
-        u32::from_le_bytes(self.hidden_sector_count)
-    }
-
-    fn should_mirror_fats(&self) -> bool {
-        todo!()
+    fn hidden_sectors(&self) -> u32 {
+        u32::from_le_bytes(self.hidden_sectors)
     }
 
     fn sectors_per_cluster(&self) -> u8 {
         self.sectors_per_cluster
     }
 
-    fn total_sector_count(&self) -> u32 {
-        let small = u16::from_le_bytes(self.total_sector_count);
+    fn total_sectors(&self) -> u32 {
+        let small = u16::from_le_bytes(self.total_sectors);
         match small {
-            0 => u32::from_be_bytes(self.large_total_sector_count),
+            0 => u32::from_be_bytes(self.large_total_sectors),
             _ => small as u32,
         }
     }
@@ -174,7 +168,7 @@ impl BiosParameterBlock for FatBiosParameterBlockCommonFields {
     }
 
     fn map_count(&self) -> u8 {
-        self.fat_count
+        self.map_count
     }
 
     fn active_map(&self) -> Option<u8> {
@@ -222,89 +216,30 @@ impl Fat32BiosParameterBlock {
         Fat32Mirroring(u16::from_le_bytes(self.extended_flags))
     }
 
-    pub const fn file_system_version(&self) -> u16 {
-        u16::from_le_bytes(self.file_system_version)
-    }
-
     pub const fn root_cluster(&self) -> u32 {
         u32::from_le_bytes(self.root_cluster)
-    }
-
-    pub fn file_system_info(
-        &self,
-        root: *const u8,
-    ) -> Option<&super::file_system_info::FileSystemInfo> {
-        let sector = self.file_system_info_sector();
-        let bytes_per_sector = self.bytes_per_sector();
-        if sector >= self.reserved_sectors() || bytes_per_sector < 512 {
-            return None;
-        }
-
-        let offset = (sector as usize) * (bytes_per_sector as usize);
-        let fs_info = match unsafe {
-            (root.add(offset) as *const super::file_system_info::FileSystemInfo).as_ref()
-        } {
-            Some(fs_info) => fs_info,
-            None => {
-                return None;
-            }
-        };
-
-        if fs_info.signature_is_valid() {
-            Some(fs_info)
-        } else {
-            None
-        }
-    }
-
-    pub fn backup_boot_sector(
-        &self,
-        root: *const u8,
-    ) -> Option<&super::boot_sectors::BootSector32> {
-        let sector = self.backup_boot_sector_start();
-        if sector >= self.reserved_sectors() {
-            return None;
-        }
-
-        let offset = (sector as usize) * (self.bytes_per_sector() as usize);
-        match unsafe { (root.add(offset) as *const super::boot_sectors::BootSector32).as_ref() } {
-            Some(fs_info) => Some(fs_info),
-            None => None,
-        }
-    }
-
-    fn file_system_info_sector(&self) -> u16 {
-        u16::from_le_bytes(self.file_system_info_sector)
-    }
-
-    fn backup_boot_sector_start(&self) -> u16 {
-        u16::from_le_bytes(self.backup_boot_sector)
     }
 }
 
 impl BiosParameterBlock for Fat32BiosParameterBlock {
-    fn root_directory_entry_count(&self) -> u16 {
-        self.common_fields.root_directory_entry_count()
+    fn root_directory_entries(&self) -> u16 {
+        self.common_fields.root_directory_entries()
     }
 
     fn reserved_sectors(&self) -> u16 {
         self.common_fields.reserved_sectors()
     }
 
-    fn hidden_sector_count(&self) -> u32 {
-        self.common_fields.hidden_sector_count()
-    }
-
-    fn should_mirror_fats(&self) -> bool {
-        self.map_count() > 1 && self.mirroring().all_fats_active_and_mirrored()
+    fn hidden_sectors(&self) -> u32 {
+        self.common_fields.hidden_sectors()
     }
 
     fn sectors_per_cluster(&self) -> u8 {
         self.common_fields.sectors_per_cluster()
     }
 
-    fn total_sector_count(&self) -> u32 {
-        self.common_fields.total_sector_count()
+    fn total_sectors(&self) -> u32 {
+        self.common_fields.total_sectors()
     }
 
     fn sectors_per_track(&self) -> u16 {
