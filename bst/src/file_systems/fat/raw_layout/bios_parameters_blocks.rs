@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::file_systems::fat;
+use crate::{file_systems::fat, integers};
 
 pub trait BiosParameterBlock: Sized {
     fn root_directory_entries(&self) -> u16;
@@ -54,8 +54,10 @@ pub trait BiosParameterBlock: Sized {
     }
 
     fn root_directory_sector_count(&self) -> u32 {
-        ((32 * self.root_directory_entries() as u32) + self.bytes_per_sector() as u32 - 1)
-            / self.bytes_per_sector() as u32
+        integers::ceil_div(
+            32 * self.root_directory_entries() as usize,
+            self.bytes_per_sector() as usize,
+        ) as u32
     }
 
     fn data_start_sector(&self) -> u32 {

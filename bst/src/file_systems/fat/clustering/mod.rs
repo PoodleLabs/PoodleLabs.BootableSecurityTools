@@ -16,8 +16,9 @@
 
 pub mod map;
 
-use crate::file_systems::fat;
-use core::{marker::PhantomData, mem::size_of, slice};
+use crate::file_systems::{block_device::BlockDevice, fat};
+use alloc::boxed::Box;
+use core::{marker::PhantomData, mem::size_of};
 
 // FAT filesystems operate on a cluster-based system. Files and directories are made up of
 // cluster chains, with a map at the beginning of the volume to the next cluster in the chain
@@ -41,29 +42,31 @@ use core::{marker::PhantomData, mem::size_of, slice};
 // divided into clusters, which are sub-divided into sectors, the size of each determined by the 'parameter block'
 // at the beginning of the volume. A common configuration is 512 byte sectors, with 4 sectors per cluster.
 
-pub struct VolumeParameters {
+pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
+    volume_root: &'a TBlockDevice,
     root_directory_value: usize,
     sectors_per_cluster: usize,
     active_map: Option<usize>,
     bytes_per_sector: usize,
     reserved_sectors: usize,
-    volume_root: *const u8,
     sectors_per_map: usize,
     sector_count: usize,
     map_count: usize,
+    media_id: u32,
 }
 
-impl VolumeParameters {
+impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
     pub const fn from(
+        volume_root: &'a TBlockDevice,
         root_directory_value: usize,
         sectors_per_cluster: usize,
         active_map: Option<usize>,
         bytes_per_sector: usize,
         reserved_sectors: usize,
-        volume_root: *const u8,
         sectors_per_map: usize,
         sector_count: usize,
         map_count: usize,
+        media_id: u32,
     ) -> Self {
         Self {
             root_directory_value,
@@ -75,6 +78,7 @@ impl VolumeParameters {
             volume_root,
             active_map,
             map_count,
+            media_id,
         }
     }
 
@@ -95,7 +99,7 @@ impl VolumeParameters {
         self.bytes_per_sector
     }
 
-    pub const fn volume_root(&self) -> *const u8 {
+    pub const fn volume_root(&self) -> &TBlockDevice {
         self.volume_root
     }
 
@@ -107,6 +111,10 @@ impl VolumeParameters {
         self.bytes_per_sector * self.sectors_per_map
     }
 
+    pub const fn media_id(&self) -> u32 {
+        self.media_id
+    }
+
     pub const fn active_map_bytes(&self) -> &[u8] {
         let map_size = self.map_size();
         let map_offset = self.map_area_start()
@@ -115,7 +123,8 @@ impl VolumeParameters {
                 None => 0,
             } * map_size);
 
-        unsafe { slice::from_raw_parts(self.volume_root.add(map_offset), map_size) }
+        // unsafe { slice::from_raw_parts(self.volume_root.add(map_offset), map_size) }
+        b"TODO"
     }
 
     pub const fn clustered_area_start(&self) -> usize {
@@ -136,14 +145,19 @@ impl VolumeParameters {
     }
 }
 
-pub struct LinearIterator<'a, TMapEntry: map::Entry> {
-    volume_parameters: &'a VolumeParameters,
+pub struct LinearIterator<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> {
+    volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TMapEntry>,
     next_index: usize,
 }
 
-impl<'a, TMapEntry: map::Entry> LinearIterator<'a, TMapEntry> {
-    pub const fn from(volume_parameters: &'a VolumeParameters, next_index: usize) -> Self {
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry>
+    LinearIterator<'a, TBlockDevice, TMapEntry>
+{
+    pub const fn from(
+        volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
+        next_index: usize,
+    ) -> Self {
         Self {
             phantom_data: PhantomData,
             volume_parameters,
@@ -152,8 +166,10 @@ impl<'a, TMapEntry: map::Entry> LinearIterator<'a, TMapEntry> {
     }
 }
 
-impl<'a, TMapEntry: map::Entry> Iterator for LinearIterator<'a, TMapEntry> {
-    type Item = ReadResult<'a>;
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> Iterator
+    for LinearIterator<'a, TBlockDevice, TMapEntry>
+{
+    type Item = ReadResult;
 
     fn next(&mut self) -> Option<Self::Item> {
         let result = self
@@ -173,14 +189,19 @@ impl<'a, TMapEntry: map::Entry> Iterator for LinearIterator<'a, TMapEntry> {
     }
 }
 
-pub struct ChainIterator<'a, TMapEntry: map::Entry> {
-    volume_parameters: &'a VolumeParameters,
+pub struct ChainIterator<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> {
+    volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TMapEntry>,
     next_index: usize,
 }
 
-impl<'a, TMapEntry: map::Entry> ChainIterator<'a, TMapEntry> {
-    pub const fn from(volume_parameters: &'a VolumeParameters, next_index: usize) -> Self {
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry>
+    ChainIterator<'a, TBlockDevice, TMapEntry>
+{
+    pub const fn from(
+        volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
+        next_index: usize,
+    ) -> Self {
         Self {
             phantom_data: PhantomData,
             volume_parameters,
@@ -189,8 +210,10 @@ impl<'a, TMapEntry: map::Entry> ChainIterator<'a, TMapEntry> {
     }
 }
 
-impl<'a, TMapEntry: map::Entry> Iterator for ChainIterator<'a, TMapEntry> {
-    type Item = ReadResult<'a>;
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> Iterator
+    for ChainIterator<'a, TBlockDevice, TMapEntry>
+{
+    type Item = ReadResult;
 
     fn next(&mut self) -> Option<Self::Item> {
         let result = self
@@ -215,18 +238,18 @@ impl<'a, TMapEntry: map::Entry> Iterator for ChainIterator<'a, TMapEntry> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ReadResult<'a> {
+pub enum ReadResult {
     OutOfBounds,
     Free,
-    Reserved(&'a [u8]),
-    EndOfChain(&'a [u8]),
-    BadCluster(&'a [u8]),
-    Link(&'a [u8], usize),
+    Reserved(Box<[u8]>),
+    EndOfChain(Box<[u8]>),
+    BadCluster(Box<[u8]>),
+    Link(Box<[u8]>, usize),
 }
 
-impl<'a> ReadResult<'a> {
-    pub fn from<TMapEntry: map::Entry>(
-        parameters: &'a VolumeParameters,
+impl ReadResult {
+    pub fn from<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry>(
+        parameters: &'a VolumeParameters<'a, TBlockDevice>,
         map_entry: TMapEntry,
         index: usize,
     ) -> Self {
@@ -241,15 +264,16 @@ impl<'a> ReadResult<'a> {
             let size = parameters.bytes_per_sector() * parameters.sectors_per_cluster();
             let offset = parameters.clustered_area_start() + (size * index);
 
-            unsafe { slice::from_raw_parts(parameters.volume_root().add(offset), size) }
+            // unsafe { slice::from_raw_parts(parameters.volume_root().add(offset), size) }
+            &b"TODO"[..]
         };
 
         match map_entry_type {
             map::EntryType::Free => Self::Free,
-            map::EntryType::Reserved => Self::Reserved(data),
-            map::EntryType::Link => Self::Link(data, map_entry.into()),
-            map::EntryType::BadCluster => Self::BadCluster(data),
-            map::EntryType::EndOfChain => Self::EndOfChain(data),
+            map::EntryType::Reserved => Self::Reserved(data.into()),
+            map::EntryType::Link => Self::Link(data.into(), map_entry.into()),
+            map::EntryType::BadCluster => Self::BadCluster(data.into()),
+            map::EntryType::EndOfChain => Self::EndOfChain(data.into()),
         }
     }
 }

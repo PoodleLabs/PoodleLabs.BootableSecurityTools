@@ -34,3 +34,7 @@ pub fn ceil(value: f64) -> usize {
         floored
     }
 }
+
+pub fn ceil_div(dividend: usize, divisor: usize) -> usize {
+    (dividend + divisor - 1) / divisor
+}

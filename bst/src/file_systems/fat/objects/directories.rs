@@ -14,8 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{bits::bit_field, file_systems::fat};
-use core::{marker::PhantomData, slice};
+use crate::{
+    bits::bit_field,
+    file_systems::{block_device::BlockDevice, fat},
+};
+use alloc::{boxed::Box, vec, vec::Vec};
+use core::{marker::PhantomData, mem::size_of, slice};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -269,47 +273,62 @@ pub trait ChildIterator<'a>: Iterator<Item = super::ObjectWithDirectoryEntryPoin
     fn reset(&mut self);
 }
 
-pub struct FixedSizedDirectoryChildIterator<'a, TMapEntry: fat::clustering::map::Entry> {
+pub struct FixedSizedDirectoryChildIterator<
+    'a,
+    TBlockDevice: BlockDevice,
+    TMapEntry: fat::clustering::map::Entry,
+> {
+    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
     lfn_part_buffer: [Option<&'a fat::naming::long::NamePart>; 20],
-    volume_parameters: &'a fat::clustering::VolumeParameters,
     phantom_data: PhantomData<TMapEntry>,
     entry_count: usize,
     next_index: usize,
     skip_hidden: bool,
+    buffer: Vec<u8>,
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> FixedSizedDirectoryChildIterator<'a, TMapEntry> {
-    pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters,
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry>
+    FixedSizedDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
+{
+    pub fn from(
+        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
         entry_count: usize,
         start_index: usize,
         skip_hidden: bool,
     ) -> Self {
         Self {
-            volume_parameters: volume_parameters,
+            buffer: vec![0; entry_count * size_of::<fat::objects::directories::Entry>()],
             lfn_part_buffer: [None; 20],
             phantom_data: PhantomData,
             next_index: start_index,
+            volume_parameters,
             entry_count,
             skip_hidden,
         }
     }
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
-    for FixedSizedDirectoryChildIterator<'a, TMapEntry>
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry> Iterator
+    for FixedSizedDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
 {
     type Item = super::ObjectWithDirectoryEntryPointer<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Read the directory's bytes from the block device.
+        // Note: We do this on each iteration to reflect any changes to the disk,
+        // though this is a performance trade-off we may want to reconsider eventually.
+        if !self.volume_parameters.volume_root().read_bytes(
+            self.volume_parameters.media_id(),
+            self.volume_parameters.clustered_area_start() as u64,
+            &mut self.buffer,
+        ) {
+            // Reading the directory bytes failed; end iteration.
+            return None;
+        }
+
+        // Interpret the data in the directory buffer as directory entries.
         let entries = unsafe {
-            slice::from_raw_parts(
-                self.volume_parameters
-                    .volume_root()
-                    .add(self.volume_parameters.clustered_area_start())
-                    as *const Entry,
-                self.entry_count,
-            )
+            slice::from_raw_parts(self.buffer.as_ptr() as *const Entry, self.entry_count)
         };
 
         self.lfn_part_buffer.fill(None);
@@ -331,27 +350,33 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
     }
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> ChildIterator<'a>
-    for FixedSizedDirectoryChildIterator<'a, TMapEntry>
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry> ChildIterator<'a>
+    for FixedSizedDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
 {
     fn reset(&mut self) {
         self.next_index = 0;
     }
 }
 
-pub struct ClusteredDirectoryChildIterator<'a, TMapEntry: fat::clustering::map::Entry> {
-    operating_cluster_info: Option<(usize, &'a [u8], Option<usize>)>,
+pub struct ClusteredDirectoryChildIterator<
+    'a,
+    TBlockDevice: BlockDevice,
+    TMapEntry: fat::clustering::map::Entry,
+> {
+    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    operating_cluster_info: Option<(usize, Box<[u8]>, Option<usize>)>,
     lfn_part_buffer: [Option<&'a fat::naming::long::NamePart>; 20],
-    volume_parameters: &'a fat::clustering::VolumeParameters,
     phantom_data: PhantomData<TMapEntry>,
     start_cluster: usize,
     next_index: usize,
     skip_hidden: bool,
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> ClusteredDirectoryChildIterator<'a, TMapEntry> {
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry>
+    ClusteredDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
+{
     pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters,
+        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
         start_cluster: usize,
         start_index: usize,
         skip_hidden: bool,
@@ -368,7 +393,9 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> ClusteredDirectoryChildIterator
     }
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> ClusteredDirectoryChildIterator<'a, TMapEntry> {
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry>
+    ClusteredDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
+{
     fn change_operating_cluster(&mut self, cluster_index: usize) {
         self.next_index = 0;
         self.operating_cluster_info = match self
@@ -382,8 +409,8 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> ClusteredDirectoryChildIterator
     }
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
-    for ClusteredDirectoryChildIterator<'a, TMapEntry>
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry> Iterator
+    for ClusteredDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
 {
     type Item = super::ObjectWithDirectoryEntryPointer<'a>;
 
@@ -391,11 +418,11 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
         self.lfn_part_buffer.fill(None);
         match loop {
             // Iterate over the clusters composing the directory.
-            let (current_cluster, cluster_content, next_cluster) = match self.operating_cluster_info
-            {
-                Some(d) => d,
-                None => return None,
-            };
+            let (current_cluster, cluster_content, next_cluster) =
+                match &self.operating_cluster_info {
+                    Some(d) => d,
+                    None => return None,
+                };
 
             let entries = unsafe {
                 slice::from_raw_parts(
@@ -406,7 +433,7 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
 
             match next_object_in_cluster(
                 &mut self.lfn_part_buffer,
-                EntryClusterPointer::Cluster(current_cluster),
+                EntryClusterPointer::Cluster(*current_cluster),
                 &mut self.next_index,
                 entries,
                 self.skip_hidden,
@@ -416,7 +443,7 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
                     // No object was found in the remaining directory entries in the cluster.
                     match next_cluster {
                         // Move to the next cluster if there is one.
-                        Some(n) => self.change_operating_cluster(n),
+                        Some(n) => self.change_operating_cluster(*n),
                         // If there's no next cluster, there are no remaining objects.
                         None => break None,
                     }
@@ -433,8 +460,8 @@ impl<'a, TMapEntry: fat::clustering::map::Entry> Iterator
     }
 }
 
-impl<'a, TMapEntry: fat::clustering::map::Entry> ChildIterator<'a>
-    for ClusteredDirectoryChildIterator<'a, TMapEntry>
+impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry> ChildIterator<'a>
+    for ClusteredDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
 {
     fn reset(&mut self) {
         self.change_operating_cluster(self.start_cluster)

@@ -16,7 +16,7 @@
 
 use crate::{
     bits::{try_copy, BitTarget},
-    file_systems::fat,
+    file_systems::{block_device::BlockDevice, fat},
 };
 use core::{
     marker::PhantomData,
@@ -320,15 +320,15 @@ map_entry!(
     Entry32:u32:32;4(0, 1, 0x0FFFFFF7, 0x0FFFFFFF, 0x0FFFFFFF),
 );
 
-pub struct LinearIterator<'a, TEntry: Entry> {
-    volume_parameters: &'a fat::clustering::VolumeParameters,
+pub struct LinearIterator<'a, TBlockDevice: BlockDevice, TEntry: Entry> {
+    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TEntry>,
     next_index: usize,
 }
 
-impl<'a, TEntry: Entry> LinearIterator<'a, TEntry> {
+impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> LinearIterator<'a, TBlockDevice, TEntry> {
     pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters,
+        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
         next_index: usize,
     ) -> Self {
         Self {
@@ -339,7 +339,9 @@ impl<'a, TEntry: Entry> LinearIterator<'a, TEntry> {
     }
 }
 
-impl<'a, TEntry: Entry> Iterator for LinearIterator<'a, TEntry> {
+impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> Iterator
+    for LinearIterator<'a, TBlockDevice, TEntry>
+{
     type Item = TEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -360,15 +362,15 @@ impl<'a, TEntry: Entry> Iterator for LinearIterator<'a, TEntry> {
     }
 }
 
-pub struct ChainIterator<'a, TEntry: Entry> {
-    volume_parameters: &'a fat::clustering::VolumeParameters,
+pub struct ChainIterator<'a, TBlockDevice: BlockDevice, TEntry: Entry> {
+    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TEntry>,
     next_index: usize,
 }
 
-impl<'a, TEntry: Entry> ChainIterator<'a, TEntry> {
+impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> ChainIterator<'a, TBlockDevice, TEntry> {
     pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters,
+        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
         next_index: usize,
     ) -> Self {
         Self {
@@ -379,7 +381,9 @@ impl<'a, TEntry: Entry> ChainIterator<'a, TEntry> {
     }
 }
 
-impl<'a, TEntry: Entry> Iterator for ChainIterator<'a, TEntry> {
+impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> Iterator
+    for ChainIterator<'a, TBlockDevice, TEntry>
+{
     type Item = TEntry;
 
     fn next(&mut self) -> Option<Self::Item> {

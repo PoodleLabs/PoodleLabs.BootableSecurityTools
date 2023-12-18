@@ -20,6 +20,8 @@ mod objects;
 mod raw_layout;
 mod timekeeping;
 
+use super::block_device::BlockDevice;
+
 // This FAT implementation was written based on the FatFs documentation,
 // which can be found at: http://elm-chan.org/fsw/ff/00index_e.html.
 
@@ -40,47 +42,51 @@ pub enum Errors {
     Unreadable,
 }
 
-trait FileSystemReader<'a> {
+trait FileSystemReader<'a, TBlockDevice: BlockDevice> {
     type RootDirectoryEntryIterator: objects::directories::ChildIterator<'a>;
     type FatEntry: clustering::map::Entry;
 
     fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator;
 
-    fn volume_parameters(&self) -> &clustering::VolumeParameters;
+    fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice>;
 
-    fn iter_map_linear(&self) -> clustering::map::LinearIterator<'_, Self::FatEntry> {
+    fn iter_map_linear(
+        &'a self,
+    ) -> clustering::map::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
         self.iter_map_linear_from(0)
     }
 
     fn iter_map_linear_from(
-        &self,
+        &'a self,
         start_index: usize,
-    ) -> clustering::map::LinearIterator<'_, Self::FatEntry> {
+    ) -> clustering::map::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
         clustering::map::LinearIterator::from(self.volume_parameters(), start_index)
     }
 
     fn iter_map_chain(
-        &self,
+        &'a self,
         start_index: usize,
-    ) -> clustering::map::ChainIterator<'_, Self::FatEntry> {
+    ) -> clustering::map::ChainIterator<'a, TBlockDevice, Self::FatEntry> {
         clustering::map::ChainIterator::from(self.volume_parameters(), start_index)
     }
 
-    fn iter_clusters_linear(&self) -> clustering::LinearIterator<'_, Self::FatEntry> {
+    fn iter_clusters_linear(
+        &'a self,
+    ) -> clustering::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
         self.iter_clusters_linear_from(0)
     }
 
     fn iter_clusters_linear_from(
-        &self,
+        &'a self,
         start_index: usize,
-    ) -> clustering::LinearIterator<'_, Self::FatEntry> {
+    ) -> clustering::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
         clustering::LinearIterator::from(self.volume_parameters(), start_index)
     }
 
     fn iter_cluster_chain(
-        &self,
+        &'a self,
         start_index: usize,
-    ) -> clustering::ChainIterator<'_, Self::FatEntry> {
+    ) -> clustering::ChainIterator<'a, TBlockDevice, Self::FatEntry> {
         clustering::ChainIterator::from(self.volume_parameters(), start_index)
     }
 }
@@ -88,14 +94,14 @@ trait FileSystemReader<'a> {
 macro_rules! filesystem_reader {
     ($($name:ident($map_entry_type:ident, $iterator_type:ident),)*) => {
         $(
-            struct $name {
-                volume_parameters: clustering::VolumeParameters,
+            struct $name<'a, TBlockDevice: BlockDevice> {
+                volume_parameters: clustering::VolumeParameters<'a, TBlockDevice>,
                 skip_hidden: bool,
             }
 
-            impl<'a> FileSystemReader<'a> for &'a $name {
+            impl<'a, TBlockDevice: BlockDevice> FileSystemReader<'a, TBlockDevice> for &'a $name<'a, TBlockDevice> {
                 type FatEntry = clustering::map::$map_entry_type;
-                type RootDirectoryEntryIterator = objects::directories::$iterator_type<'a, Self::FatEntry>;
+                type RootDirectoryEntryIterator = objects::directories::$iterator_type<'a, TBlockDevice, Self::FatEntry>;
 
                 fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator {
                     Self::RootDirectoryEntryIterator::from(
@@ -106,7 +112,7 @@ macro_rules! filesystem_reader {
                     )
                 }
 
-                fn volume_parameters(&self) -> &clustering::VolumeParameters {
+                fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice> {
                     &self.volume_parameters
                 }
             }
