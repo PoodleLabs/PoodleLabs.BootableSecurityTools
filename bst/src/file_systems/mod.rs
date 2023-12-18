@@ -17,17 +17,3 @@
 mod exfat;
 mod fat;
 mod master_boot_record;
-
-#[repr(u8)]
-#[derive(Copy, Clone)]
-enum BootSectorExtendedBootSignature {
-    V4_0 = 0x28,
-    V4_1 = 0x29,
-    V8_0 = 0x80,
-}
-
-impl BootSectorExtendedBootSignature {
-    pub const fn has_extended_fields(&self) -> bool {
-        *self as u8 >= 0x29
-    }
-}

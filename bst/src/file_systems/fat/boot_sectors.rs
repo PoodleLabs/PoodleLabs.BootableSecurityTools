@@ -17,7 +17,39 @@
 use super::bios_parameters_blocks::{
     Fat32BiosParameterBlock, FatBiosParameterBlock, FatBiosParameterBlockCommonFields,
 };
-use crate::file_systems::BootSectorExtendedBootSignature;
+use crate::file_systems::fat;
+
+pub fn detect_layout(volume_root: *const u8) -> Option<(fat::Variant, bool)> {
+    let small_fat_non_extended =
+        unsafe { (volume_root as *const SmallFatNonExtendedBootSector).as_ref() }.unwrap();
+
+    let extended = match small_fat_non_extended.body().extended_boot_signature {
+        BootSectorExtendedBootSignature::V4_0 => false,
+        BootSectorExtendedBootSignature::V4_1 => true,
+        _ => return None,
+    };
+
+    let variant = small_fat_non_extended
+        .body()
+        .bios_parameters_block()
+        .variant();
+
+    Some((variant, extended))
+}
+
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BootSectorExtendedBootSignature {
+    V4_0 = 0x28,
+    V4_1 = 0x29,
+    V8_0 = 0x80,
+}
+
+impl BootSectorExtendedBootSignature {
+    pub const fn has_extended_fields(&self) -> bool {
+        *self as u8 >= 0x29
+    }
+}
 
 #[repr(C)]
 pub struct FatBootCode<const N: usize> {
