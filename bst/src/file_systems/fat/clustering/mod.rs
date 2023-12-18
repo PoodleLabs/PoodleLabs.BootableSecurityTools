@@ -54,6 +54,30 @@ pub struct VolumeParameters {
 }
 
 impl VolumeParameters {
+    pub const fn from(
+        root_directory_value: usize,
+        sectors_per_cluster: usize,
+        active_map: Option<usize>,
+        bytes_per_sector: usize,
+        reserved_sectors: usize,
+        volume_root: *const u8,
+        sectors_per_map: usize,
+        sector_count: usize,
+        map_count: usize,
+    ) -> Self {
+        Self {
+            root_directory_value,
+            sectors_per_cluster,
+            bytes_per_sector,
+            reserved_sectors,
+            sectors_per_map,
+            sector_count,
+            volume_root,
+            active_map,
+            map_count,
+        }
+    }
+
     pub const fn directory_entries_per_cluster(&self) -> usize {
         (self.sectors_per_cluster * self.bytes_per_sector)
             / size_of::<fat::objects::directories::Entry>()

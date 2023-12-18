@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod bios_parameters_blocks;
-mod boot_sectors;
 mod clustering;
-mod file_system_info;
 mod naming;
 mod objects;
+mod raw_layout;
 mod timekeeping;
 
 // This FAT implementation was written based on the FatFs documentation,
