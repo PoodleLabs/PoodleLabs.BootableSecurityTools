@@ -16,6 +16,7 @@
 
 use crate::{
     file_systems::block_device::{BlockDevice, BlockDeviceType},
+    integers,
     uefi::core_types::UefiStatusCode,
 };
 use alloc::vec::Vec;
@@ -109,8 +110,7 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
     }
 
     fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool {
-        // TODO: Detect write to buffered block.
-        (self.protocol.write_blocks)(
+        if (self.protocol.write_blocks)(
             self.protocol,
             media_id,
             first_block,
@@ -118,6 +118,50 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
             buffer.as_ptr(),
         )
         .is_success()
+        {
+            match self.buffered_block {
+                Some((buffered_block, buffered_media_id)) => {
+                    if media_id != buffered_media_id || first_block > buffered_block {
+                        // If the media has changed since the last buffered read, or the first block we wrote to was after
+                        // our currently buffered block, we don't need to do anything.
+                        return true;
+                    }
+
+                    // Calculate the number of blocks we wrote to.
+                    let block_size = self.block_size();
+                    let block_count = integers::ceil_div(buffer.len(), block_size) as u64;
+
+                    // Calculate the offset of the buffered block from the first block we wrote to.
+                    let buffered_offset = buffered_block - first_block;
+                    if buffered_offset >= block_count {
+                        // If our buffered block is outside the bounds of the mutated blocks,
+                        // we don't need to do anything.
+                        return true;
+                    }
+
+                    if block_count * block_size as u64 > buffer.len() as u64
+                        && buffered_offset == block_count - 1
+                    {
+                        // The read should have failed in the case the buffer has a length which is not a multiple of
+                        // the block size, but on the off chance of some bad UEFI implementation having some unknown
+                        // behaviour, if a partial write was attempted, and reported successful, on our buffered block,
+                        // we should just invalidate the buffer.
+                        self.buffered_block = None;
+                    } else {
+                        // Our buffered block was overwritten. We can just copy the write buffer into our block buffer.
+                        let write_buffer_start = buffered_offset as usize * block_size;
+                        self.block_buffer.copy_from_slice(
+                            &buffer[write_buffer_start..write_buffer_start + block_size],
+                        )
+                    }
+
+                    true
+                }
+                None => true,
+            }
+        } else {
+            false
+        }
     }
 
     fn flush_blocks(&mut self) -> bool {
