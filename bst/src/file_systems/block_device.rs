@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: UEFI EFI_BLOCK_IO_PROTOCOL https://uefi.org/specs/UEFI/2.10/13_Protocols_Media_Access.html#block-i-o-protocol
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BlockDeviceType {
     Partition,

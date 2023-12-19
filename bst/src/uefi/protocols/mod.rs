@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+pub(in crate::uefi) mod block_devices;
 pub(in crate::uefi) mod device_paths;
 pub(in crate::uefi) mod text;
 
