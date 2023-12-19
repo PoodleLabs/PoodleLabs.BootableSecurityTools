@@ -46,12 +46,16 @@ trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
     type RootDirectoryEntryIterator: objects::directories::ChildIterator<'a>;
     type FatEntry: clustering::map::Entry;
 
-    fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator;
+    fn volume_parameters(&'a self) -> &'a clustering::VolumeParameters<'a, TBlockDevice>;
 
-    fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice>;
+    fn volume_parameters_mut(
+        &'a mut self,
+    ) -> &'a mut clustering::VolumeParameters<'a, TBlockDevice>;
 
-    fn error_check<TMapEntry: clustering::map::Entry>(&self) -> Errors {
-        let volume_paramters = self.volume_parameters();
+    fn iter_root_directory_entries(&'a mut self) -> Self::RootDirectoryEntryIterator;
+
+    fn error_check<TMapEntry: clustering::map::Entry>(&'a mut self) -> Errors {
+        let volume_paramters = self.volume_parameters_mut();
         let first_entry = match volume_paramters.read_map_entry::<TMapEntry>(0) {
             Some(e) => e,
             None => return Errors::Unreadable,
@@ -70,43 +74,43 @@ trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
     }
 
     fn iter_map_linear(
-        &'a self,
+        &'a mut self,
     ) -> clustering::map::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
         self.iter_map_linear_from(0)
     }
 
     fn iter_map_linear_from(
-        &'a self,
+        &'a mut self,
         start_index: usize,
     ) -> clustering::map::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
-        clustering::map::LinearIterator::from(self.volume_parameters(), start_index)
+        clustering::map::LinearIterator::from(self.volume_parameters_mut(), start_index)
     }
 
     fn iter_map_chain(
-        &'a self,
+        &'a mut self,
         start_index: usize,
     ) -> clustering::map::ChainIterator<'a, TBlockDevice, Self::FatEntry> {
-        clustering::map::ChainIterator::from(self.volume_parameters(), start_index)
+        clustering::map::ChainIterator::from(self.volume_parameters_mut(), start_index)
     }
 
     fn iter_clusters_linear(
-        &'a self,
+        &'a mut self,
     ) -> clustering::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
         self.iter_clusters_linear_from(0)
     }
 
     fn iter_clusters_linear_from(
-        &'a self,
+        &'a mut self,
         start_index: usize,
     ) -> clustering::LinearIterator<'a, TBlockDevice, Self::FatEntry> {
-        clustering::LinearIterator::from(self.volume_parameters(), start_index)
+        clustering::LinearIterator::from(self.volume_parameters_mut(), start_index)
     }
 
     fn iter_cluster_chain(
-        &'a self,
+        &'a mut self,
         start_index: usize,
     ) -> clustering::ChainIterator<'a, TBlockDevice, Self::FatEntry> {
-        clustering::ChainIterator::from(self.volume_parameters(), start_index)
+        clustering::ChainIterator::from(self.volume_parameters_mut(), start_index)
     }
 }
 
@@ -118,21 +122,26 @@ macro_rules! filesystem_reader {
                 skip_hidden: bool,
             }
 
-            impl<'a, TBlockDevice: BlockDevice> FileSystemReader<'a, TBlockDevice> for &'a $name<'a, TBlockDevice> {
+            impl<'a, TBlockDevice: BlockDevice> FileSystemReader<'a, TBlockDevice> for $name<'a, TBlockDevice> {
                 type FatEntry = clustering::map::$map_entry_type;
                 type RootDirectoryEntryIterator = objects::directories::$iterator_type<'a, TBlockDevice, Self::FatEntry>;
 
-                fn iter_root_directory_entries(&self) -> Self::RootDirectoryEntryIterator {
+                fn volume_parameters(&'a self) -> &'a clustering::VolumeParameters<'a, TBlockDevice> {
+                    &self.volume_parameters
+                }
+
+                fn volume_parameters_mut(&'a mut self) -> &'a mut clustering::VolumeParameters<'a, TBlockDevice> {
+                    &mut self.volume_parameters
+                }
+
+                fn iter_root_directory_entries(&'a mut self) -> Self::RootDirectoryEntryIterator {
+                    let rdv = self.volume_parameters.root_directory_value();
                     Self::RootDirectoryEntryIterator::from(
-                        &self.volume_parameters,
-                        self.volume_parameters.root_directory_value(),
+                        &mut self.volume_parameters,
+                        rdv,
                         0,
                         self.skip_hidden,
                     )
-                }
-
-                fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice> {
-                    &self.volume_parameters
                 }
             }
 

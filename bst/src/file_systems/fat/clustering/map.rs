@@ -339,14 +339,14 @@ map_entry!(
 );
 
 pub struct LinearIterator<'a, TBlockDevice: BlockDevice, TEntry: Entry> {
-    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TEntry>,
     next_index: usize,
 }
 
 impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> LinearIterator<'a, TBlockDevice, TEntry> {
-    pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    pub fn from(
+        volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
         next_index: usize,
     ) -> Self {
         Self {
@@ -379,14 +379,14 @@ impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> Iterator
 }
 
 pub struct ChainIterator<'a, TBlockDevice: BlockDevice, TEntry: Entry> {
-    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TEntry>,
     next_index: usize,
 }
 
 impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> ChainIterator<'a, TBlockDevice, TEntry> {
-    pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    pub fn from(
+        volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
         next_index: usize,
     ) -> Self {
         Self {

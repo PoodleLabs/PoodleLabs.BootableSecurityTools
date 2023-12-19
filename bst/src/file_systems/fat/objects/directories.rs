@@ -363,7 +363,7 @@ pub struct ClusteredDirectoryChildIterator<
     TBlockDevice: BlockDevice,
     TMapEntry: fat::clustering::map::Entry,
 > {
-    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
     operating_cluster_info: Option<(usize, Box<[u8]>, Option<usize>)>,
     lfn_part_buffer: [Option<&'a fat::naming::long::NamePart>; 20],
     phantom_data: PhantomData<TMapEntry>,
@@ -375,8 +375,8 @@ pub struct ClusteredDirectoryChildIterator<
 impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry>
     ClusteredDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
 {
-    pub const fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    pub fn from(
+        volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
         start_cluster: usize,
         start_index: usize,
         skip_hidden: bool,

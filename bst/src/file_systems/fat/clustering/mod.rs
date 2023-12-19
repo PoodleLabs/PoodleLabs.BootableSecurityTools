@@ -17,7 +17,7 @@
 pub mod map;
 
 use crate::file_systems::{block_device::BlockDevice, fat};
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use core::{marker::PhantomData, mem::size_of};
 
 // FAT filesystems operate on a cluster-based system. Files and directories are made up of
@@ -46,6 +46,7 @@ pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
     block_device: &'a TBlockDevice,
     root_directory_value: usize,
     sectors_per_cluster: usize,
+    fat_entry_buffer: Vec<u8>,
     active_map: Option<usize>,
     bytes_per_sector: usize,
     reserved_sectors: usize,
@@ -57,7 +58,7 @@ pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
 }
 
 impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
-    pub const fn from(
+    pub fn from(
         block_device: &'a TBlockDevice,
         root_directory_value: usize,
         sectors_per_cluster: usize,
@@ -71,6 +72,7 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         media_id: u32,
     ) -> Self {
         Self {
+            fat_entry_buffer: Vec::with_capacity(3),
             root_directory_value,
             sectors_per_cluster,
             bytes_per_sector,
@@ -132,21 +134,23 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         clustered_sector_count / self.sectors_per_cluster
     }
 
-    pub fn read_map_entry<TMapEntry: map::Entry>(&self, index: usize) -> Option<TMapEntry> {
+    pub fn read_map_entry<TMapEntry: map::Entry>(&mut self, index: usize) -> Option<TMapEntry> {
         let address = TMapEntry::get_address_for(index);
-        let mut buffer = Box::from_iter((0..address.byte_count()).map(|_| 0u8)); // TODO: Reusable buffer?
+
+        self.fat_entry_buffer.fill(0);
+        self.fat_entry_buffer.resize(address.byte_count(), 0);
         if !self.block_device.read_bytes(
             self.media_id,
             (self.map_area_start() + address.map_byte()) as u64,
-            &mut buffer,
+            &mut self.fat_entry_buffer,
         ) {
             return None;
         }
 
-        TMapEntry::try_read_from(address, &buffer)
+        TMapEntry::try_read_from(address, &self.fat_entry_buffer)
     }
 
-    pub fn read_cluster<TMapEntry: map::Entry>(&self, index: usize) -> ReadResult {
+    pub fn read_cluster<TMapEntry: map::Entry>(&mut self, index: usize) -> ReadResult {
         match self.read_map_entry::<TMapEntry>(index) {
             Some(e) => ReadResult::from(self, e, index),
             None => ReadResult::OutOfBounds,
@@ -155,7 +159,7 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
 }
 
 pub struct LinearIterator<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> {
-    volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
+    volume_parameters: &'a mut VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TMapEntry>,
     next_index: usize,
 }
@@ -163,8 +167,8 @@ pub struct LinearIterator<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> 
 impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry>
     LinearIterator<'a, TBlockDevice, TMapEntry>
 {
-    pub const fn from(
-        volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
+    pub fn from(
+        volume_parameters: &'a mut VolumeParameters<'a, TBlockDevice>,
         next_index: usize,
     ) -> Self {
         Self {
@@ -199,7 +203,7 @@ impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> Iterator
 }
 
 pub struct ChainIterator<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> {
-    volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
+    volume_parameters: &'a mut VolumeParameters<'a, TBlockDevice>,
     phantom_data: PhantomData<TMapEntry>,
     next_index: usize,
 }
@@ -207,8 +211,8 @@ pub struct ChainIterator<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry> {
 impl<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry>
     ChainIterator<'a, TBlockDevice, TMapEntry>
 {
-    pub const fn from(
-        volume_parameters: &'a VolumeParameters<'a, TBlockDevice>,
+    pub fn from(
+        volume_parameters: &'a mut VolumeParameters<'a, TBlockDevice>,
         next_index: usize,
     ) -> Self {
         Self {
