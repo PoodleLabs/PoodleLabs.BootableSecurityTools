@@ -278,7 +278,7 @@ pub struct FixedSizedDirectoryChildIterator<
     TBlockDevice: BlockDevice,
     TMapEntry: fat::clustering::map::Entry,
 > {
-    volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+    volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
     lfn_part_buffer: [Option<&'a fat::naming::long::NamePart>; 20],
     phantom_data: PhantomData<TMapEntry>,
     entry_count: usize,
@@ -291,7 +291,7 @@ impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry>
     FixedSizedDirectoryChildIterator<'a, TBlockDevice, TMapEntry>
 {
     pub fn from(
-        volume_parameters: &'a fat::clustering::VolumeParameters<'a, TBlockDevice>,
+        volume_parameters: &'a mut fat::clustering::VolumeParameters<'a, TBlockDevice>,
         entry_count: usize,
         start_index: usize,
         skip_hidden: bool,
@@ -317,11 +317,13 @@ impl<'a, TBlockDevice: BlockDevice, TMapEntry: fat::clustering::map::Entry> Iter
         // Read the directory's bytes from the block device.
         // Note: We do this on each iteration to reflect any changes to the disk,
         // though this is a performance trade-off we may want to reconsider eventually.
-        if !self.volume_parameters.block_device().read_bytes(
-            self.volume_parameters.media_id(),
-            self.volume_parameters.clustered_area_start() as u64,
-            &mut self.buffer,
-        ) {
+        let media_id = self.volume_parameters.media_id();
+        let offset = self.volume_parameters.clustered_area_start() as u64;
+        if !self
+            .volume_parameters
+            .block_device_mut()
+            .read_bytes(media_id, offset, &mut self.buffer)
+        {
             // Reading the directory bytes failed; end iteration.
             return None;
         }

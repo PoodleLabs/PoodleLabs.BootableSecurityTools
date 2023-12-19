@@ -24,7 +24,7 @@ use boot_sectors::BootSector;
 use core::mem::size_of;
 
 pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
-    block_device: &'a TBlockDevice,
+    block_device: &'a mut TBlockDevice,
 ) -> Option<(
     fat::Variant,
     fat::clustering::VolumeParameters<'a, TBlockDevice>,
@@ -108,7 +108,7 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
 }
 
 fn read_small_fat_volume_parameters<'a, TBlockDevice: BlockDevice>(
-    block_device: &'a TBlockDevice,
+    block_device: &'a mut TBlockDevice,
     extended: bool,
     media_id: u32,
     buffer: &[u8],
@@ -150,7 +150,7 @@ fn volume_parameters_from_boot_sector<
     TBiosParameterBlock: bios_parameters_blocks::BiosParameterBlock,
     TBootSector: boot_sectors::BootSector<N, TBiosParameterBlock>,
 >(
-    block_device: &'a TBlockDevice,
+    block_device: &'a mut TBlockDevice,
     root_directory_value: usize,
     boot_sector: &TBootSector,
     media_id: u32,

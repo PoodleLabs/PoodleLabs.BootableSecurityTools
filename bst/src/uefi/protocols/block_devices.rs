@@ -14,9 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::uefi::core_types::UefiStatusCode;
-
-// TODO: Implement BlockDevice
+use crate::{
+    file_systems::block_device::{BlockDevice, BlockDeviceType},
+    uefi::core_types::UefiStatusCode,
+};
+use alloc::vec::Vec;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -53,4 +55,78 @@ pub(in crate::uefi) struct UefiBlockDeviceIoProtocol {
         buffer: *const u8,
     ) -> UefiStatusCode,
     flush_blocks: extern "efiapi" fn(this: &Self) -> UefiStatusCode,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(in crate::uefi) struct BufferedUefiBlockDeviceIoProtocol<'a> {
+    protocol: &'a UefiBlockDeviceIoProtocol,
+    block_buffer: Vec<u8>,
+}
+
+impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
+    fn device_type(&self) -> BlockDeviceType {
+        if self.protocol.media.logical_partition {
+            BlockDeviceType::Partition
+        } else {
+            BlockDeviceType::Hardware
+        }
+    }
+
+    fn media_present(&self) -> bool {
+        self.protocol.media.media_present
+    }
+
+    fn write_caching(&self) -> bool {
+        self.protocol.media.write_caching
+    }
+
+    fn block_size(&self) -> usize {
+        self.protocol.media.block_size as usize
+    }
+
+    fn block_count(&self) -> u64 {
+        self.protocol.media.last_block + 1
+    }
+
+    fn read_only(&self) -> bool {
+        self.protocol.media.read_only
+    }
+
+    fn media_id(&self) -> u32 {
+        self.protocol.media.media_id
+    }
+
+    fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool {
+        (self.protocol.read_blocks)(
+            self.protocol,
+            media_id,
+            first_block,
+            buffer.len(),
+            buffer.as_mut_ptr(),
+        )
+        .is_success()
+    }
+
+    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool {
+        todo!()
+    }
+
+    fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool {
+        (self.protocol.write_blocks)(
+            self.protocol,
+            media_id,
+            first_block,
+            buffer.len(),
+            buffer.as_ptr(),
+        )
+        .is_success()
+    }
+
+    fn flush_blocks(&mut self) -> bool {
+        ((self.protocol.flush_blocks)(self.protocol)).is_success()
+    }
+
+    fn reset(&mut self) -> bool {
+        ((self.protocol.reset)(self.protocol, true)).is_success()
+    }
 }

@@ -43,7 +43,7 @@ use core::{marker::PhantomData, mem::size_of};
 // at the beginning of the volume. A common configuration is 512 byte sectors, with 4 sectors per cluster.
 
 pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
-    block_device: &'a TBlockDevice,
+    block_device: &'a mut TBlockDevice,
     root_directory_value: usize,
     sectors_per_cluster: usize,
     fat_entry_buffer: Vec<u8>,
@@ -59,7 +59,7 @@ pub struct VolumeParameters<'a, TBlockDevice: BlockDevice> {
 
 impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
     pub fn from(
-        block_device: &'a TBlockDevice,
+        block_device: &'a mut TBlockDevice,
         root_directory_value: usize,
         sectors_per_cluster: usize,
         active_map: Option<usize>,
@@ -132,6 +132,10 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         let clustered_sector_count =
             self.sector_count - self.reserved_sectors - (self.map_count * self.sectors_per_map);
         clustered_sector_count / self.sectors_per_cluster
+    }
+
+    pub fn block_device_mut(&mut self) -> &mut TBlockDevice {
+        self.block_device
     }
 
     pub fn read_map_entry<TMapEntry: map::Entry>(&mut self, index: usize) -> Option<TMapEntry> {
@@ -263,7 +267,7 @@ pub enum ReadResult {
 
 impl ReadResult {
     pub fn from<'a, TBlockDevice: BlockDevice, TMapEntry: map::Entry>(
-        parameters: &'a VolumeParameters<'a, TBlockDevice>,
+        parameters: &mut VolumeParameters<'a, TBlockDevice>,
         map_entry: TMapEntry,
         index: usize,
     ) -> Self {
@@ -278,9 +282,10 @@ impl ReadResult {
             let size = parameters.bytes_per_sector() * parameters.sectors_per_cluster();
             let offset = parameters.clustered_area_start() + (size * index);
             let mut buffer = Box::from_iter((0..size).map(|_| 0u8));
+            let media_id = parameters.media_id;
             if parameters
-                .block_device()
-                .read_bytes(parameters.media_id, offset as u64, &mut buffer)
+                .block_device_mut()
+                .read_bytes(media_id, offset as u64, &mut buffer)
             {
                 buffer
             } else {

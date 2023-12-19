@@ -27,9 +27,9 @@ pub trait BlockDevice {
 
     fn write_caching(&self) -> bool;
 
-    fn block_count(&self) -> usize;
-
     fn block_size(&self) -> usize;
+
+    fn block_count(&self) -> u64;
 
     fn read_only(&self) -> bool;
 
@@ -37,7 +37,7 @@ pub trait BlockDevice {
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool;
 
-    fn read_bytes(&self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool;
+    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool;
 
     fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool;
 
