@@ -122,18 +122,6 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         self.media_id
     }
 
-    pub const fn active_map_bytes(&self) -> &[u8] {
-        let map_size = self.map_size();
-        let map_offset = self.map_area_start()
-            + (match self.active_map {
-                Some(i) => i,
-                None => 0,
-            } * map_size);
-
-        // unsafe { slice::from_raw_parts(self.block_device.add(map_offset), map_size) }
-        b"TODO"
-    }
-
     pub const fn clustered_area_start(&self) -> usize {
         self.map_area_start() + (self.map_size() * self.map_count)
     }
@@ -144,8 +132,22 @@ impl<'a, TBlockDevice: BlockDevice> VolumeParameters<'a, TBlockDevice> {
         clustered_sector_count / self.sectors_per_cluster
     }
 
+    pub fn read_map_entry<TMapEntry: map::Entry>(&self, index: usize) -> Option<TMapEntry> {
+        let address = TMapEntry::get_address_for(index);
+        let mut buffer = Box::from_iter((0..address.byte_count()).map(|_| 0u8)); // TODO: Reusable buffer?
+        if !self.block_device.read_bytes(
+            self.media_id,
+            (self.map_area_start() + address.map_byte()) as u64,
+            &mut buffer,
+        ) {
+            return None;
+        }
+
+        TMapEntry::try_read_from(address, &buffer)
+    }
+
     pub fn read_cluster<TMapEntry: map::Entry>(&self, index: usize) -> ReadResult {
-        match TMapEntry::try_read_from(self.active_map_bytes(), index) {
+        match self.read_map_entry::<TMapEntry>(index) {
             Some(e) => ReadResult::from(self, e, index),
             None => ReadResult::OutOfBounds,
         }

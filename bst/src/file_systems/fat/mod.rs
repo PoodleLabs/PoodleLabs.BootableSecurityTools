@@ -52,13 +52,12 @@ trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
 
     fn error_check<TMapEntry: clustering::map::Entry>(&self) -> Errors {
         let volume_paramters = self.volume_parameters();
-        let active_fat_bytes = volume_paramters.active_map_bytes();
-        let first_entry = match TMapEntry::try_read_from(active_fat_bytes, 0) {
+        let first_entry = match volume_paramters.read_map_entry::<TMapEntry>(0) {
             Some(e) => e,
             None => return Errors::Unreadable,
         };
 
-        let second_entry = match TMapEntry::try_read_from(active_fat_bytes, 1) {
+        let second_entry = match volume_paramters.read_map_entry::<TMapEntry>(1) {
             Some(e) => e,
             None => return Errors::Unreadable,
         };

@@ -17,6 +17,7 @@
 use crate::{
     bits::{try_copy, BitTarget},
     file_systems::{block_device::BlockDevice, fat},
+    integers::ceil_div,
 };
 use core::{
     marker::PhantomData,
@@ -36,7 +37,26 @@ pub enum EntryType {
     EndOfChain,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct EntryAddress {
+    byte_count: usize,
+    bit_offset: usize,
+    map_byte: usize,
+}
+
+impl EntryAddress {
+    pub const fn byte_count(&self) -> usize {
+        self.byte_count
+    }
+
+    pub const fn map_byte(&self) -> usize {
+        self.map_byte
+    }
+}
+
 pub trait Entry: BitTarget + Into<usize> {
+    fn get_address_for(index: usize) -> EntryAddress;
+
     fn volume_dirty_flag() -> Self;
 
     fn hard_error_flag() -> Self;
@@ -49,9 +69,7 @@ pub trait Entry: BitTarget + Into<usize> {
 
     fn free() -> Self;
 
-    fn try_read_from(map: &[u8], index: usize) -> Option<Self>;
-
-    fn try_write_to(&self, map: &mut [u8], index: usize) -> bool;
+    fn try_read_from(entry_address: EntryAddress, bytes: &[u8]) -> Option<Self>;
 
     fn check_media_bits(&self, media_bits: u8) -> bool;
 
@@ -222,6 +240,18 @@ macro_rules! map_entry {
             }
 
             impl Entry for $name {
+                fn get_address_for(index: usize) -> EntryAddress {
+                    let bit_start = (index * Self::BIT_COUNT);
+                    let bit_offset = bit_start % 8;
+                    let map_byte = bit_start / 8;
+
+                    EntryAddress {
+                        byte_count: ceil_div(bit_offset + Self::BIT_COUNT, 8),
+                        bit_offset,
+                        map_byte,
+                    }
+                }
+
                 fn volume_dirty_flag() -> Self {
                     Self::VOLUME_DIRTY_FLAG
                 }
@@ -246,12 +276,12 @@ macro_rules! map_entry {
                     Self::FREE
                 }
 
-                fn try_read_from(map: &[u8], index: usize) -> Option<Self> {
+                fn try_read_from(entry_address: EntryAddress, bytes: &[u8]) -> Option<Self> {
                     // Prepare a buffer to read into.
                     let mut buffer: [$underlying; 1] = [0];
                     if try_copy(
-                        map,
-                        (index * Self::BIT_COUNT) + Self::RESERVED_BIT_COUNT,
+                        bytes,
+                        entry_address.bit_offset + Self::RESERVED_BIT_COUNT,
                         &mut buffer,
                         Self::BIT_OFFSET,
                         Self::MUTABLE_BITS,
@@ -261,18 +291,6 @@ macro_rules! map_entry {
                     else {
                         None
                     }
-                }
-
-                fn try_write_to(&self, map: &mut [u8], index: usize) -> bool {
-                    // Prepare a buffer to read form.
-                    let buffer = [ self.0 ];
-                    try_copy(
-                        &buffer,
-                        Self::BIT_OFFSET,
-                        map,
-                        (index * Self::BIT_COUNT) + Self::RESERVED_BIT_COUNT,
-                        Self::MUTABLE_BITS,
-                    )
                 }
 
                 fn check_media_bits(&self, media_bits: u8) -> bool {
@@ -345,12 +363,10 @@ impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> Iterator
     type Item = TEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let entry =
-            match TEntry::try_read_from(self.volume_parameters.active_map_bytes(), self.next_index)
-            {
-                Some(e) => e,
-                None => return None,
-            };
+        let entry = match self.volume_parameters.read_map_entry(self.next_index) {
+            Some(e) => e,
+            None => return None,
+        };
 
         self.next_index += 1;
         Some(entry)
@@ -387,12 +403,13 @@ impl<'a, TBlockDevice: BlockDevice, TEntry: Entry> Iterator
     type Item = TEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let entry =
-            match TEntry::try_read_from(self.volume_parameters.active_map_bytes(), self.next_index)
-            {
-                Some(e) => e,
-                None => return None,
-            };
+        let entry = match self
+            .volume_parameters
+            .read_map_entry::<TEntry>(self.next_index)
+        {
+            Some(e) => e,
+            None => return None,
+        };
 
         self.next_index = entry.into();
         Some(entry)
