@@ -46,15 +46,13 @@ trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
     type RootDirectoryEntryIterator: objects::directories::ChildIterator<'a>;
     type FatEntry: clustering::map::Entry;
 
-    fn volume_parameters(&'a self) -> &'a clustering::VolumeParameters<'a, TBlockDevice>;
+    fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice>;
 
-    fn volume_parameters_mut(
-        &'a mut self,
-    ) -> &'a mut clustering::VolumeParameters<'a, TBlockDevice>;
+    fn volume_parameters_mut(&mut self) -> &mut clustering::VolumeParameters<'a, TBlockDevice>;
 
     fn iter_root_directory_entries(&'a mut self) -> Self::RootDirectoryEntryIterator;
 
-    fn error_check<TMapEntry: clustering::map::Entry>(&'a mut self) -> Errors {
+    fn error_check<TMapEntry: clustering::map::Entry>(&mut self) -> Errors {
         let volume_paramters = self.volume_parameters_mut();
         let first_entry = match volume_paramters.read_map_entry::<TMapEntry>(0) {
             Some(e) => e,
@@ -126,11 +124,11 @@ macro_rules! filesystem_reader {
                 type FatEntry = clustering::map::$map_entry_type;
                 type RootDirectoryEntryIterator = objects::directories::$iterator_type<'a, TBlockDevice, Self::FatEntry>;
 
-                fn volume_parameters(&'a self) -> &'a clustering::VolumeParameters<'a, TBlockDevice> {
+                fn volume_parameters(&self) -> &clustering::VolumeParameters<'a, TBlockDevice> {
                     &self.volume_parameters
                 }
 
-                fn volume_parameters_mut(&'a mut self) -> &'a mut clustering::VolumeParameters<'a, TBlockDevice> {
+                fn volume_parameters_mut(&mut self) -> &mut clustering::VolumeParameters<'a, TBlockDevice> {
                     &mut self.volume_parameters
                 }
 
