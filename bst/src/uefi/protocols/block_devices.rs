@@ -60,6 +60,7 @@ pub(in crate::uefi) struct UefiBlockDeviceIoProtocol {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(in crate::uefi) struct BufferedUefiBlockDeviceIoProtocol<'a> {
     protocol: &'a UefiBlockDeviceIoProtocol,
+    buffered_block: Option<(u64, u32)>,
     block_buffer: Vec<u8>,
 }
 
@@ -107,11 +108,8 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
         .is_success()
     }
 
-    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool {
-        todo!()
-    }
-
     fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool {
+        // TODO: Detect write to buffered block.
         (self.protocol.write_blocks)(
             self.protocol,
             media_id,
@@ -127,6 +125,81 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
     }
 
     fn reset(&mut self) -> bool {
+        self.buffered_block = None;
         ((self.protocol.reset)(self.protocol, true)).is_success()
+    }
+
+    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool {
+        // Calculate the start block and offset for the data to read.
+        let block_size = self.block_size() as u64;
+        let (mut block, first_block_offset) = (offset / block_size, (offset % block_size) as usize);
+        if self.buffered_block.is_none() || self.buffered_block.unwrap() != (block, media_id) {
+            // If the first block we need isn't buffered, read it.
+            if !(self.protocol.read_blocks)(
+                self.protocol,
+                media_id,
+                block,
+                1,
+                self.block_buffer.as_mut_ptr(),
+            )
+            .is_success()
+            {
+                // If we can't read the first block we need, return false; we can't read the bytes.
+                return false;
+            }
+
+            // Update the buffered block address.
+            self.buffered_block = Some((block, media_id));
+        }
+
+        // Calculate the number of bytes to read from the first block.
+        let bytes_from_first_block =
+            ((block_size - (first_block_offset as u64)) as usize).min(buffer.len() as usize);
+
+        // Read the bytes from the first block into the buffer.
+        buffer[..bytes_from_first_block].copy_from_slice(
+            &self.block_buffer[first_block_offset..first_block_offset + bytes_from_first_block],
+        );
+
+        // Calculate the number of bytes we still need to read.
+        let (mut offset, mut remaining_bytes) = (
+            bytes_from_first_block,
+            buffer.len() - bytes_from_first_block,
+        );
+
+        while remaining_bytes > 0 {
+            // Increment the block we're reading.
+            block += 1;
+
+            // Try to read the block.
+            if !(self.protocol.read_blocks)(
+                self.protocol,
+                media_id,
+                block,
+                1,
+                self.block_buffer.as_mut_ptr(),
+            )
+            .is_success()
+            {
+                // If we can't read the block we need, return false.
+                return false;
+            }
+
+            // Update the buffered block address.
+            self.buffered_block = Some((block, media_id));
+
+            // Calculate the number of bytes to read from the block.
+            let bytes_from_block = self.block_buffer.len().min(remaining_bytes);
+
+            // Copy the bytes from the block buffer into our output buffer.
+            buffer[offset..offset + bytes_from_block]
+                .copy_from_slice(&self.block_buffer[..bytes_from_block]);
+
+            // Update our remaining byte count and output buffer offset.
+            remaining_bytes -= bytes_from_block;
+            offset += bytes_from_block;
+        }
+
+        true
     }
 }

@@ -37,11 +37,11 @@ pub trait BlockDevice {
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool;
 
-    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool;
-
     fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool;
 
     fn flush_blocks(&mut self) -> bool;
 
     fn reset(&mut self) -> bool;
+
+    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool;
 }
