@@ -16,6 +16,7 @@
 
 pub(in crate::uefi) mod block_devices;
 pub(in crate::uefi) mod device_paths;
+pub(in crate::uefi) mod scoped_protocol;
 pub(in crate::uefi) mod text;
 
 use super::core_types::{UefiGuid, UefiHandle};

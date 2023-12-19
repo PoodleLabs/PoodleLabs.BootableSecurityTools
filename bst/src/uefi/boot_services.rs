@@ -294,4 +294,14 @@ impl UefiBootServices {
             Err(c) => Err(c),
         }
     }
+
+    pub fn close_protocol(
+        &self,
+        handle: UefiHandle,
+        protocol_guid: &UefiGuid,
+        agent: UefiHandle,
+        controller: UefiHandle,
+    ) -> UefiStatusCode {
+        (self.close_protocol)(handle, protocol_guid, agent, controller)
+    }
 }
