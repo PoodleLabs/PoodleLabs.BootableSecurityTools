@@ -114,7 +114,7 @@ pub fn try_get_bit_at_index<T: BitTarget>(bit_index: usize, digits: &[T]) -> Opt
 
     let digit = digits[byte_index];
     let bit_index = bit_index % T::bits_per_digit();
-    let bit_mask = T::shift_start() << bit_index;
+    let bit_mask = T::shift_start() >> bit_index;
     Some((digit & bit_mask) != T::zero())
 }
 
@@ -126,7 +126,7 @@ pub fn try_set_bit_at_index<T: BitTarget>(bit_index: usize, value: bool, digits:
 
     let byte = digits[byte_index];
     let bit_index = bit_index % T::bits_per_digit();
-    let bit_mask = T::shift_start() << bit_index;
+    let bit_mask = T::shift_start() >> bit_index;
     digits[byte_index] = if value {
         byte | bit_mask
     } else {
@@ -139,7 +139,7 @@ pub fn try_set_bit_at_index<T: BitTarget>(bit_index: usize, value: bool, digits:
 pub fn first_high_bit_index<T: BitTarget>(digit: T) -> usize {
     let mut first_high_bit_index = T::bits_per_digit() - 1;
     for i in 0..first_high_bit_index {
-        if (digit & (T::shift_start() << i)) != T::zero() {
+        if (digit & (T::shift_start() >> i)) != T::zero() {
             first_high_bit_index = i;
             break;
         }
