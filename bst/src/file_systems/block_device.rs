@@ -20,20 +20,69 @@ pub enum BlockDeviceType {
     Hardware,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct BlockDeviceDescription {
+    device_type: BlockDeviceType,
+    media_present: bool,
+    write_caching: bool,
+    block_size: usize,
+    block_count: u64,
+    read_only: bool,
+    media_id: u32,
+}
+
+impl BlockDeviceDescription {
+    pub const fn from(
+        device_type: BlockDeviceType,
+        media_present: bool,
+        write_caching: bool,
+        block_size: usize,
+        block_count: u64,
+        read_only: bool,
+        media_id: u32,
+    ) -> Self {
+        Self {
+            device_type,
+            media_present,
+            write_caching,
+            block_size,
+            block_count,
+            read_only,
+            media_id,
+        }
+    }
+
+    pub const fn device_type(&self) -> BlockDeviceType {
+        self.device_type
+    }
+
+    pub const fn media_present(&self) -> bool {
+        self.media_present
+    }
+
+    pub const fn write_caching(&self) -> bool {
+        self.write_caching
+    }
+
+    pub const fn block_size(&self) -> usize {
+        self.block_size
+    }
+
+    pub const fn block_count(&self) -> u64 {
+        self.block_count
+    }
+
+    pub const fn read_only(&self) -> bool {
+        self.read_only
+    }
+
+    pub const fn media_id(&self) -> u32 {
+        self.media_id
+    }
+}
+
 pub trait BlockDevice {
-    fn device_type(&self) -> BlockDeviceType;
-
-    fn media_present(&self) -> bool;
-
-    fn write_caching(&self) -> bool;
-
-    fn block_size(&self) -> usize;
-
-    fn block_count(&self) -> u64;
-
-    fn read_only(&self) -> bool;
-
-    fn media_id(&self) -> u32;
+    fn description(&self) -> BlockDeviceDescription;
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool;
 

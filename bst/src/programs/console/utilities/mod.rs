@@ -16,6 +16,7 @@
 
 mod checksums;
 mod clipboard_manager;
+mod file_explorer;
 mod resolution_selection;
 mod value_comparer;
 
@@ -40,8 +41,11 @@ pub fn get_utility_programs_list<
     program_selector: &TProgramSelector,
     exit_result_handler: &TProgramExitResultHandler,
 ) -> ProgramListProgram<TProgramSelector, TProgramExitResultHandler> {
-    let programs: [Arc<dyn Program>; 4] = [
+    let programs: [Arc<dyn Program>; 5] = [
         Arc::from(clipboard_manager::ConsoleClipboardManagerProgram::from(
+            system_services.clone(),
+        )),
+        Arc::from(file_explorer::FileExplorerProgram::from(
             system_services.clone(),
         )),
         Arc::from(value_comparer::ConsoleValueComparerProgram::from(

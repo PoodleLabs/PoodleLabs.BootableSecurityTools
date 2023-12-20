@@ -30,7 +30,7 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     fat::clustering::VolumeParameters<'a, TBlockDevice>,
 )> {
     // Ensure the media actually exists.
-    if !block_device.media_present() {
+    if !block_device.description().media_present() {
         return None;
     }
 
@@ -44,7 +44,7 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     ];
 
     // Capture the media id.
-    let media_id = block_device.media_id();
+    let media_id = block_device.description().media_id();
 
     // Read the head of the volume.
     if !block_device.read_bytes(media_id, 0, &mut buffer) {

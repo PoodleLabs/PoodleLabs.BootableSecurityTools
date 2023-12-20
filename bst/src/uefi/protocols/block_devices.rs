@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use super::{scoped_protocol::UefiScopedProtocol, UefiProtocol};
 use crate::{
-    file_systems::block_device::{BlockDevice, BlockDeviceType},
+    file_systems::block_device::{BlockDevice, BlockDeviceDescription, BlockDeviceType},
     integers,
-    uefi::core_types::UefiStatusCode,
+    uefi::core_types::{UefiGuid, UefiStatusCode},
 };
 use alloc::vec::Vec;
 
@@ -37,9 +38,9 @@ struct UefiBlockIoMedia {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub(in crate::uefi) struct UefiBlockDeviceIoProtocol {
+pub(in crate::uefi) struct UefiBlockDeviceIoProtocol<'a> {
     revision: u64,
-    media: &'static UefiBlockIoMedia,
+    media: &'a UefiBlockIoMedia,
     reset: extern "efiapi" fn(this: &Self, extended_verification: bool) -> UefiStatusCode,
     read_blocks: extern "efiapi" fn(
         this: &Self,
@@ -58,49 +59,54 @@ pub(in crate::uefi) struct UefiBlockDeviceIoProtocol {
     flush_blocks: extern "efiapi" fn(this: &Self) -> UefiStatusCode,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+impl<'a> UefiBlockDeviceIoProtocol<'a> {
+    pub const GUID: UefiGuid = UefiGuid::from(
+        0x964e5b21,
+        0x6459,
+        0x11d2,
+        0x8e,
+        0x39,
+        [0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
+    );
+
+    pub const fn description(&self) -> BlockDeviceDescription {
+        BlockDeviceDescription::from(
+            if self.media.logical_partition {
+                BlockDeviceType::Partition
+            } else {
+                BlockDeviceType::Hardware
+            },
+            self.media.media_present,
+            self.media.write_caching,
+            self.media.block_size as usize,
+            self.media.last_block + 1,
+            self.media.read_only,
+            self.media.media_id,
+        )
+    }
+}
+
+impl<'a> UefiProtocol for UefiBlockDeviceIoProtocol<'a> {
+    fn guid() -> &'static UefiGuid {
+        &Self::GUID
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub(in crate::uefi) struct BufferedUefiBlockDeviceIoProtocol<'a> {
-    protocol: &'a UefiBlockDeviceIoProtocol,
+    protocol: UefiScopedProtocol<'a, UefiBlockDeviceIoProtocol<'a>>,
     buffered_block: Option<(u64, u32)>,
     block_buffer: Vec<u8>,
 }
 
 impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
-    fn device_type(&self) -> BlockDeviceType {
-        if self.protocol.media.logical_partition {
-            BlockDeviceType::Partition
-        } else {
-            BlockDeviceType::Hardware
-        }
-    }
-
-    fn media_present(&self) -> bool {
-        self.protocol.media.media_present
-    }
-
-    fn write_caching(&self) -> bool {
-        self.protocol.media.write_caching
-    }
-
-    fn block_size(&self) -> usize {
-        self.protocol.media.block_size as usize
-    }
-
-    fn block_count(&self) -> u64 {
-        self.protocol.media.last_block + 1
-    }
-
-    fn read_only(&self) -> bool {
-        self.protocol.media.read_only
-    }
-
-    fn media_id(&self) -> u32 {
-        self.protocol.media.media_id
+    fn description(&self) -> BlockDeviceDescription {
+        self.protocol.description()
     }
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool {
         (self.protocol.read_blocks)(
-            self.protocol,
+            &self.protocol,
             media_id,
             first_block,
             buffer.len(),
@@ -111,7 +117,7 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
 
     fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool {
         if (self.protocol.write_blocks)(
-            self.protocol,
+            &self.protocol,
             media_id,
             first_block,
             buffer.len(),
@@ -128,7 +134,7 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
                     }
 
                     // Calculate the number of blocks we wrote to.
-                    let block_size = self.block_size();
+                    let block_size = self.protocol.media.block_size as usize;
                     let block_count = integers::ceil_div(buffer.len(), block_size) as u64;
 
                     // Calculate the offset of the buffered block from the first block we wrote to.
@@ -165,22 +171,22 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
     }
 
     fn flush_blocks(&mut self) -> bool {
-        ((self.protocol.flush_blocks)(self.protocol)).is_success()
+        ((self.protocol.flush_blocks)(&self.protocol)).is_success()
     }
 
     fn reset(&mut self) -> bool {
         self.buffered_block = None;
-        ((self.protocol.reset)(self.protocol, true)).is_success()
+        ((self.protocol.reset)(&self.protocol, true)).is_success()
     }
 
     fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool {
         // Calculate the start block and offset for the data to read.
-        let block_size = self.block_size() as u64;
+        let block_size = self.protocol.media.block_size as u64;
         let (mut block, first_block_offset) = (offset / block_size, (offset % block_size) as usize);
         if self.buffered_block.is_none() || self.buffered_block.unwrap() != (block, media_id) {
             // If the first block we need isn't buffered, read it.
             if !(self.protocol.read_blocks)(
-                self.protocol,
+                &self.protocol,
                 media_id,
                 block,
                 1,
@@ -217,7 +223,7 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
 
             // Try to read the block.
             if !(self.protocol.read_blocks)(
-                self.protocol,
+                &self.protocol,
                 media_id,
                 block,
                 1,
