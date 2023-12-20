@@ -66,20 +66,9 @@ impl ConsoleWriteable for BlockDeviceDescription {
             return;
         }
 
-        console.output_utf16(String16::from(
-            &NumericBase::BASE_16.build_string_from_bytes(&self.media_id().to_be_bytes(), true),
-        ));
-
-        console.output_utf16(s16!(" - "));
-
         if self.read_only() {
             console.output_utf16(s16!("Read-Only "));
         }
-
-        console.output_utf16(match self.device_type() {
-            BlockDeviceType::Partition => s16!("Partition"),
-            BlockDeviceType::Hardware => s16!("Device"),
-        });
 
         let byte_count = self.block_count() * self.block_size() as u64;
         let (size, size_word) = if byte_count > 1000000000000 {
@@ -94,8 +83,13 @@ impl ConsoleWriteable for BlockDeviceDescription {
             (byte_count as f64, s16!("B"))
         };
 
-        console.output_utf32(&format!(" ({:.1}\0", size));
+        console.output_utf32(&format!("{:.1}\0", size));
         console.output_utf16(size_word);
-        console.output_utf16(s16!(")"));
+        console.output_utf16(s16!(" "));
+
+        console.output_utf16(match self.device_type() {
+            BlockDeviceType::Partition => s16!("Partition"),
+            BlockDeviceType::Hardware => s16!("Device"),
+        });
     }
 }
