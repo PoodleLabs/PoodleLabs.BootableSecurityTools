@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use core::mem::size_of;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MbrPartitionBootIndicator(u8);
@@ -45,6 +47,7 @@ impl MbrPartitionTypeValue {
     pub const FAT32: Self = Self(0x0C); // FAT32, LBA
     pub const SMALL_FAT: Self = Self(0x0E); // FAT12/16, LBA
     pub const EXTENDED: Self = Self(0x0F); // LBA
+    pub const GPT_PROTECTIVE: Self = Self(0xEE); // GPT partition table Indicator
 }
 
 #[repr(C)]
@@ -78,7 +81,6 @@ impl MbrPartitionTableEntry {
 
 #[repr(C)]
 pub struct MasterBootRecord {
-    boot_code: [u8; 446],
     partition_1: MbrPartitionTableEntry,
     partition_2: MbrPartitionTableEntry,
     partition_3: MbrPartitionTableEntry,
@@ -88,6 +90,10 @@ pub struct MasterBootRecord {
 
 impl MasterBootRecord {
     const VALID_SIGNATURE: u16 = 0xAA55;
+
+    pub const fn get_offset(block_size: usize) -> usize {
+        block_size - size_of::<MasterBootRecord>()
+    }
 
     pub const fn signature_is_valid(&self) -> bool {
         u16::from_le_bytes(self.signature) == Self::VALID_SIGNATURE
@@ -100,9 +106,5 @@ impl MasterBootRecord {
             &self.partition_3,
             &self.partition_4,
         ]
-    }
-
-    pub const fn boot_code(&self) -> &[u8; 446] {
-        &self.boot_code
     }
 }

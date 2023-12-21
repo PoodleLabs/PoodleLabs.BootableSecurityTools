@@ -14,6 +14,5 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod block_device;
-pub mod fat;
-pub mod partitioning;
+pub mod gpt;
+pub mod mbr;
