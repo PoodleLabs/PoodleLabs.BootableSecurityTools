@@ -61,7 +61,10 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     let extended = match small_fat_non_extended.body().extended_indicator() {
         boot_sectors::ExtendedBootSignatureIndicator::V4_0 => false,
         boot_sectors::ExtendedBootSignatureIndicator::V4_1 => true,
-        _ => return None,
+        boot_sectors::ExtendedBootSignatureIndicator::V8_0 => true,
+        _ => {
+            return None;
+        }
     };
 
     // Work out the FAT variant to expect.

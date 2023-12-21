@@ -113,6 +113,22 @@ impl<'a> BufferedUefiBlockDeviceIoProtocol<'a> {
             handle,
         }
     }
+
+    fn read_blocks_internal(
+        protocol: &UefiBlockDeviceIoProtocol,
+        media_id: u32,
+        first_block: u64,
+        buffer: &mut [u8],
+    ) -> bool {
+        (protocol.read_blocks)(
+            protocol,
+            media_id,
+            first_block,
+            buffer.len(),
+            buffer.as_mut_ptr(),
+        )
+        .is_success()
+    }
 }
 
 impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
@@ -123,14 +139,7 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
     }
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool {
-        (self.protocol.read_blocks)(
-            &self.protocol,
-            media_id,
-            first_block,
-            buffer.len(),
-            buffer.as_mut_ptr(),
-        )
-        .is_success()
+        Self::read_blocks_internal(&self.protocol, media_id, first_block, buffer)
     }
 
     fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool {
@@ -200,18 +209,16 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
     fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool {
         // Calculate the start block and offset for the data to read.
         let block_size = self.protocol.media.block_size as u64;
+        if self.block_buffer.len() != block_size as usize {
+            // Ensure the block buffer has the correct length.
+            self.block_buffer.resize(block_size as usize, 0);
+            self.buffered_block = None;
+        }
+
         let (mut block, first_block_offset) = (offset / block_size, (offset % block_size) as usize);
         if self.buffered_block.is_none() || self.buffered_block.unwrap() != (block, media_id) {
             // If the first block we need isn't buffered, read it.
-            if !(self.protocol.read_blocks)(
-                &self.protocol,
-                media_id,
-                block,
-                1,
-                self.block_buffer.as_mut_ptr(),
-            )
-            .is_success()
-            {
+            if !Self::read_blocks_internal(&self.protocol, media_id, block, buffer) {
                 // If we can't read the first block we need, return false; we can't read the bytes.
                 return false;
             }

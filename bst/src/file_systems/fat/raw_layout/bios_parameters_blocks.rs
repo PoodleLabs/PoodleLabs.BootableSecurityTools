@@ -54,6 +54,10 @@ pub trait BiosParameterBlock: Sized {
     }
 
     fn root_directory_sector_count(&self) -> u32 {
+        if self.bytes_per_sector() == 0 {
+            panic!("Bad bytes per sector.");
+        }
+
         integers::ceil_div(
             32 * self.root_directory_entries() as usize,
             self.bytes_per_sector() as usize,
