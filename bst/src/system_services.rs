@@ -46,11 +46,19 @@ pub trait SystemServices: Clone + 'static {
     type TVariableIdentifier: Copy;
     type TConsoleOut: ConsoleOut + Clone;
     type TKeyboardIn: KeyboardIn + Clone;
-    type TBlockDevice<'a>: BlockDevice;
+    type TBlockDeviceHandle: Copy;
+    type TBlockDevice<'a>: BlockDevice<THandle = Self::TBlockDeviceHandle>;
 
     unsafe fn allocate(&self, byte_count: usize) -> *mut u8;
 
     unsafe fn free(&self, pointer: *mut u8);
+
+    fn list_block_devices(&self) -> Box<[BlockDeviceDescription<Self::TBlockDeviceHandle>]>;
+
+    fn open_block_device<'a>(
+        &self,
+        handle: Self::TBlockDeviceHandle,
+    ) -> Option<Self::TBlockDevice<'a>>;
 
     fn try_get_variable(&self, identifier: Self::TVariableIdentifier) -> Option<Box<[u8]>>;
 
@@ -59,8 +67,6 @@ pub trait SystemServices: Clone + 'static {
     fn try_clear_variable(&self, identifier: Self::TVariableIdentifier) -> bool;
 
     fn console_resolution_variable_name() -> Self::TVariableIdentifier;
-
-    fn list_block_devices(&self) -> Box<[BlockDeviceDescription]>;
 
     fn execute_power_action(&self, power_action: PowerAction);
 

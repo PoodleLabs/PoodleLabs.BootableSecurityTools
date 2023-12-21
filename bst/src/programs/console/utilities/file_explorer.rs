@@ -17,11 +17,19 @@
 use crate::{
     console_out::ConsoleOut,
     constants,
-    file_systems::block_device::{BlockDeviceDescription, BlockDeviceType},
-    integers::NumericBase,
+    file_systems::{
+        block_device::{BlockDevice, BlockDeviceDescription, BlockDeviceType},
+        fat::{self, Fat12FileSystemReader, Fat16FileSystemReader, Fat32FileSystemReader},
+    },
     programs::{Program, ProgramExitResult},
     system_services::SystemServices,
-    ui::console::{ConsoleUiList, ConsoleUiTitle, ConsoleWriteable},
+    ui::{
+        console::{
+            ConsoleUiConfirmationPrompt, ConsoleUiContinuePrompt, ConsoleUiList, ConsoleUiTitle,
+            ConsoleWriteable,
+        },
+        ConfirmationPrompt, ContinuePrompt,
+    },
     String16,
 };
 use alloc::format;
@@ -47,19 +55,106 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
         console.clear();
 
         ConsoleUiTitle::from(self.name(), constants::BIG_TITLE).write_to(&console);
+        console.output_utf16_line(s16!("This program can be used to explore connected block devices, and their filesystems. Currently, only FAT filesystems are supported."));
+
         let block_devices = self.system_services.list_block_devices();
-        ConsoleUiList::from(
+        let mut device_list = ConsoleUiList::from(
             ConsoleUiTitle::from(s16!("Block Devices"), constants::SMALL_TITLE),
             constants::SELECT_LIST,
             &block_devices[..],
-        )
-        .prompt_for_selection(&self.system_services);
+        );
 
-        ProgramExitResult::Success
+        loop {
+            let selected_device = match device_list.prompt_for_selection(&self.system_services) {
+                Some((d, _, _)) => d,
+                None => {
+                    if ConsoleUiConfirmationPrompt::from(&self.system_services)
+                        .prompt_for_confirmation(s16!("Exit file explorer?"))
+                    {
+                        return ProgramExitResult::UserCancelled;
+                    } else {
+                        continue;
+                    }
+                }
+            };
+
+            let mut block_device = match self
+                .system_services
+                .open_block_device(selected_device.handle())
+            {
+                Some(d) => d,
+                None => {
+                    console.in_colours(constants::ERROR_COLOURS, |c| {
+                        c.output_utf16_line(s16!("Failed to open block device."))
+                    });
+                    continue;
+                }
+            };
+
+            match fat::try_read_volume_cluster_parameters(&mut block_device) {
+                Some((fat_variant, volume_parameters)) => {
+                    let skip_hidden_files =
+                        ConsoleUiConfirmationPrompt::from(&self.system_services)
+                            .prompt_for_confirmation(s16!("Skip hidden files while exploring?"));
+
+                    open_fat_filesystem(
+                        volume_parameters,
+                        &self.system_services,
+                        fat_variant,
+                        skip_hidden_files,
+                    );
+
+                    continue;
+                }
+                None => {
+                    console.in_colours(constants::ERROR_COLOURS, |c| {
+                        c.output_utf16_line(s16!(
+                            "The block device does not appear to have a FAT filesystem."
+                        ))
+                    });
+                }
+            };
+        }
     }
 }
 
-impl ConsoleWriteable for BlockDeviceDescription {
+fn open_fat_filesystem<TBlockDevice: BlockDevice, TSystemServices: SystemServices>(
+    volume_parameters: fat::VolumeParameters<'_, TBlockDevice>,
+    system_services: &TSystemServices,
+    fat_variant: fat::Variant,
+    skip_hidden_files: bool,
+) {
+    match fat_variant {
+        fat::Variant::Fat12 => explore_fat_filesystem(
+            Fat12FileSystemReader::from(volume_parameters, skip_hidden_files),
+            system_services,
+        ),
+        fat::Variant::Fat16 => explore_fat_filesystem(
+            Fat16FileSystemReader::from(volume_parameters, skip_hidden_files),
+            system_services,
+        ),
+        fat::Variant::Fat32 => explore_fat_filesystem(
+            Fat32FileSystemReader::from(volume_parameters, skip_hidden_files),
+            system_services,
+        ),
+    };
+}
+
+fn explore_fat_filesystem<
+    'a,
+    TBlockDevice: 'a + BlockDevice,
+    TFileSystemReader: fat::FileSystemReader<'a, TBlockDevice>,
+    TSystemServices: SystemServices,
+>(
+    _filesystem_reader: TFileSystemReader,
+    system_services: &TSystemServices,
+) {
+    let console = system_services.get_console_out();
+    console.output_utf16_line(s16!("Exploration has not been implemented yet."));
+    ConsoleUiContinuePrompt::from(system_services).prompt_for_continue();
+}
+
+impl<THandle: Copy> ConsoleWriteable for BlockDeviceDescription<THandle> {
     fn write_to<T: ConsoleOut>(&self, console: &T) {
         if !self.media_present() {
             console.output_utf16(s16!("Empty"));

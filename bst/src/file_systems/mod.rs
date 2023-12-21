@@ -15,5 +15,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 pub mod block_device;
-mod fat;
+pub mod fat;
+
 mod master_boot_record;

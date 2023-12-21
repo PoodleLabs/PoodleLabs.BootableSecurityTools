@@ -21,17 +21,18 @@ pub enum BlockDeviceType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct BlockDeviceDescription {
+pub struct BlockDeviceDescription<THandle: Copy> {
     device_type: BlockDeviceType,
     media_present: bool,
     write_caching: bool,
     block_size: usize,
     block_count: u64,
     read_only: bool,
+    handle: THandle,
     media_id: u32,
 }
 
-impl BlockDeviceDescription {
+impl<THandle: Copy> BlockDeviceDescription<THandle> {
     pub const fn from(
         device_type: BlockDeviceType,
         media_present: bool,
@@ -39,16 +40,18 @@ impl BlockDeviceDescription {
         block_size: usize,
         block_count: u64,
         read_only: bool,
+        handle: THandle,
         media_id: u32,
     ) -> Self {
         Self {
-            device_type,
             media_present,
             write_caching,
-            block_size,
+            device_type,
             block_count,
+            block_size,
             read_only,
             media_id,
+            handle,
         }
     }
 
@@ -56,12 +59,12 @@ impl BlockDeviceDescription {
         self.device_type
     }
 
-    pub const fn media_present(&self) -> bool {
-        self.media_present
-    }
-
     pub const fn write_caching(&self) -> bool {
         self.write_caching
+    }
+
+    pub const fn media_present(&self) -> bool {
+        self.media_present
     }
 
     pub const fn block_size(&self) -> usize {
@@ -76,13 +79,19 @@ impl BlockDeviceDescription {
         self.read_only
     }
 
+    pub const fn handle(&self) -> THandle {
+        self.handle
+    }
+
     pub const fn media_id(&self) -> u32 {
         self.media_id
     }
 }
 
 pub trait BlockDevice {
-    fn description(&self) -> BlockDeviceDescription;
+    type THandle: Copy;
+
+    fn description(&self) -> BlockDeviceDescription<Self::THandle>;
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool;
 

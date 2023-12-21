@@ -18,7 +18,7 @@ use super::{scoped_protocol::UefiScopedProtocol, UefiProtocol};
 use crate::{
     file_systems::block_device::{BlockDevice, BlockDeviceDescription, BlockDeviceType},
     integers,
-    uefi::core_types::{UefiGuid, UefiStatusCode},
+    uefi::core_types::{UefiGuid, UefiHandle, UefiStatusCode},
 };
 use alloc::vec::Vec;
 
@@ -69,7 +69,7 @@ impl<'a> UefiBlockDeviceIoProtocol<'a> {
         [0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
     );
 
-    pub const fn description(&self) -> BlockDeviceDescription {
+    pub const fn description(&self, handle: UefiHandle) -> BlockDeviceDescription<UefiHandle> {
         BlockDeviceDescription::from(
             if self.media.logical_partition {
                 BlockDeviceType::Partition
@@ -81,6 +81,7 @@ impl<'a> UefiBlockDeviceIoProtocol<'a> {
             self.media.block_size as usize,
             self.media.last_block + 1,
             self.media.read_only,
+            handle,
             self.media.media_id,
         )
     }
@@ -97,11 +98,28 @@ pub(in crate::uefi) struct BufferedUefiBlockDeviceIoProtocol<'a> {
     protocol: UefiScopedProtocol<'a, UefiBlockDeviceIoProtocol<'a>>,
     buffered_block: Option<(u64, u32)>,
     block_buffer: Vec<u8>,
+    handle: UefiHandle,
+}
+
+impl<'a> BufferedUefiBlockDeviceIoProtocol<'a> {
+    pub fn from(
+        protocol: UefiScopedProtocol<'a, UefiBlockDeviceIoProtocol<'a>>,
+        handle: UefiHandle,
+    ) -> Self {
+        Self {
+            block_buffer: Vec::with_capacity(protocol.description(handle).block_size()),
+            buffered_block: None,
+            protocol,
+            handle,
+        }
+    }
 }
 
 impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
-    fn description(&self) -> BlockDeviceDescription {
-        self.protocol.description()
+    type THandle = UefiHandle;
+
+    fn description(&self) -> BlockDeviceDescription<UefiHandle> {
+        self.protocol.description(self.handle)
     }
 
     fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool {

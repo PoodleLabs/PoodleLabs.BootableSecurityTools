@@ -20,6 +20,8 @@ mod objects;
 mod raw_layout;
 mod timekeeping;
 
+pub use {clustering::VolumeParameters, raw_layout::try_read_volume_cluster_parameters};
+
 use super::block_device::BlockDevice;
 
 // This FAT implementation was written based on the FatFs documentation,
@@ -42,7 +44,7 @@ pub enum Errors {
     Unreadable,
 }
 
-trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
+pub trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
     type RootDirectoryEntryIterator: objects::directories::ChildIterator<'a>;
     type FatEntry: clustering::map::Entry;
 
@@ -115,9 +117,21 @@ trait FileSystemReader<'a, TBlockDevice: BlockDevice + 'a> {
 macro_rules! filesystem_reader {
     ($($name:ident($map_entry_type:ident, $iterator_type:ident),)*) => {
         $(
-            struct $name<'a, TBlockDevice: BlockDevice> {
+            pub struct $name<'a, TBlockDevice: BlockDevice> {
                 volume_parameters: clustering::VolumeParameters<'a, TBlockDevice>,
                 skip_hidden: bool,
+            }
+
+            impl<'a, TBlockDevice: BlockDevice> $name<'a, TBlockDevice> {
+                pub const fn from(
+                    volume_parameters: clustering::VolumeParameters<'a, TBlockDevice>,
+                    skip_hidden: bool,
+                ) -> Self {
+                    Self {
+                        volume_parameters,
+                        skip_hidden,
+                    }
+                }
             }
 
             impl<'a, TBlockDevice: BlockDevice> FileSystemReader<'a, TBlockDevice> for $name<'a, TBlockDevice> {
