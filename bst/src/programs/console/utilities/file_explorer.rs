@@ -65,6 +65,7 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
         );
 
         loop {
+            console.line_start().new_line();
             let selected_device = match device_list.prompt_for_selection(&self.system_services) {
                 Some((d, _, _)) => d,
                 None => {
@@ -84,9 +85,12 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
             {
                 Some(d) => d,
                 None => {
-                    console.in_colours(constants::ERROR_COLOURS, |c| {
-                        c.output_utf16_line(s16!("Failed to open block device."))
-                    });
+                    console
+                        .line_start()
+                        .new_line()
+                        .in_colours(constants::ERROR_COLOURS, |c| {
+                            c.output_utf16_line(s16!("Failed to open the selected block device."))
+                        });
                     continue;
                 }
             };
@@ -108,8 +112,8 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
                 }
                 None => {
                     console.in_colours(constants::ERROR_COLOURS, |c| {
-                        c.output_utf16_line(s16!(
-                            "The block device does not appear to have a FAT filesystem."
+                        c.line_start().new_line().output_utf16_line(s16!(
+                            "The selected block device does not appear to have a FAT filesystem."
                         ))
                     });
                 }
@@ -150,7 +154,10 @@ fn explore_fat_filesystem<
     system_services: &TSystemServices,
 ) {
     let console = system_services.get_console_out();
-    console.output_utf16_line(s16!("Exploration has not been implemented yet."));
+    console
+        .line_start()
+        .new_line()
+        .output_utf16_line(s16!("Exploration has not been implemented yet."));
     ConsoleUiContinuePrompt::from(system_services).prompt_for_continue();
 }
 
