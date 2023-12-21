@@ -218,7 +218,8 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
         let (mut block, first_block_offset) = (offset / block_size, (offset % block_size) as usize);
         if self.buffered_block.is_none() || self.buffered_block.unwrap() != (block, media_id) {
             // If the first block we need isn't buffered, read it.
-            if !Self::read_blocks_internal(&self.protocol, media_id, block, buffer) {
+            if !Self::read_blocks_internal(&self.protocol, media_id, block, &mut self.block_buffer)
+            {
                 // If we can't read the first block we need, return false; we can't read the bytes.
                 return false;
             }
@@ -247,14 +248,7 @@ impl<'a> BlockDevice for BufferedUefiBlockDeviceIoProtocol<'a> {
             block += 1;
 
             // Try to read the block.
-            if !(self.protocol.read_blocks)(
-                &self.protocol,
-                media_id,
-                block,
-                1,
-                self.block_buffer.as_mut_ptr(),
-            )
-            .is_success()
+            if !Self::read_blocks_internal(&self.protocol, media_id, block, &mut self.block_buffer)
             {
                 // If we can't read the block we need, return false.
                 return false;

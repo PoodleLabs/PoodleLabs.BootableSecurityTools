@@ -17,7 +17,10 @@
 mod bios_parameters_blocks;
 mod boot_sectors;
 
-use crate::file_systems::{block_device::BlockDevice, fat};
+use crate::file_systems::{
+    block_device::{BlockDevice, BlockDeviceType},
+    fat,
+};
 use alloc::vec;
 use bios_parameters_blocks::BiosParameterBlock;
 use boot_sectors::BootSector;
@@ -29,9 +32,17 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     fat::Variant,
     fat::clustering::VolumeParameters<'a, TBlockDevice>,
 )> {
+    let description = block_device.description();
     // Ensure the media actually exists.
-    if !block_device.description().media_present() {
+    if !description.media_present() {
         return None;
+    }
+
+    match description.device_type() {
+        BlockDeviceType::Partition => {}
+        BlockDeviceType::Hardware => {
+            todo!("Parition Reading")
+        }
     }
 
     // Prepare a buffer to read the
@@ -44,7 +55,7 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     ];
 
     // Capture the media id.
-    let media_id = block_device.description().media_id();
+    let media_id = description.media_id();
 
     // Read the head of the volume.
     if !block_device.read_bytes(media_id, 0, &mut buffer) {
@@ -61,7 +72,6 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     let extended = match small_fat_non_extended.body().extended_indicator() {
         boot_sectors::ExtendedBootSignatureIndicator::V4_0 => false,
         boot_sectors::ExtendedBootSignatureIndicator::V4_1 => true,
-        boot_sectors::ExtendedBootSignatureIndicator::V8_0 => true,
         _ => {
             return None;
         }
