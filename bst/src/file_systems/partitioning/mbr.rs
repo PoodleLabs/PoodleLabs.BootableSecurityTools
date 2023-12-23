@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use super::Partition;
 use core::mem::size_of;
 
 #[repr(C)]
@@ -34,9 +35,9 @@ impl MbrPartitionBootIndicator {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MbrPartitionTypeValue(u8);
+pub struct MbrPartitionType(u8);
 
-impl MbrPartitionTypeValue {
+impl MbrPartitionType {
     pub const BLANK: Self = Self(0x00);
     pub const FAT12_MIXED: Self = Self(0x01); // < 65536 Sectors, CHS/LBA
     pub const FAT16_MIXED: Self = Self(0x04); // < 65536 Sectors, CHS/LBA
@@ -55,7 +56,7 @@ pub struct MbrPartitionTableEntry {
     boot_indicator: MbrPartitionBootIndicator,
     start_head: u8,          // Head number (0-254) of starting sector in CHS format.
     start_cylinder: [u8; 2], // Cylinder number (bits 0-9, value 0-1023) | Sector number (bits 10-15, value 0-63) of starting sector in CHS format.
-    partition_type: MbrPartitionTypeValue,
+    partition_type: MbrPartitionType,
     end_head: u8,          // Head number (0-254) of end sector in CHS format.
     end_cylinder: [u8; 2], // Cylinder number (bits 0-9, value 0-1023) | Sector number (bits 10-15, value 0-63) of end sector in CHS format.
     lba_offset: [u8; 4],   // The start sector (>=1) of the partition in LBA format.
@@ -67,15 +68,29 @@ impl MbrPartitionTableEntry {
         boot_indicator: MbrPartitionBootIndicator::NON_BOOTABLE,
         start_head: 0,
         start_cylinder: [0, 0],
-        partition_type: MbrPartitionTypeValue::BLANK,
+        partition_type: MbrPartitionType::BLANK,
         end_head: 0,
         end_cylinder: [0, 0],
         lba_offset: [0, 0, 0, 0],
         lba_size: [0, 0, 0, 0],
     };
 
+    pub const fn partition_type(&self) -> MbrPartitionType {
+        self.partition_type
+    }
+
     pub const fn is_empty(&self) -> bool {
-        self.partition_type.0 == MbrPartitionTypeValue::BLANK.0
+        self.partition_type.0 == MbrPartitionType::BLANK.0
+    }
+}
+
+impl Partition for MbrPartitionTableEntry {
+    fn first_block(&self) -> u64 {
+        u32::from_le_bytes(self.lba_offset) as u64
+    }
+
+    fn block_count(&self) -> u64 {
+        u32::from_le_bytes(self.lba_size) as u64
     }
 }
 

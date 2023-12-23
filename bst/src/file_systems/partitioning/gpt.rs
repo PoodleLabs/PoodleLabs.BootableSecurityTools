@@ -20,6 +20,8 @@
 //       which points at the partition table header located in block 1.
 // Partition Table Header - This block defines the partition table.
 
+use super::Partition;
+
 #[repr(C)]
 pub struct GptPartitionTableHeader {
     signature: [u8; 8],
@@ -52,3 +54,13 @@ pub struct GptPartitionDescriptor {
     ending_lba: [u8; 8],
     attributes: [u8; 8],
 } // The remaining bytes (defined by partition table header's partition_entry_size) are a UTF16 string for the partition's name.
+
+impl Partition for GptPartitionDescriptor {
+    fn first_block(&self) -> u64 {
+        u64::from_le_bytes(self.starting_lba)
+    }
+
+    fn block_count(&self) -> u64 {
+        u64::from_le_bytes(self.ending_lba) - self.first_block() + 1
+    }
+}

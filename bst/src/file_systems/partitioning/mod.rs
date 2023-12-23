@@ -14,5 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod gpt;
-pub mod mbr;
+mod gpt;
+mod mbr;
+
+pub mod partition_iterator;
+
+pub trait Partition {
+    fn first_block(&self) -> u64;
+
+    fn block_count(&self) -> u64;
+}
