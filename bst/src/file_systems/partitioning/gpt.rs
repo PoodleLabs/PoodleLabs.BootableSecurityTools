@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use super::Partition;
+
 // GPT partition labels consist of:
 // MBR - A protective master boot record label in the first block which is used to prevent accidental overwrites by old software.
 //       This MBR has a single partition entry with a starting CHS of 0x00, 0x02, 0x00, a type of 0xEE, and starting LBA of 0x00000001
 //       which points at the partition table header located in block 1.
 // Partition Table Header - This block defines the partition table.
-
-use super::Partition;
 
 #[repr(C)]
 pub struct GptPartitionTableHeader {

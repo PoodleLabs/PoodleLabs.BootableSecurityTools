@@ -39,7 +39,8 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
     }
 
     match description.device_type() {
-        BlockDeviceType::Partition => {}
+        BlockDeviceType::FirmwarePartition => {}
+        BlockDeviceType::SoftwarePartition => {}
         BlockDeviceType::Hardware => {
             todo!("Parition Reading")
         }

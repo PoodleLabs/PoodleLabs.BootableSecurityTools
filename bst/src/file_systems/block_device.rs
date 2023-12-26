@@ -14,10 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::integers;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BlockDeviceType {
-    Partition,
+    FirmwarePartition,
     Hardware,
+    SoftwarePartition,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -102,4 +105,87 @@ pub trait BlockDevice {
     fn reset(&mut self) -> bool;
 
     fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool;
+}
+
+pub struct BlockDevicePartition<'a, TUnderlyingBlockDevice: BlockDevice> {
+    underlying_block_device: &'a mut TUnderlyingBlockDevice,
+    start_block: u64,
+    block_count: u64,
+}
+
+impl<'a, TUnderlyingBlockDevice: BlockDevice> BlockDevicePartition<'a, TUnderlyingBlockDevice> {
+    pub fn from(
+        underlying_block_device: &'a mut TUnderlyingBlockDevice,
+        start_block: u64,
+        block_count: u64,
+    ) -> Self {
+        Self {
+            underlying_block_device,
+            start_block,
+            block_count,
+        }
+    }
+}
+
+impl<'a, TUnderlyingBlockDevice: BlockDevice> BlockDevice
+    for BlockDevicePartition<'a, TUnderlyingBlockDevice>
+{
+    type THandle = TUnderlyingBlockDevice::THandle;
+
+    fn description(&self) -> BlockDeviceDescription<Self::THandle> {
+        let underlying_description = self.underlying_block_device.description();
+        BlockDeviceDescription::from(
+            BlockDeviceType::SoftwarePartition,
+            underlying_description.media_present,
+            underlying_description.write_caching,
+            underlying_description.block_size,
+            self.block_count,
+            underlying_description.read_only,
+            underlying_description.handle,
+            underlying_description.media_id,
+        )
+    }
+
+    fn read_blocks(&self, media_id: u32, first_block: u64, buffer: &mut [u8]) -> bool {
+        let block_size = self.underlying_block_device.description().block_size;
+        let end_block = first_block + (integers::ceil_div(buffer.len(), block_size) as u64);
+        end_block <= self.block_count
+            && self.underlying_block_device.read_blocks(
+                media_id,
+                first_block + self.start_block,
+                buffer,
+            )
+    }
+
+    fn write_blocks(&mut self, media_id: u32, first_block: u64, buffer: &[u8]) -> bool {
+        let block_size = self.underlying_block_device.description().block_size;
+        let end_block = first_block + (integers::ceil_div(buffer.len(), block_size) as u64);
+        end_block <= self.block_count
+            && self.underlying_block_device.write_blocks(
+                media_id,
+                first_block + self.start_block,
+                buffer,
+            )
+    }
+
+    fn flush_blocks(&mut self) -> bool {
+        self.underlying_block_device.flush_blocks()
+    }
+
+    fn reset(&mut self) -> bool {
+        self.underlying_block_device.reset()
+    }
+
+    fn read_bytes(&mut self, media_id: u32, offset: u64, buffer: &mut [u8]) -> bool {
+        let block_size = self.underlying_block_device.description().block_size as u64;
+        let byte_count = block_size * self.block_count;
+        let end_byte = offset + buffer.len() as u64;
+
+        end_byte <= byte_count
+            && self.read_bytes(
+                media_id,
+                offset + ((block_size as u64) * self.start_block),
+                buffer,
+            )
+    }
 }

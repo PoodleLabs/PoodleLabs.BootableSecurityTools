@@ -190,7 +190,8 @@ impl<THandle: Copy> ConsoleWriteable for BlockDeviceDescription<THandle> {
         console.output_utf16(s16!(" "));
 
         console.output_utf16(match self.device_type() {
-            BlockDeviceType::Partition => s16!("Partition"),
+            BlockDeviceType::FirmwarePartition => s16!("Partition"),
+            BlockDeviceType::SoftwarePartition => s16!("Partition"),
             BlockDeviceType::Hardware => s16!("Device"),
         });
     }

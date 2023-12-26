@@ -72,7 +72,7 @@ impl<'a> UefiBlockDeviceIoProtocol<'a> {
     pub const fn description(&self, handle: UefiHandle) -> BlockDeviceDescription<UefiHandle> {
         BlockDeviceDescription::from(
             if self.media.logical_partition {
-                BlockDeviceType::Partition
+                BlockDeviceType::FirmwarePartition
             } else {
                 BlockDeviceType::Hardware
             },
