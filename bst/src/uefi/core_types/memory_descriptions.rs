@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
+use crate::bits::bit_field;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
@@ -102,47 +102,7 @@ impl UefiMemoryAttributes {
     pub const ISA_MASK_ATTRIBUTE_FLAG: Self = Self(0x0FFFF00000000000);
 }
 
-impl BitAnd for UefiMemoryAttributes {
-    type Output = UefiMemoryAttributes;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for UefiMemoryAttributes {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 & self.0)
-    }
-}
-
-impl BitOr for UefiMemoryAttributes {
-    type Output = UefiMemoryAttributes;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for UefiMemoryAttributes {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 | self.0)
-    }
-}
-
-impl BitXor for UefiMemoryAttributes {
-    type Output = UefiMemoryAttributes;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for UefiMemoryAttributes {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 ^ self.0)
-    }
-}
+bit_field!(UefiMemoryAttributes);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

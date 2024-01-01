@@ -14,27 +14,57 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod big_integers;
-mod big_unsigned_calculator;
-mod numeric_base;
-mod numeric_collector;
-
-pub use big_integers::{BigSigned, BigUnsigned, Digit, BITS_PER_DIGIT};
-pub use big_unsigned_calculator::BigUnsignedCalculator;
-pub use numeric_base::{NumericBase, NumericBaseWithCharacterPredicate, NumericBases};
-pub use numeric_collector::{
-    NumericCollector, NumericCollectorRoundBase, NumericCollectorRoundError,
-};
-
-pub fn ceil(value: f64) -> usize {
-    let floored = value as usize;
-    if (floored as f64) < value {
-        floored + 1
-    } else {
-        floored
-    }
-}
-
-pub fn ceil_div(dividend: usize, divisor: usize) -> usize {
-    (dividend + divisor - 1) / divisor
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+pub enum BehaviourKey {
+    Unknown,
+    UpArrow,
+    RightArrow,
+    DownArrow,
+    LeftArrow,
+    Home,
+    End,
+    Insert,
+    Delete,
+    PageUp,
+    PageDown,
+    Escape,
+    Pause,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
+    Mute,
+    VolumeUp,
+    VolumeDown,
+    BrightnessUp,
+    BrightnessDown,
+    Suspend,
+    Hibernate,
+    ToggleDisplay,
+    Recovery,
+    Eject,
+    BackSpace,
+    Return,
+    Tab,
 }

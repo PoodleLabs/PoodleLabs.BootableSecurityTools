@@ -1,3 +1,4 @@
+#!/bin/bash
 # Poodle Labs' Bootable Security Tools (BST)
 # Copyright (C) 2023 Isaac Beizsley
 # 
@@ -13,18 +14,12 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+set -e
 
-$ErrorActionPreference = "Stop";
-$root = (Get-Location).Path;
-$out = "$root/out";
-$efiImg = "$out/efi.img";
-
-& "$root/build-img-linux.ps1";
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build failed.";
-    return $LASTEXITCODE;
-}
-
-# YMMV; you need to have QEMU installed with EFI on the below path. On Debian, the following command was used for QEMU installation:
-# sudo apt install qemu-utils qemu-system-x86 qemu-system-gui qemu-efi
-qemu-system-x86_64 -bios "/usr/share/ovmf/OVMF.fd" -cdrom $efiImg;
+echo "Churning tests..."
+while true
+do
+    cargo test --release --quiet
+    # cargo test --release --quiet -- --nocapture
+    echo "All tests passed!"
+done

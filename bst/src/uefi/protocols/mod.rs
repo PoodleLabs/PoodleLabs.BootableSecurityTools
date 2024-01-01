@@ -14,11 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+pub(in crate::uefi) mod block_devices;
 pub(in crate::uefi) mod device_paths;
+pub(in crate::uefi) mod scoped_protocol;
 pub(in crate::uefi) mod text;
 
 use super::core_types::{UefiGuid, UefiHandle};
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
+use crate::bits::bit_field;
 
 pub(in crate::uefi) trait UefiProtocol {
     fn guid() -> &'static UefiGuid;
@@ -76,47 +78,7 @@ impl UefiProtocolAttributes {
     pub const EXCLUSIVE: Self = Self(0x00000020);
 }
 
-impl BitAnd for UefiProtocolAttributes {
-    type Output = UefiProtocolAttributes;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for UefiProtocolAttributes {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 & self.0)
-    }
-}
-
-impl BitOr for UefiProtocolAttributes {
-    type Output = UefiProtocolAttributes;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for UefiProtocolAttributes {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 | self.0)
-    }
-}
-
-impl BitXor for UefiProtocolAttributes {
-    type Output = UefiProtocolAttributes;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for UefiProtocolAttributes {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 ^ self.0)
-    }
-}
+bit_field!(UefiProtocolAttributes);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]

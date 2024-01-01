@@ -15,8 +15,13 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    clipboard::Clipboard, console_out::ConsoleOut, constants, initialize_console,
-    keyboard_in::KeyboardIn, string16::String16,
+    clipboard::Clipboard,
+    console_out::ConsoleOut,
+    constants,
+    file_systems::block_device::{BlockDevice, BlockDeviceDescription},
+    initialize_console,
+    input::keyboard::KeyboardIn,
+    string16::String16,
 };
 use alloc::{boxed::Box, format};
 use core::{
@@ -41,10 +46,19 @@ pub trait SystemServices: Clone + 'static {
     type TVariableIdentifier: Copy;
     type TConsoleOut: ConsoleOut + Clone;
     type TKeyboardIn: KeyboardIn + Clone;
+    type TBlockDeviceHandle: Copy;
+    type TBlockDevice<'a>: BlockDevice<THandle = Self::TBlockDeviceHandle>;
 
     unsafe fn allocate(&self, byte_count: usize) -> *mut u8;
 
     unsafe fn free(&self, pointer: *mut u8);
+
+    fn list_block_devices(&self) -> Box<[BlockDeviceDescription<Self::TBlockDeviceHandle>]>;
+
+    fn open_block_device<'a>(
+        &self,
+        handle: Self::TBlockDeviceHandle,
+    ) -> Option<Self::TBlockDevice<'a>>;
 
     fn try_get_variable(&self, identifier: Self::TVariableIdentifier) -> Option<Box<[u8]>>;
 

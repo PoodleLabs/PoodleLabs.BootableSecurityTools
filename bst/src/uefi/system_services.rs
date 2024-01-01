@@ -18,14 +18,16 @@ use super::{
     console_out::UefiConsoleOut,
     core_types::{UefiGuid, UefiHandle, UefiMemoryType, UefiResetType, UefiVariableAttributes},
     keyboard_in::UefiKeyboardIn,
+    protocols::block_devices::{BufferedUefiBlockDeviceIoProtocol, UefiBlockDeviceIoProtocol},
     system_table::UefiSystemTable,
     CONSOLE_RESOLUTION_VARIABLE, VENDOR_GUID,
 };
 use crate::{
-    console_out::ConsoleOut, constants, system_services::PowerAction,
-    uefi::core_types::UefiStatusCode, ui::Point, String16, SystemServices,
+    console_out::ConsoleOut, constants, file_systems::block_device::BlockDeviceDescription,
+    system_services::PowerAction, uefi::core_types::UefiStatusCode, ui::Point, String16,
+    SystemServices,
 };
-use alloc::{boxed::Box, vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::time::Duration;
 use macros::s16;
 
@@ -65,6 +67,9 @@ impl SystemServices for UefiSystemServices {
     type TKeyboardIn = UefiKeyboardIn;
     type TConsoleOut = UefiConsoleOut;
 
+    type TBlockDeviceHandle = UefiHandle;
+    type TBlockDevice<'a> = BufferedUefiBlockDeviceIoProtocol<'a>;
+
     unsafe fn allocate(&self, byte_count: usize) -> *mut u8 {
         self.system_table
             .boot_services()
@@ -74,6 +79,47 @@ impl SystemServices for UefiSystemServices {
 
     unsafe fn free(&self, pointer: *mut u8) {
         self.system_table.boot_services().free_pool(pointer)
+    }
+
+    fn list_block_devices(&self) -> Box<[BlockDeviceDescription<UefiHandle>]> {
+        let boot_services = self.system_table.boot_services();
+        match boot_services.get_protocol_handles::<UefiBlockDeviceIoProtocol>() {
+            Ok(handles) => {
+                let mut block_device_descriptions = Vec::new();
+                for handle in handles {
+                    match boot_services.open_scoped_protocol::<UefiBlockDeviceIoProtocol>(
+                        *handle,
+                        self.image_handle,
+                        None,
+                    ) {
+                        Ok(p) => {
+                            let description = p.protocol().description(*handle);
+                            if description.media_present() {
+                                block_device_descriptions.push(description)
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+
+                block_device_descriptions.into()
+            }
+            Err(_) => [].into(),
+        }
+    }
+
+    fn open_block_device<'a>(
+        &self,
+        handle: Self::TBlockDeviceHandle,
+    ) -> Option<Self::TBlockDevice<'a>> {
+        match self
+            .system_table()
+            .boot_services()
+            .open_scoped_protocol::<UefiBlockDeviceIoProtocol>(handle, self.image_handle, None)
+        {
+            Ok(p) => Some(Self::TBlockDevice::from(p, handle)),
+            Err(_) => None,
+        }
     }
 
     fn try_set_variable(

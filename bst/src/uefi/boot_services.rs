@@ -21,12 +21,12 @@ use super::{
         UefiTaskPriorityLevel, UefiTimerType,
     },
     protocols::{
-        device_paths::UefiDevicePathProtocol, UefiInterfaceType, UefiLocateSearchType,
-        UefiOpenProtocolInformation, UefiProtocol, UefiProtocolAttributes,
-        UefiProtocolRegistrationHandle,
+        device_paths::UefiDevicePathProtocol, scoped_protocol::UefiScopedProtocol,
+        UefiInterfaceType, UefiLocateSearchType, UefiOpenProtocolInformation, UefiProtocol,
+        UefiProtocolAttributes, UefiProtocolRegistrationHandle,
     },
 };
-use core::{ffi::c_void, ptr, time::Duration};
+use core::{ffi::c_void, ptr, slice, time::Duration};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -272,6 +272,32 @@ impl UefiBootServices {
         (self.stall)(time_span.as_micros().min(usize::MAX as u128) as usize)
     }
 
+    pub fn get_protocol_handles<T: UefiProtocol>(&self) -> Result<&[UefiHandle], UefiStatusCode> {
+        let mut count = 0usize;
+        let mut handles = 0usize as *const UefiHandle;
+        match (self.locate_handle_buffer)(
+            UefiLocateSearchType::ByProtocol,
+            &T::guid(),
+            UefiProtocolRegistrationHandle::NULL,
+            &mut count,
+            &mut handles,
+        )
+        .into()
+        {
+            Ok(_) => Ok(unsafe { slice::from_raw_parts(handles, count) }),
+            Err(c) => Err(c),
+        }
+    }
+
+    pub fn open_scoped_protocol<T: UefiProtocol>(
+        &self,
+        handle: UefiHandle,
+        agent_handle: UefiHandle,
+        controller_handle: Option<UefiHandle>,
+    ) -> Result<UefiScopedProtocol<T>, UefiStatusCode> {
+        UefiScopedProtocol::open_on(handle, agent_handle, self, controller_handle)
+    }
+
     pub fn open_protocol<T: UefiProtocol>(
         &self,
         handle: UefiHandle,
@@ -293,5 +319,15 @@ impl UefiBootServices {
             Ok(_) => Ok(protocol_pointer as *mut T),
             Err(c) => Err(c),
         }
+    }
+
+    pub fn close_protocol(
+        &self,
+        handle: UefiHandle,
+        protocol_guid: &UefiGuid,
+        agent: UefiHandle,
+        controller: UefiHandle,
+    ) -> UefiStatusCode {
+        (self.close_protocol)(handle, protocol_guid, agent, controller)
     }
 }

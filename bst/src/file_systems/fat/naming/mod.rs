@@ -14,27 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod big_integers;
-mod big_unsigned_calculator;
-mod numeric_base;
-mod numeric_collector;
+pub mod long;
+pub mod short;
 
-pub use big_integers::{BigSigned, BigUnsigned, Digit, BITS_PER_DIGIT};
-pub use big_unsigned_calculator::BigUnsignedCalculator;
-pub use numeric_base::{NumericBase, NumericBaseWithCharacterPredicate, NumericBases};
-pub use numeric_collector::{
-    NumericCollector, NumericCollectorRoundBase, NumericCollectorRoundError,
-};
-
-pub fn ceil(value: f64) -> usize {
-    let floored = value as usize;
-    if (floored as f64) < value {
-        floored + 1
-    } else {
-        floored
-    }
-}
-
-pub fn ceil_div(dividend: usize, divisor: usize) -> usize {
-    (dividend + divisor - 1) / divisor
-}
+// Objects (files and directories) in a FAT filesystem can have two names.
+// The old type, a 'SFN', or short file name, has 8 characters for the name,
+// and three characters for the file extension.
+// Long file names were added as an extension of the filesystem's capabilities,
+// though all objects have a SFN, even if it's randomly generated.

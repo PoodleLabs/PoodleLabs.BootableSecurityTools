@@ -32,11 +32,9 @@ pub(in crate::uefi) use status_codes::UefiStatusCode;
 pub(in crate::uefi) use table_headers::UefiTableHeader;
 pub(in crate::uefi) use time::{UefiTime, UefiTimeCapabilities};
 
+use crate::bits::bit_field;
 use alloc::sync::Arc;
-use core::{
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign},
-    slice,
-};
+use core::slice;
 use macros::c16;
 
 #[repr(C)]
@@ -109,44 +107,4 @@ impl UefiVariableAttributes {
     pub const ENHANCED_AUTHENTICATED_ACCESS: Self = Self(0x00000080);
 }
 
-impl BitAnd for UefiVariableAttributes {
-    type Output = UefiVariableAttributes;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign for UefiVariableAttributes {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 & self.0)
-    }
-}
-
-impl BitOr for UefiVariableAttributes {
-    type Output = UefiVariableAttributes;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign for UefiVariableAttributes {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 | self.0)
-    }
-}
-
-impl BitXor for UefiVariableAttributes {
-    type Output = UefiVariableAttributes;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl BitXorAssign for UefiVariableAttributes {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = Self(rhs.0 ^ self.0)
-    }
-}
+bit_field!(UefiVariableAttributes);

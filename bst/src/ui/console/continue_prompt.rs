@@ -17,7 +17,7 @@
 use crate::{
     console_out::ConsoleOut,
     constants,
-    keyboard_in::{BehaviourKey, Key, KeyboardIn},
+    input::keyboard::{BehaviourKey, Key, KeyboardIn},
     system_services::SystemServices,
     ui::ContinuePrompt,
 };

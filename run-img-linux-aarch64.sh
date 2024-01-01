@@ -1,3 +1,4 @@
+#!/bin/bash
 # Poodle Labs' Bootable Security Tools (BST)
 # Copyright (C) 2023 Isaac Beizsley
 # 
@@ -13,31 +14,27 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+set -eE
 
-$ErrorActionPreference = "Stop";
-$root = (Get-Location).Path;
-$out = "$root/out";
-$efiFd = "$out/EFI.fd";
-$efiImg = "$out/efi.img";
+root="$(dirname -- ${BASH_SOURCE[0]})"
+out="$root/out"
 
-& "$root/build-img-linux.ps1";
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build failed.";
-    return $LASTEXITCODE;
-}
+efi_img="$out/efi.img"
+efi_fd="$out/EFI.fd"
 
-if (Test-Path -Path $efiFd) {
-    Remove-Item -Force -Path $efiFd;
-}
+eval "$root/build-img-linux.sh"
 
-truncate -s 64M $efiFd;
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "EFI firmware image file creation failed.";
-    return $LASTEXITCODE;
-}
+echo "Creating EFI firmware image..."
 
-dd if="/usr/share/qemu-efi-aarch64/QEMU_EFI.fd" of=$efiFd conv=notrunc;
+# Error will delete EFI firmware image.
+trap "rm \"$efi_fd\"" ERR
 
-# YMMV; you need to have QEMU installed with EFI on the below path. On Debian, the following command was used for QEMU installation:
+truncate -s 64M $efi_fd
+dd if="/usr/share/qemu-efi-aarch64/QEMU_EFI.fd" of=$efi_fd conv=notrunc
+
+echo "Launching VM..."
+
+# YMMV; you need to have QEMU installed with EFI on the below path.
+# On Debian, the following command was used for QEMU installation:
 # sudo apt install qemu-utils qemu-system-arm qemu-system-gui qemu-efi-aarch64
-qemu-system-aarch64 -machine virt -cpu max -drive "if=pflash,format=raw,file=$efiFd" -net none -nographic -cdrom $efiImg;
+qemu-system-aarch64 -machine virt -cpu max -drive "if=pflash,format=raw,file=$efi_fd" -net none -nographic -cdrom "$efi_img"

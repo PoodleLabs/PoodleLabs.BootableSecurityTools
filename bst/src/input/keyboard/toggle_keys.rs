@@ -14,27 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod big_integers;
-mod big_unsigned_calculator;
-mod numeric_base;
-mod numeric_collector;
+use crate::bits::bit_field;
 
-pub use big_integers::{BigSigned, BigUnsigned, Digit, BITS_PER_DIGIT};
-pub use big_unsigned_calculator::BigUnsignedCalculator;
-pub use numeric_base::{NumericBase, NumericBaseWithCharacterPredicate, NumericBases};
-pub use numeric_collector::{
-    NumericCollector, NumericCollectorRoundBase, NumericCollectorRoundError,
-};
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ToggleKeys(u8);
 
-pub fn ceil(value: f64) -> usize {
-    let floored = value as usize;
-    if (floored as f64) < value {
-        floored + 1
-    } else {
-        floored
+#[allow(dead_code)]
+impl ToggleKeys {
+    pub const NONE: Self = Self(0);
+    pub const NUM_LOCK: Self = Self(1);
+    pub const CAPS_LOCK: Self = Self(2);
+    pub const SCROLL_LOCK: Self = Self(4);
+
+    pub const fn num_lock(self) -> bool {
+        self.overlaps(Self::NUM_LOCK)
+    }
+
+    pub const fn caps_lock(self) -> bool {
+        self.overlaps(Self::CAPS_LOCK)
+    }
+
+    pub const fn scroll_lock(self) -> bool {
+        self.overlaps(Self::SCROLL_LOCK)
     }
 }
 
-pub fn ceil_div(dividend: usize, divisor: usize) -> usize {
-    (dividend + divisor - 1) / divisor
-}
+bit_field!(ToggleKeys);

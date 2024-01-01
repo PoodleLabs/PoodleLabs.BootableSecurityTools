@@ -18,7 +18,7 @@ use super::{ConsoleUiLabel, ConsoleWriteable};
 use crate::{
     console_out::ConsoleOut,
     constants,
-    keyboard_in::{Key, KeyboardIn},
+    input::keyboard::{Key, KeyboardIn},
     system_services::SystemServices,
     ui::ConfirmationPrompt,
     String16,

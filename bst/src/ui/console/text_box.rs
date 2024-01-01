@@ -21,7 +21,7 @@ use super::{
 use crate::{
     clipboard::ClipboardEntry,
     console_out::{ConsoleColours, ConsoleOut},
-    keyboard_in::{BehaviourKey, Key, KeyboardIn},
+    input::keyboard::{BehaviourKey, Key, KeyboardIn},
     system_services::SystemServices,
     ui::Point,
     String16,

@@ -97,13 +97,13 @@ You'll need to install Rustup, with the following targets installed:
 - i686-unknown-uefi
 - x86_64-unknown-uefi
 
-The `build.ps1` powershell script can be used to run the tests, build all three targets, and dump them into the `out` folder. You can run the commands manually yourself and, of course, if you don't want to build all the targets, you don't have to.
+You can run `install-rustup-targets.sh` or `install-rustup-targets.ps1` to automatically install the required targets, assuming `rustup` is installed.
 
-Then you need to format a USB stick (or any other bootable media) with a FAT32 filesystem, and dump the `.efi` files in the directory `[MEDIA ROOT]/EFI/BOOT/*.efi`. You can just copy the `EFI` directory from `out` if you ran the powershell script.
+The `build.ps1` or `build.sh` script will run the tests, build in release mode, and create an `EFI` directory in the `out` folder with the `.EFI` files for each target in a `BOOT` subdirectory.
 
-If you didn't run the powershell script, the `.efi` files can be found at `target/[target]/release/bst.efi` after building the relevant target. You'll need to rename the EFI file; refer to the powershell script for the correct names for each target.
+A USB stick, or other bootable media, with a FAT32 file system can have the `EFI` directory dumped into its root, at which point, you should be able to boot into BST.
 
-You should then be able to boot from that media.
+**NOTE: DO NOT ATTEMPT TO WRITE TO ANY REWRITABLE MEDIA (eg: USB sticks, hard drives) WHICH CONTAIN IMPORTANT FILES WHILE USING BST; THE INCLUDED FILESYSTEM IMPLEMENTATIONS MAY CONTAIN BUGS CAPABLE OF CORRUPTING DATA.**
 
 ### Some tips & tricks.
 
@@ -122,7 +122,9 @@ You should then be able to boot from that media.
 
 ### VM?
 
-The included VM-related scripts are lazily written for my own use. I run Debian for development. You'll need QEMU w/ EFI and some other stuff set up. Check what the scripts do. I don't recommend the ARM one; I couldn't get it to work with a 'display', and outputting directly to the source terminal is janky; you'll probably need to play with the size of your terminal window to make the UI make any sense at all.
+The VM-related scripts should work if you have the correct QEMU packages installed. The Debian packages are listed in each script, just above the last line, which actually launches the VM.
+
+The `x86-64` variant is recommended; the `aarch64` variant works, but you'll have to resize your console window to make the UI make any sense. You can alternate between pressing `1` and `ESC` to trigger a full redraw while you get the terminal to the right size. The big list title should have one line of dashes, then a line with a dash on either end, and the title content inside, and another line of dashes after that.
 
 ### I don't know how to do the steps above.
 
@@ -141,7 +143,10 @@ The EFI images are loaded into memory, so you should be fine to remove the boot 
 If I had to recommend something more concrete, I would recommend an old Thinkpad. Something with a socketed CPU, which can be Corebooted and have the Intel ME disabled.
 
 ## External References
+With the exception of the Rust core and alloc crates, the below external references are documentation and examples upon which the implementations contained in this repository were based, not dependencies/pulled in code.
+
 - [Electrum](https://github.com/spesmilo/electrum) or, more specifically [Electrum Seed Version System](https://electrum.readthedocs.io/en/latest/seedphrase.html)
 - [Rust Lang Repository](https://github.com/rust-lang/rust/)
 - [UEFI Specificatoins](https://uefi.org/specifications)
 - [Bitcoin BIPS](https://github.com/bitcoin/bips)
+- [FatFs](http://elm-chan.org/docs/fat_e.html)
