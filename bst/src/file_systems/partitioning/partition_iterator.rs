@@ -27,7 +27,7 @@ use crate::{
     integers,
 };
 use alloc::{vec, vec::Vec};
-use core::mem::size_of;
+use core::{marker::PhantomData, mem::size_of};
 
 enum PartitionArrayType {
     Mbr,
@@ -39,25 +39,14 @@ pub enum PartitionDescription<'a> {
     GptPartition(&'a GptPartitionDescriptor),
 }
 
-pub struct PartitionIterator {
-    partition_array_type: PartitionArrayType,
+pub struct PartitionIterator<'a> {
+    iterator_method: fn(&mut Self) -> Option<PartitionDescription<'a>>,
     partition_array_bytes: Vec<u8>,
     next_index: usize,
 }
 
-impl PartitionIterator {
-    fn from(partition_array_type: PartitionArrayType, partition_array_bytes: Vec<u8>) -> Self {
-        // TODO: Select a function pointer to handle the partition table correctly based on the partition_array_bytes.
-        Self {
-            partition_array_bytes,
-            partition_array_type,
-            next_index: 0,
-        }
-    }
-
-    pub fn try_from<'a, TBlockDevice: BlockDevice>(
-        block_device: &'a mut TBlockDevice,
-    ) -> Option<Self> {
+impl<'a> PartitionIterator<'a> {
+    pub fn try_from<TBlockDevice: BlockDevice>(block_device: &'a mut TBlockDevice) -> Option<Self> {
         // Calculations for reading the MBR.
         let description = block_device.description();
         let mbr_size = size_of::<MasterBootRecord>();
@@ -175,5 +164,33 @@ impl PartitionIterator {
 
     pub fn reset(&mut self) {
         self.next_index = 0;
+    }
+
+    fn from(partition_array_type: PartitionArrayType, partition_array_bytes: Vec<u8>) -> Self {
+        // TODO: Select a function pointer to handle the partition table correctly based on the partition_array_bytes.
+        Self {
+            iterator_method: match partition_array_type {
+                PartitionArrayType::Gpt(_) => Self::iter_gpt,
+                PartitionArrayType::Mbr => Self::iter_mbr,
+            },
+            partition_array_bytes,
+            next_index: 0,
+        }
+    }
+
+    fn iter_gpt(&mut self) -> Option<PartitionDescription<'a>> {
+        todo!()
+    }
+
+    fn iter_mbr(&mut self) -> Option<PartitionDescription<'a>> {
+        todo!()
+    }
+}
+
+impl<'a> Iterator for PartitionIterator<'a> {
+    type Item = PartitionDescription<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (self.iterator_method)(self)
     }
 }
