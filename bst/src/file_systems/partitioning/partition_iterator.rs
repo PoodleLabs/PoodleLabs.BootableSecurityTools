@@ -46,6 +46,15 @@ pub struct PartitionIterator {
 }
 
 impl PartitionIterator {
+    fn from(partition_array_type: PartitionArrayType, partition_array_bytes: Vec<u8>) -> Self {
+        // TODO: Select a function pointer to handle the partition table correctly based on the partition_array_bytes.
+        Self {
+            partition_array_bytes,
+            partition_array_type,
+            next_index: 0,
+        }
+    }
+
     pub fn try_from<'a, TBlockDevice: BlockDevice>(
         block_device: &'a mut TBlockDevice,
     ) -> Option<Self> {
@@ -104,11 +113,7 @@ impl PartitionIterator {
 
                     // Trim the MBR signature off the end of the buffer.
                     buffer.resize(size_of::<MbrPartitionTableEntry>() * 4, 0);
-                    Some(Self {
-                        partition_array_bytes: buffer,
-                        partition_array_type: t,
-                        next_index: 0,
-                    })
+                    Some(Self::from(t, buffer))
                 }
                 PartitionArrayType::Gpt(partition_table_header_block) => {
                     // Resize the buffer to read the GPT header table.
@@ -161,11 +166,7 @@ impl PartitionIterator {
                         return None;
                     }
 
-                    Some(Self {
-                        partition_array_bytes: buffer,
-                        partition_array_type: t,
-                        next_index: 0,
-                    })
+                    Some(Self::from(t, buffer))
                 }
             },
             None => None,
