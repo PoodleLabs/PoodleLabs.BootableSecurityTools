@@ -27,7 +27,7 @@ use crate::{
     integers,
 };
 use alloc::{vec, vec::Vec};
-use core::{marker::PhantomData, mem::size_of};
+use core::mem::size_of;
 
 enum PartitionArrayType {
     Mbr,
@@ -42,6 +42,7 @@ pub enum PartitionDescription<'a> {
 pub struct PartitionIterator<'a> {
     iterator_method: fn(&mut Self) -> Option<PartitionDescription<'a>>,
     partition_array_bytes: Vec<u8>,
+    entry_size: usize,
     next_index: usize,
 }
 
@@ -102,7 +103,7 @@ impl<'a> PartitionIterator<'a> {
 
                     // Trim the MBR signature off the end of the buffer.
                     buffer.resize(size_of::<MbrPartitionTableEntry>() * 4, 0);
-                    Some(Self::from(t, buffer))
+                    Some(Self::from(t, buffer, size_of::<MbrPartitionTableEntry>()))
                 }
                 PartitionArrayType::Gpt(partition_table_header_block) => {
                     // Resize the buffer to read the GPT header table.
@@ -155,7 +156,7 @@ impl<'a> PartitionIterator<'a> {
                         return None;
                     }
 
-                    Some(Self::from(t, buffer))
+                    Some(Self::from(t, buffer, partition_description_size))
                 }
             },
             None => None,
@@ -166,7 +167,11 @@ impl<'a> PartitionIterator<'a> {
         self.next_index = 0;
     }
 
-    fn from(partition_array_type: PartitionArrayType, partition_array_bytes: Vec<u8>) -> Self {
+    fn from(
+        partition_array_type: PartitionArrayType,
+        partition_array_bytes: Vec<u8>,
+        entry_size: usize,
+    ) -> Self {
         // TODO: Select a function pointer to handle the partition table correctly based on the partition_array_bytes.
         Self {
             iterator_method: match partition_array_type {
@@ -175,14 +180,17 @@ impl<'a> PartitionIterator<'a> {
             },
             partition_array_bytes,
             next_index: 0,
+            entry_size,
         }
     }
 
     fn iter_gpt(&mut self) -> Option<PartitionDescription<'a>> {
+        let offset = self.next_index * self.entry_size;
         todo!()
     }
 
     fn iter_mbr(&mut self) -> Option<PartitionDescription<'a>> {
+        let offset = self.next_index * self.entry_size;
         todo!()
     }
 }
