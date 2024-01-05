@@ -20,7 +20,10 @@ use super::{
     Partition,
 };
 use crate::{
-    file_systems::{block_device::BlockDevice, partitioning::mbr::MbrPartitionType},
+    file_systems::{
+        block_device::BlockDevice,
+        partitioning::{gpt::GptHeader, mbr::MbrPartitionType},
+    },
     integers,
 };
 use alloc::{vec, vec::Vec};
@@ -52,7 +55,7 @@ impl PartitionIterator {
         let block_size = description.block_size();
 
         let mbr_block_count = integers::ceil_div(mbr_size, block_size);
-        let buffer_size = mbr_block_count * description.block_size();
+        let buffer_size = mbr_block_count * block_size;
         let mut buffer = vec![0; buffer_size];
 
         // Read however many blocks we need for the MBR.
@@ -100,14 +103,70 @@ impl PartitionIterator {
                     buffer.splice(0..mbr_offset, (0..1).into_iter().map(|_| 0));
 
                     // Trim the MBR signature off the end of the buffer.
-                    buffer.truncate(size_of::<MbrPartitionTableEntry>() * 4);
+                    buffer.resize(size_of::<MbrPartitionTableEntry>() * 4, 0);
                     Some(Self {
                         partition_array_bytes: buffer,
                         partition_array_type: t,
                         next_index: 0,
                     })
                 }
-                PartitionArrayType::Gpt(partition_table_block) => todo!(),
+                PartitionArrayType::Gpt(partition_table_header_block) => {
+                    // Resize the buffer to read the GPT header table.
+                    buffer.fill(0);
+                    buffer.resize(
+                        integers::ceil_div(size_of::<GptHeader>(), block_size) * block_size,
+                        0,
+                    );
+
+                    // Read the GPT header blocks.
+                    if !block_device.read_blocks(
+                        description.media_id(),
+                        partition_table_header_block,
+                        &mut buffer,
+                    ) {
+                        // If reading fails, return nothing.
+                        return None;
+                    }
+
+                    // Interpret the bytes at a GPT header.
+                    let gpt_header =
+                        unsafe { (buffer.as_ptr() as *const GptHeader).as_ref().unwrap() };
+
+                    if !gpt_header.signature_is_valid() {
+                        // If the signautre of the partition table header is invalid, return nothing.
+                        return None;
+                    }
+
+                    // Resize the buffer for reading the partition table.
+                    let partition_table_start_block = gpt_header.partition_table_start_block();
+                    let partition_description_size = gpt_header.partition_description_size();
+                    let partition_count = gpt_header.partition_count();
+
+                    buffer.fill(0);
+                    buffer.resize(
+                        integers::ceil_div(
+                            partition_description_size * partition_count,
+                            block_size,
+                        ) * block_size,
+                        0,
+                    );
+
+                    // Read the partition table blocks.
+                    if !block_device.read_blocks(
+                        description.media_id(),
+                        partition_table_start_block,
+                        &mut buffer,
+                    ) {
+                        // If reading fails, return nothing.
+                        return None;
+                    }
+
+                    Some(Self {
+                        partition_array_bytes: buffer,
+                        partition_array_type: t,
+                        next_index: 0,
+                    })
+                }
             },
             None => None,
         }

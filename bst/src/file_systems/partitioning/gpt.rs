@@ -23,7 +23,7 @@ use super::Partition;
 // Partition Table Header - This block defines the partition table.
 
 #[repr(C)]
-pub struct GptPartitionTableHeader {
+pub struct GptHeader {
     signature: [u8; 8],
     gpt_revision: [u8; 4],
     header_size: [u8; 4],
@@ -42,8 +42,24 @@ pub struct GptPartitionTableHeader {
     partition_array_crc32: [u8; 4],
 } // The remaining bytes in the block should be 0.
 
-impl GptPartitionTableHeader {
-    pub const VALID_SIGNATURE: &[u8; 8] = b"EFI PART";
+impl GptHeader {
+    const VALID_SIGNATURE: &[u8; 8] = b"EFI PART";
+
+    pub const fn partition_description_size(&self) -> usize {
+        u32::from_le_bytes(self.partition_entry_size) as usize
+    }
+
+    pub const fn partition_table_start_block(&self) -> u64 {
+        u64::from_le_bytes(self.partition_array_start)
+    }
+
+    pub const fn partition_count(&self) -> usize {
+        u32::from_le_bytes(self.partition_entry_count) as usize
+    }
+
+    pub fn signature_is_valid(&self) -> bool {
+        self.signature.eq(Self::VALID_SIGNATURE)
+    }
 }
 
 #[repr(C)]
