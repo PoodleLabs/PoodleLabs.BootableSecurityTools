@@ -172,7 +172,6 @@ impl<'a> PartitionIterator<'a> {
         partition_array_bytes: Vec<u8>,
         entry_size: usize,
     ) -> Self {
-        // TODO: Select a function pointer to handle the partition table correctly based on the partition_array_bytes.
         Self {
             iterator_method: match partition_array_type {
                 PartitionArrayType::Gpt(_) => Self::iter_gpt,
