@@ -38,12 +38,6 @@ pub fn try_read_volume_cluster_parameters<'a, TBlockDevice: BlockDevice>(
         return None;
     }
 
-    match description.device_type() {
-        BlockDeviceType::FirmwarePartition => {}
-        BlockDeviceType::SoftwarePartition => {}
-        BlockDeviceType::Hardware => return None,
-    }
-
     // Prepare a buffer to read the
     let mut buffer = vec![
         0u8;

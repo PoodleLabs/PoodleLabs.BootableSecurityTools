@@ -51,6 +51,7 @@ impl MbrPartitionType {
 }
 
 #[repr(C)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MbrPartitionTableEntry {
     boot_indicator: MbrPartitionBootIndicator,
     start_head: u8,          // Head number (0-254) of starting sector in CHS format.
@@ -78,10 +79,6 @@ impl MbrPartitionTableEntry {
         self.partition_type
     }
 
-    pub const fn is_empty(&self) -> bool {
-        self.partition_type.0 == MbrPartitionType::BLANK.0
-    }
-
     pub const fn first_block(&self) -> u32 {
         u32::from_le_bytes(self.lba_offset)
     }
@@ -89,10 +86,15 @@ impl MbrPartitionTableEntry {
     pub const fn block_count(&self) -> u32 {
         u32::from_le_bytes(self.lba_size)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.eq(&Self::EMPTY)
+    }
 }
 
 #[repr(C)]
 pub struct MasterBootRecord {
+    boot_code: [u8; 446],
     partition_1: MbrPartitionTableEntry,
     partition_2: MbrPartitionTableEntry,
     partition_3: MbrPartitionTableEntry,
@@ -101,15 +103,9 @@ pub struct MasterBootRecord {
 }
 
 impl MasterBootRecord {
+    pub const PARTITION_TABLE_OFFSET: usize = 446;
+
     const VALID_SIGNATURE: u16 = 0xAA55;
-
-    pub const fn get_offset(block_size: usize) -> usize {
-        block_size - size_of::<MasterBootRecord>()
-    }
-
-    pub const fn signature_is_valid(&self) -> bool {
-        u16::from_le_bytes(self.signature) == Self::VALID_SIGNATURE
-    }
 
     pub const fn partitions(&self) -> [&MbrPartitionTableEntry; 4] {
         [
@@ -118,5 +114,9 @@ impl MasterBootRecord {
             &self.partition_3,
             &self.partition_4,
         ]
+    }
+
+    pub const fn signature_is_valid(&self) -> bool {
+        u16::from_le_bytes(self.signature) == Self::VALID_SIGNATURE
     }
 }

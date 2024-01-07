@@ -100,30 +100,25 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
             };
 
             if block_device.description().device_type() == BlockDeviceType::Hardware {
-                let partitions = match PartitionIterator::try_from(&mut block_device) {
-                    Some(i) => Some(Box::from_iter(i)),
-                    None => None,
-                };
-
-                match partitions {
+                // If the block device is a hardware block device, it may be partitioned.
+                // Try to read the partitions on the disk.
+                match PartitionIterator::try_from(&mut block_device) {
                     Some(p) => {
-                        select_partition(p, &self.system_services, &mut block_device);
-                    }
-                    None => {
-                        console
-                            .line_start()
-                            .new_line()
-                            .in_colours(constants::ERROR_COLOURS, |c| {
-                                c.output_utf16_line(s16!(
-                                    "Failed to read the selected block device's paritions."
-                                ))
-                            });
+                        // We read a partition table; ask the user to select a partition.
+                        select_partition(
+                            Box::from_iter(p),
+                            &self.system_services,
+                            &mut block_device,
+                        );
+
                         continue;
                     }
+                    None => { /* It may be a SFD device; fall through.*/ }
                 }
-            } else {
-                open_block_device(&self.system_services, &mut block_device)
             }
+
+            // Attempt to open the block device without any partitioning.
+            open_block_device(&self.system_services, &mut block_device)
         }
     }
 }

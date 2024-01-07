@@ -19,14 +19,16 @@ use super::{
     mbr::{MasterBootRecord, MbrPartitionTableEntry},
 };
 use crate::{
+    console_out::ConsoleOut,
     file_systems::{
         block_device::BlockDevice,
         partitioning::{gpt::GptHeader, mbr::MbrPartitionType},
     },
     integers,
 };
-use alloc::{vec, vec::Vec};
+use alloc::{format, vec, vec::Vec};
 use core::mem::size_of;
+use macros::s16;
 
 enum PartitionArrayType {
     Mbr,
@@ -65,10 +67,9 @@ impl<'a> PartitionIterator<'a> {
     pub fn try_from<TBlockDevice: BlockDevice>(block_device: &'a mut TBlockDevice) -> Option<Self> {
         // Calculations for reading the MBR.
         let description = block_device.description();
-        let mbr_size = size_of::<MasterBootRecord>();
         let block_size = description.block_size();
 
-        let mbr_block_count = integers::ceil_div(mbr_size, block_size);
+        let mbr_block_count = integers::ceil_div(size_of::<MasterBootRecord>(), block_size);
         let buffer_size = mbr_block_count * block_size;
         let mut buffer = vec![0; buffer_size];
 
@@ -79,9 +80,8 @@ impl<'a> PartitionIterator<'a> {
         }
 
         // Extract the MBR from the read blocks.
-        let mbr_offset = buffer_size - mbr_size;
         let master_boot_record = unsafe {
-            (buffer.as_ptr().add(mbr_offset) as *const MasterBootRecord)
+            (buffer.as_ptr() as *const MasterBootRecord)
                 .as_ref()
                 .unwrap()
         };
@@ -114,7 +114,10 @@ impl<'a> PartitionIterator<'a> {
             Some(t) => match t {
                 PartitionArrayType::Mbr => {
                     // Remove the leading bytes from the buffer.
-                    buffer.splice(0..mbr_offset, (0..1).into_iter().map(|_| 0));
+                    buffer.splice(
+                        0..MasterBootRecord::PARTITION_TABLE_OFFSET,
+                        (0..1).into_iter().map(|_| 0),
+                    );
 
                     // Trim the MBR signature off the end of the buffer.
                     buffer.resize(size_of::<MbrPartitionTableEntry>() * 4, 0);
