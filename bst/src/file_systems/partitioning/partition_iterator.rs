@@ -204,14 +204,14 @@ impl<'a> PartitionIterator<'a> {
     }
 
     fn iter_gpt(&mut self) -> Option<PartitionDescription<'a>> {
-        match self.iter_generic::<GptPartitionDescriptor>(|p| false) {
+        match self.iter_generic::<GptPartitionDescriptor>(|p| !p.firmware()) {
             Some(p) => Some(PartitionDescription::GptPartition(p)),
             None => None,
         }
     }
 
     fn iter_mbr(&mut self) -> Option<PartitionDescription<'a>> {
-        match self.iter_generic::<MbrPartitionTableEntry>(|p| false) {
+        match self.iter_generic::<MbrPartitionTableEntry>(|p| !p.is_empty()) {
             Some(p) => Some(PartitionDescription::MbrPartition(p)),
             None => None,
         }

@@ -71,6 +71,12 @@ pub struct GptPartitionDescriptor {
     attributes: [u8; 8],
 } // The remaining bytes (defined by partition table header's partition_entry_size) are a UTF16 string for the partition's name.
 
+impl GptPartitionDescriptor {
+    pub fn firmware(&self) -> bool {
+        u64::from_le_bytes(self.attributes) & 1 == 1
+    }
+}
+
 impl Partition for GptPartitionDescriptor {
     fn first_block(&self) -> u64 {
         u64::from_le_bytes(self.starting_lba)
