@@ -184,14 +184,38 @@ impl<'a> PartitionIterator<'a> {
         }
     }
 
+    fn iter_generic<T: Sized>(&mut self, predicate: fn(&T) -> bool) -> Option<&'a T> {
+        loop {
+            let offset = self.next_index * self.entry_size;
+            if offset + size_of::<T>() >= self.partition_array_bytes.len() {
+                return None;
+            }
+
+            let partition_descriptor = unsafe {
+                (self.partition_array_bytes.as_ptr().add(offset) as *const T)
+                    .as_ref()
+                    .unwrap()
+            };
+
+            self.next_index += 1;
+            if (predicate)(partition_descriptor) {
+                return Some(partition_descriptor);
+            }
+        }
+    }
+
     fn iter_gpt(&mut self) -> Option<PartitionDescription<'a>> {
-        let offset = self.next_index * self.entry_size;
-        todo!()
+        match self.iter_generic::<GptPartitionDescriptor>(|p| false) {
+            Some(p) => Some(PartitionDescription::GptPartition(p)),
+            None => None,
+        }
     }
 
     fn iter_mbr(&mut self) -> Option<PartitionDescription<'a>> {
-        let offset = self.next_index * self.entry_size;
-        todo!()
+        match self.iter_generic::<MbrPartitionTableEntry>(|p| false) {
+            Some(p) => Some(PartitionDescription::MbrPartition(p)),
+            None => None,
+        }
     }
 }
 
