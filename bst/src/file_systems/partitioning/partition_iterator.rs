@@ -19,16 +19,14 @@ use super::{
     mbr::{MasterBootRecord, MbrPartitionTableEntry},
 };
 use crate::{
-    console_out::ConsoleOut,
     file_systems::{
         block_device::BlockDevice,
         partitioning::{gpt::GptHeader, mbr::MbrPartitionType},
     },
     integers,
 };
-use alloc::{format, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use core::mem::size_of;
-use macros::s16;
 
 enum PartitionArrayType {
     Mbr,

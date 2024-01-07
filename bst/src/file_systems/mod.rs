@@ -17,3 +17,7 @@
 pub mod block_device;
 pub mod fat;
 pub mod partitioning;
+
+mod file_size;
+
+pub use file_size::{FileSize, FileSizeUnit};

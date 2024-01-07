@@ -17,10 +17,7 @@
 mod bios_parameters_blocks;
 mod boot_sectors;
 
-use crate::file_systems::{
-    block_device::{BlockDevice, BlockDeviceType},
-    fat,
-};
+use crate::file_systems::{block_device::BlockDevice, fat};
 use alloc::vec;
 use bios_parameters_blocks::BiosParameterBlock;
 use boot_sectors::BootSector;
