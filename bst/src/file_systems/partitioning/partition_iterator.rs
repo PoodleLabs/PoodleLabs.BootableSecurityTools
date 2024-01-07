@@ -17,7 +17,6 @@
 use super::{
     gpt::GptPartitionDescriptor,
     mbr::{MasterBootRecord, MbrPartitionTableEntry},
-    Partition,
 };
 use crate::{
     file_systems::{
@@ -34,13 +33,29 @@ enum PartitionArrayType {
     Gpt(u64),
 }
 
-pub enum PartitionDescription<'a> {
-    MbrPartition(&'a MbrPartitionTableEntry),
-    GptPartition(&'a GptPartitionDescriptor),
+pub enum PartitionDescription {
+    MbrPartition((u64, u64)),
+    GptPartition((u64, u64)),
+}
+
+impl PartitionDescription {
+    pub const fn first_block(&self) -> u64 {
+        match self {
+            PartitionDescription::MbrPartition((b, _)) => *b,
+            PartitionDescription::GptPartition((b, _)) => *b,
+        }
+    }
+
+    pub const fn block_count(&self) -> u64 {
+        match self {
+            PartitionDescription::MbrPartition((_, c)) => *c,
+            PartitionDescription::GptPartition((_, c)) => *c,
+        }
+    }
 }
 
 pub struct PartitionIterator<'a> {
-    iterator_method: fn(&mut Self) -> Option<PartitionDescription<'a>>,
+    iterator_method: fn(&mut Self) -> Option<PartitionDescription>,
     partition_array_bytes: Vec<u8>,
     entry_size: usize,
     next_index: usize,
@@ -86,7 +101,7 @@ impl<'a> PartitionIterator<'a> {
             // Base the partition type on the first non-empty partition.
             partition_type = Some(
                 if partition.partition_type() == MbrPartitionType::GPT_PROTECTIVE {
-                    PartitionArrayType::Gpt(partition.first_block())
+                    PartitionArrayType::Gpt(partition.first_block() as u64)
                 } else {
                     PartitionArrayType::Mbr
                 },
@@ -203,23 +218,29 @@ impl<'a> PartitionIterator<'a> {
         }
     }
 
-    fn iter_gpt(&mut self) -> Option<PartitionDescription<'a>> {
-        match self.iter_generic::<GptPartitionDescriptor>(|p| !p.firmware()) {
-            Some(p) => Some(PartitionDescription::GptPartition(p)),
+    fn iter_gpt(&mut self) -> Option<PartitionDescription> {
+        match self.iter_generic::<GptPartitionDescriptor>(|p| !p.is_firmware()) {
+            Some(p) => Some(PartitionDescription::GptPartition((
+                p.first_block(),
+                p.block_count(),
+            ))),
             None => None,
         }
     }
 
-    fn iter_mbr(&mut self) -> Option<PartitionDescription<'a>> {
+    fn iter_mbr(&mut self) -> Option<PartitionDescription> {
         match self.iter_generic::<MbrPartitionTableEntry>(|p| !p.is_empty()) {
-            Some(p) => Some(PartitionDescription::MbrPartition(p)),
+            Some(p) => Some(PartitionDescription::MbrPartition((
+                p.first_block() as u64,
+                p.block_count() as u64,
+            ))),
             None => None,
         }
     }
 }
 
 impl<'a> Iterator for PartitionIterator<'a> {
-    type Item = PartitionDescription<'a>;
+    type Item = PartitionDescription;
 
     fn next(&mut self) -> Option<Self::Item> {
         (self.iterator_method)(self)

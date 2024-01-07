@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::Partition;
-
 // GPT partition labels consist of:
 // MBR - A protective master boot record label in the first block which is used to prevent accidental overwrites by old software.
 //       This MBR has a single partition entry with a starting CHS of 0x00, 0x02, 0x00, a type of 0xEE, and starting LBA of 0x00000001
@@ -43,7 +41,7 @@ pub struct GptHeader {
 } // The remaining bytes in the block should be 0.
 
 impl GptHeader {
-    const VALID_SIGNATURE: &[u8; 8] = b"EFI PART";
+    const VALID_SIGNATURE: &'static [u8; 8] = b"EFI PART";
 
     pub const fn partition_description_size(&self) -> usize {
         u32::from_le_bytes(self.partition_entry_size) as usize
@@ -72,17 +70,15 @@ pub struct GptPartitionDescriptor {
 } // The remaining bytes (defined by partition table header's partition_entry_size) are a UTF16 string for the partition's name.
 
 impl GptPartitionDescriptor {
-    pub fn firmware(&self) -> bool {
+    pub const fn block_count(&self) -> u64 {
+        u64::from_be_bytes(self.ending_lba) - self.first_block() + 1
+    }
+
+    pub const fn first_block(&self) -> u64 {
+        u64::from_be_bytes(self.starting_lba)
+    }
+
+    pub const fn is_firmware(&self) -> bool {
         u64::from_le_bytes(self.attributes) & 1 == 1
-    }
-}
-
-impl Partition for GptPartitionDescriptor {
-    fn first_block(&self) -> u64 {
-        u64::from_le_bytes(self.starting_lba)
-    }
-
-    fn block_count(&self) -> u64 {
-        u64::from_le_bytes(self.ending_lba) - self.first_block() + 1
     }
 }

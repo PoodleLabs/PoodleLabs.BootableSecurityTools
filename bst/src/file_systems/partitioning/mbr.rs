@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::Partition;
 use core::mem::size_of;
 
 #[repr(C)]
@@ -82,15 +81,13 @@ impl MbrPartitionTableEntry {
     pub const fn is_empty(&self) -> bool {
         self.partition_type.0 == MbrPartitionType::BLANK.0
     }
-}
 
-impl Partition for MbrPartitionTableEntry {
-    fn first_block(&self) -> u64 {
-        u32::from_le_bytes(self.lba_offset) as u64
+    pub const fn first_block(&self) -> u32 {
+        u32::from_le_bytes(self.lba_offset)
     }
 
-    fn block_count(&self) -> u64 {
-        u32::from_le_bytes(self.lba_size) as u64
+    pub const fn block_count(&self) -> u32 {
+        u32::from_le_bytes(self.lba_size)
     }
 }
 

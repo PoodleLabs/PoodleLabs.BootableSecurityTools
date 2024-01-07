@@ -18,9 +18,3 @@ mod gpt;
 mod mbr;
 
 pub mod partition_iterator;
-
-pub trait Partition {
-    fn first_block(&self) -> u64;
-
-    fn block_count(&self) -> u64;
-}
