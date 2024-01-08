@@ -29,7 +29,7 @@ pub enum FileSizeUnit {
 }
 
 impl FileSizeUnit {
-    pub const fn suffix(&self) -> String16<'static> {
+    pub const fn suffix_16(&self) -> String16<'static> {
         match self {
             FileSizeUnit::Bytes => s16!("B"),
             FileSizeUnit::Kilobytes => s16!("KB"),
@@ -38,6 +38,18 @@ impl FileSizeUnit {
             FileSizeUnit::Terabytes => s16!("TB"),
             FileSizeUnit::Petabytes => s16!("PB"),
             FileSizeUnit::Exabytes => s16!("EB"),
+        }
+    }
+
+    pub const fn suffix_32(&self) -> &str {
+        match self {
+            FileSizeUnit::Bytes => "B",
+            FileSizeUnit::Kilobytes => "KB",
+            FileSizeUnit::Megabytes => "MB",
+            FileSizeUnit::Gigabytes => "GB",
+            FileSizeUnit::Terabytes => "TB",
+            FileSizeUnit::Petabytes => "PB",
+            FileSizeUnit::Exabytes => "EB",
         }
     }
 }

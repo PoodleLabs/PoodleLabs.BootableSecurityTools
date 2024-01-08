@@ -34,22 +34,29 @@ enum PartitionArrayType {
 }
 
 pub enum PartitionDescription {
-    MbrPartition((u64, u64)),
-    GptPartition((u64, u64)),
+    MbrPartition((u64, u64, u64)),
+    GptPartition((u64, u64, u64)),
 }
 
 impl PartitionDescription {
     pub const fn first_block(&self) -> u64 {
         match self {
-            PartitionDescription::MbrPartition((b, _)) => *b,
-            PartitionDescription::GptPartition((b, _)) => *b,
+            PartitionDescription::MbrPartition((b, _, _)) => *b,
+            PartitionDescription::GptPartition((b, _, _)) => *b,
         }
     }
 
     pub const fn block_count(&self) -> u64 {
         match self {
-            PartitionDescription::MbrPartition((_, c)) => *c,
-            PartitionDescription::GptPartition((_, c)) => *c,
+            PartitionDescription::MbrPartition((_, c, _)) => *c,
+            PartitionDescription::GptPartition((_, c, _)) => *c,
+        }
+    }
+
+    pub const fn block_size(&self) -> u64 {
+        match self {
+            PartitionDescription::MbrPartition((_, _, s)) => *s,
+            PartitionDescription::GptPartition((_, _, s)) => *s,
         }
     }
 }
@@ -59,6 +66,7 @@ pub struct PartitionIterator<'a> {
     partition_array_bytes: Vec<u8>,
     entry_size: usize,
     next_index: usize,
+    block_size: u64,
 }
 
 impl<'a> PartitionIterator<'a> {
@@ -119,7 +127,12 @@ impl<'a> PartitionIterator<'a> {
 
                     // Trim the MBR signature off the end of the buffer.
                     buffer.resize(size_of::<MbrPartitionTableEntry>() * 4, 0);
-                    Some(Self::from(t, buffer, size_of::<MbrPartitionTableEntry>()))
+                    Some(Self::from(
+                        t,
+                        buffer,
+                        size_of::<MbrPartitionTableEntry>(),
+                        block_size as u64,
+                    ))
                 }
                 PartitionArrayType::Gpt(partition_table_header_block) => {
                     // Resize the buffer to read the GPT header table.
@@ -172,7 +185,12 @@ impl<'a> PartitionIterator<'a> {
                         return None;
                     }
 
-                    Some(Self::from(t, buffer, partition_description_size))
+                    Some(Self::from(
+                        t,
+                        buffer,
+                        partition_description_size,
+                        block_size as u64,
+                    ))
                 }
             },
             None => None,
@@ -187,6 +205,7 @@ impl<'a> PartitionIterator<'a> {
         partition_array_type: PartitionArrayType,
         partition_array_bytes: Vec<u8>,
         entry_size: usize,
+        block_size: u64,
     ) -> Self {
         Self {
             iterator_method: match partition_array_type {
@@ -196,6 +215,7 @@ impl<'a> PartitionIterator<'a> {
             partition_array_bytes,
             next_index: 0,
             entry_size,
+            block_size,
         }
     }
 
@@ -224,6 +244,7 @@ impl<'a> PartitionIterator<'a> {
             Some(p) => Some(PartitionDescription::GptPartition((
                 p.first_block(),
                 p.block_count(),
+                self.block_size,
             ))),
             None => None,
         }
@@ -234,6 +255,7 @@ impl<'a> PartitionIterator<'a> {
             Some(p) => Some(PartitionDescription::MbrPartition((
                 p.first_block() as u64,
                 p.block_count() as u64,
+                self.block_size,
             ))),
             None => None,
         }

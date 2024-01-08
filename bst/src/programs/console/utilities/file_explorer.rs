@@ -23,8 +23,8 @@ use crate::{
         },
         fat::{self, Fat12FileSystemReader, Fat16FileSystemReader, Fat32FileSystemReader},
         partitioning::partition_iterator::{PartitionDescription, PartitionIterator},
+        FileSize,
     },
-    integers::NumericBase,
     programs::{Program, ProgramExitResult},
     system_services::SystemServices,
     ui::{
@@ -46,6 +46,113 @@ pub struct FileExplorerProgram<TSystemServices: SystemServices> {
 impl<TSystemServices: SystemServices> FileExplorerProgram<TSystemServices> {
     pub const fn from(system_services: TSystemServices) -> Self {
         Self { system_services }
+    }
+
+    fn select_partition<TBlockDevice: BlockDevice>(
+        &self,
+        partitions: Box<[PartitionDescription]>,
+        block_device: &mut TBlockDevice,
+    ) {
+        if partitions.len() == 0 {
+            self.system_services
+                .get_console_out()
+                .line_start()
+                .new_line()
+                .in_colours(constants::ERROR_COLOURS, |c| {
+                    c.output_utf16_line(s16!("The selected device has no partitions."))
+                });
+        }
+
+        let mut partition_list = ConsoleUiList::from(
+            ConsoleUiTitle::from(s16!("Partitions"), constants::SMALL_TITLE),
+            constants::SELECT_LIST,
+            &partitions[..],
+        );
+
+        loop {
+            match partition_list.prompt_for_selection(&self.system_services) {
+                Some((p, _, _)) => {
+                    self.open_block_device(&mut BlockDevicePartition::from(
+                        block_device,
+                        p.first_block(),
+                        p.block_count(),
+                    ));
+                }
+                None => todo!(),
+            }
+        }
+    }
+
+    fn open_block_device<TBlockDevice: BlockDevice>(&self, block_device: &mut TBlockDevice) {
+        match fat::try_read_volume_cluster_parameters(block_device) {
+            Some((fat_variant, volume_parameters)) => {
+                let skip_hidden_files = ConsoleUiConfirmationPrompt::from(&self.system_services)
+                    .prompt_for_confirmation(s16!("Skip hidden files while exploring?"));
+
+                self.open_fat_filesystem(volume_parameters, fat_variant, skip_hidden_files);
+            }
+            None => {
+                self.system_services
+                    .get_console_out()
+                    .in_colours(constants::ERROR_COLOURS, |c| {
+                        c.line_start().new_line().output_utf16_line(s16!(
+                            "The selected block device does not appear to have a FAT filesystem."
+                        ))
+                    });
+            }
+        };
+    }
+
+    fn open_fat_filesystem<TBlockDevice: BlockDevice>(
+        &self,
+        volume_parameters: fat::VolumeParameters<'_, TBlockDevice>,
+        fat_variant: fat::Variant,
+        skip_hidden_files: bool,
+    ) {
+        match fat_variant {
+            fat::Variant::Fat12 => self.explore_fat_filesystem(&mut Fat12FileSystemReader::from(
+                volume_parameters,
+                skip_hidden_files,
+            )),
+            fat::Variant::Fat16 => self.explore_fat_filesystem(&mut Fat16FileSystemReader::from(
+                volume_parameters,
+                skip_hidden_files,
+            )),
+            fat::Variant::Fat32 => self.explore_fat_filesystem(&mut Fat32FileSystemReader::from(
+                volume_parameters,
+                skip_hidden_files,
+            )),
+        };
+    }
+
+    fn explore_fat_filesystem<
+        'a,
+        TBlockDevice: 'a + BlockDevice,
+        TFileSystemReader: fat::FileSystemReader<'a, TBlockDevice>,
+    >(
+        &self,
+        filesystem_reader: &'a mut TFileSystemReader,
+    ) {
+        self.explore_directory::<TFileSystemReader::FatEntry, TBlockDevice, _>(
+            filesystem_reader.iter_root_directory_entries(),
+        )
+    }
+
+    fn explore_directory<
+        'a,
+        TMapEntry: fat::clustering::map::Entry,
+        TBlockDevice: 'a + BlockDevice,
+        TChildIterator: fat::objects::directories::ChildIterator<'a>,
+    >(
+        &self,
+        child_iterator: TChildIterator,
+    ) {
+        let console = &self.system_services.get_console_out();
+        console
+            .line_start()
+            .new_line()
+            .output_utf16_line(s16!("Exploration has not been implemented yet."));
+        ConsoleUiContinuePrompt::from(&self.system_services).prompt_for_continue();
     }
 }
 
@@ -105,12 +212,7 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
                 match PartitionIterator::try_from(&mut block_device) {
                     Some(p) => {
                         // We read a partition table; ask the user to select a partition.
-                        select_partition(
-                            Box::from_iter(p),
-                            &self.system_services,
-                            &mut block_device,
-                        );
-
+                        self.select_partition(Box::from_iter(p), &mut block_device);
                         continue;
                     }
                     None => { /* It may be a SFD device; fall through.*/ }
@@ -118,110 +220,9 @@ impl<TSystemServices: SystemServices> Program for FileExplorerProgram<TSystemSer
             }
 
             // Attempt to open the block device without any partitioning.
-            open_block_device(&self.system_services, &mut block_device)
+            self.open_block_device(&mut block_device)
         }
     }
-}
-
-fn select_partition<TBlockDevice: BlockDevice, TSystemServices: SystemServices>(
-    partitions: Box<[PartitionDescription]>,
-    system_services: &TSystemServices,
-    block_device: &mut TBlockDevice,
-) {
-    if partitions.len() == 0 {
-        system_services
-            .get_console_out()
-            .line_start()
-            .new_line()
-            .in_colours(constants::ERROR_COLOURS, |c| {
-                c.output_utf16_line(s16!("The selected device has no partitions."))
-            });
-    }
-
-    let mut partition_list = ConsoleUiList::from(
-        ConsoleUiTitle::from(s16!("Partitions"), constants::SMALL_TITLE),
-        constants::SELECT_LIST,
-        &partitions[..],
-    );
-
-    loop {
-        match partition_list.prompt_for_selection(system_services) {
-            Some((p, _, _)) => {
-                open_block_device(
-                    system_services,
-                    &mut BlockDevicePartition::from(block_device, p.first_block(), p.block_count()),
-                );
-            }
-            None => todo!(),
-        }
-    }
-}
-
-fn open_block_device<TBlockDevice: BlockDevice, TSystemServices: SystemServices>(
-    system_services: &TSystemServices,
-    block_device: &mut TBlockDevice,
-) {
-    match fat::try_read_volume_cluster_parameters(block_device) {
-        Some((fat_variant, volume_parameters)) => {
-            let skip_hidden_files = ConsoleUiConfirmationPrompt::from(system_services)
-                .prompt_for_confirmation(s16!("Skip hidden files while exploring?"));
-
-            open_fat_filesystem(
-                volume_parameters,
-                system_services,
-                fat_variant,
-                skip_hidden_files,
-            );
-        }
-        None => {
-            system_services
-                .get_console_out()
-                .in_colours(constants::ERROR_COLOURS, |c| {
-                    c.line_start().new_line().output_utf16_line(s16!(
-                        "The selected block device does not appear to have a FAT filesystem."
-                    ))
-                });
-        }
-    };
-}
-
-fn open_fat_filesystem<TBlockDevice: BlockDevice, TSystemServices: SystemServices>(
-    volume_parameters: fat::VolumeParameters<'_, TBlockDevice>,
-    system_services: &TSystemServices,
-    fat_variant: fat::Variant,
-    skip_hidden_files: bool,
-) {
-    match fat_variant {
-        fat::Variant::Fat12 => explore_fat_filesystem(
-            Fat12FileSystemReader::from(volume_parameters, skip_hidden_files),
-            system_services,
-        ),
-        fat::Variant::Fat16 => explore_fat_filesystem(
-            Fat16FileSystemReader::from(volume_parameters, skip_hidden_files),
-            system_services,
-        ),
-        fat::Variant::Fat32 => explore_fat_filesystem(
-            Fat32FileSystemReader::from(volume_parameters, skip_hidden_files),
-            system_services,
-        ),
-    };
-}
-
-fn explore_fat_filesystem<
-    'a,
-    TBlockDevice: 'a + BlockDevice,
-    TFileSystemReader: fat::FileSystemReader<'a, TBlockDevice>,
-    TSystemServices: SystemServices,
->(
-    _filesystem_reader: TFileSystemReader,
-    system_services: &TSystemServices,
-) {
-    let console = system_services.get_console_out();
-    console
-        .line_start()
-        .new_line()
-        .output_utf16_line(s16!("Exploration has not been implemented yet."));
-    ConsoleUiContinuePrompt::from(system_services).prompt_for_continue();
 }
 
 impl<THandle: Copy> ConsoleWriteable for BlockDeviceDescription<THandle> {
@@ -235,21 +236,7 @@ impl<THandle: Copy> ConsoleWriteable for BlockDeviceDescription<THandle> {
             console.output_utf16(s16!("Read-Only "));
         }
 
-        let byte_count = self.block_count() * self.block_size() as u64;
-        let (size, size_word) = if byte_count > 1000000000000 {
-            (byte_count as f64 / 1000000000000f64, s16!("TB"))
-        } else if byte_count > 1000000000 {
-            (byte_count as f64 / 1000000000f64, s16!("GB"))
-        } else if byte_count > 1000000 {
-            (byte_count as f64 / 1000000f64, s16!("MB"))
-        } else if byte_count > 1000 {
-            (byte_count as f64 / 1000f64, s16!("KB"))
-        } else {
-            (byte_count as f64, s16!("B"))
-        };
-
-        console.output_utf32(&format!("{:.1}\0", size));
-        console.output_utf16(size_word);
+        FileSize::from_bytes(self.block_count() * self.block_size() as u64).write_to(console);
         console.output_utf16(s16!(" "));
 
         console.output_utf16(match self.device_type() {
@@ -262,14 +249,31 @@ impl<THandle: Copy> ConsoleWriteable for BlockDeviceDescription<THandle> {
 
 impl ConsoleWriteable for PartitionDescription {
     fn write_to<T: ConsoleOut>(&self, console: &T) {
-        console.output_utf16(s16!("Partition @"));
-        console.output_utf16(String16::from(
-            &NumericBase::BASE_10.build_string_from_bytes(&self.first_block().to_be_bytes(), true),
+        let block_size = self.block_size();
+        let partition_size = FileSize::from_bytes(self.block_count() * block_size);
+        let partition_start = FileSize::from_bytes(self.first_block() * block_size);
+
+        let preferred_unit = partition_size
+            .preferred_unit()
+            .min(partition_start.preferred_unit());
+        let suffix = preferred_unit.suffix_32();
+        console.output_utf32(&format!(
+            "Partition {:.1}{}:+{:.1}{}\0",
+            partition_start.in_units(preferred_unit),
+            suffix,
+            partition_start.in_units(preferred_unit),
+            suffix,
         ));
-        console.output_utf16(s16!(" ("));
-        console.output_utf16(String16::from(
-            &NumericBase::BASE_10.build_string_from_bytes(&self.block_count().to_be_bytes(), true),
+    }
+}
+
+impl ConsoleWriteable for FileSize {
+    fn write_to<T: ConsoleOut>(&self, console: &T) {
+        let preferred_unit = self.preferred_unit();
+        console.output_utf32(&format!(
+            "{:.1}{}\0",
+            self.in_units(preferred_unit),
+            preferred_unit.suffix_32()
         ));
-        console.output_utf16(s16!(" blocks)"));
     }
 }

@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mod clustering;
+pub mod clustering;
+pub mod objects;
+
 mod naming;
-mod objects;
 mod raw_layout;
 mod timekeeping;
 
