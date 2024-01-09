@@ -16,7 +16,7 @@
 
 use super::FileSize;
 use crate::bits::bit_field;
-use alloc::vec::Vec;
+use alloc::boxed::Box;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FileSystemObjectAttributes(u8);
@@ -65,7 +65,7 @@ pub struct FileSystemObject {
     attributes: FileSystemObjectAttributes,
     created: FileSystemObjectDateTime,
     object_type: FileSystemObjectType,
-    name: Vec<u16>,
+    name: Box<[u16]>,
     start: u64,
 }
 
@@ -75,7 +75,7 @@ impl FileSystemObject {
         attributes: FileSystemObjectAttributes,
         created: FileSystemObjectDateTime,
         object_type: FileSystemObjectType,
-        name: Vec<u16>,
+        name: Box<[u16]>,
         start: u64,
     ) -> Self {
         Self {

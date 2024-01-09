@@ -32,6 +32,8 @@ pub enum FileReadResult {
 }
 
 pub trait FileSystemReader {
+    fn volume_label(&self) -> Option<Box<[u16]>>;
+
     fn root_objects(&self) -> Box<[FileSystemObject]>;
 
     fn read_directory_objects(&self, directory: &FileSystemObject) -> DirectoryReadResult;

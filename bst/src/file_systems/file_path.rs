@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FilePathPart {
     description_address: Option<u64>,
-    content: Vec<u16>,
+    content: Box<[u16]>,
 }
 
 impl FilePathPart {
-    pub const fn from(description_address: Option<u64>, content: Vec<u16>) -> Self {
+    pub const fn from(description_address: Option<u64>, content: Box<[u16]>) -> Self {
         Self {
             description_address,
             content,
