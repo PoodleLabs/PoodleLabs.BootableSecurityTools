@@ -14,15 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod block_device;
-pub mod fat;
-pub mod partitioning;
+use super::FileSystemObject;
+use alloc::boxed::Box;
 
-mod file_path;
-mod file_size;
-mod file_system_object;
-mod file_system_reader;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DirectoryReadResult {
+    NotFound,
+    NotADirectory,
+    Success(Box<[FileSystemObject]>),
+}
 
-pub use file_path::{FilePath, FilePathPart};
-pub use file_size::{FileSize, FileSizeUnit};
-pub use file_system_object::{FileSystemObject, FileSystemObjectAttributes, FileSystemObjectType};
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileReadResult {
+    NotFound,
+    NotAFile,
+    Success(u64, bool),
+}
+
+pub trait FileSystemReader {
+    fn root_objects(&self) -> Box<[FileSystemObject]>;
+
+    fn read_directory_objects(&self, directory: &FileSystemObject) -> DirectoryReadResult;
+
+    fn read_file_content(&self, file: &FileSystemObject, buffer: &mut [u8]) -> FileReadResult;
+}

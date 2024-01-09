@@ -58,7 +58,7 @@ pub enum FileSystemObjectType {
     File(u64),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileSystemObject {
     last_modified: Option<FileSystemObjectDateTime>,
     attributes: FileSystemObjectAttributes,
