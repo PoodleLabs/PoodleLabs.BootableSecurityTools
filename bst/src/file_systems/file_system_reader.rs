@@ -36,6 +36,8 @@ pub trait FileSystemReader {
 
     fn root_objects(&self) -> Box<[FileSystemObject]>;
 
+    fn read_description_at(&self, address: u64) -> Option<FileSystemObject>;
+
     fn read_directory_objects(&self, directory: &FileSystemObject) -> DirectoryReadResult;
 
     fn read_file_content(&self, file: &FileSystemObject, buffer: &mut [u8]) -> FileReadResult;
