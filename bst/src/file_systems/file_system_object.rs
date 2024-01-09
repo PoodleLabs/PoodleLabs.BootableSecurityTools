@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use super::FileSize;
 use crate::bits::bit_field;
 use alloc::vec::Vec;
 
@@ -55,7 +56,7 @@ impl FileSystemObjectDateTime {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FileSystemObjectType {
     Directory,
-    File(u64),
+    File(FileSize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
