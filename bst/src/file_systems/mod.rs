@@ -19,5 +19,7 @@ pub mod fat;
 pub mod partitioning;
 
 mod file_size;
+mod file_system_object;
 
 pub use file_size::{FileSize, FileSizeUnit};
+pub use file_system_object::{FileSystemObject, FileSystemObjectAttributes, FileSystemObjectType};
