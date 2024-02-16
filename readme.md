@@ -1,3 +1,5 @@
+**NOTE: PoodleLabs is moving homes to a self-hosted GitHub alternative; these repositories have been left up for posterity, and will not be updated**
+
 # Poodle Labs' Bootable Security Tools
 
 **WARNING: THESE TOOLS ARE NOT YET READY FOR PRODUCTION USE. BUGS ALMOST CERTAINLY EXIST. SECURITY FLAWS MAY EXIST. USE OUTSIDE OF A DEVELOPMENT & TESTING CONTEXT AT YOUR OWN RISK.**
